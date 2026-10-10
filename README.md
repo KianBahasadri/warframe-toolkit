@@ -59,10 +59,10 @@ Search names and notes, filter by era or refinement, and sort columns. **Export 
 
 ## Screenshot import
 
-1. Open **Screenshot import** and choose Inventory or Arsenal.
+1. Open **Import screenshots** and choose Inventory or Arsenal.
 2. Drop, paste, or browse for up to 10 English PNG, JPG, or WebP screenshots, each below 20 MB and 32 megapixels.
 3. Text recognition starts automatically. Review matched names, ownership, mastery, and rank before importing.
-4. Correct a matched name with its dropdown, deselect unwanted results, and save the selected rows.
+4. Correct a matched name with its dropdown, deselect unwanted results, and import the selected rows. Expand **Screenshot preview** to compare them with the source image.
 
 The reader uses [Tesseract.js](https://github.com/naptha/tesseract.js) entirely in the browser with a bundled English model. It matches names against the 805 bundled equipment names in the weapon database. `npm run catalog:update` refreshes that snapshot and its licenses; it never modifies your saved inventory.
 

@@ -45,15 +45,23 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await page.getByLabel('Notes', { exact: true }).fill('Important crafting note');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  const savedBeforeReview = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
   await page.getByLabel('Choose screenshots').setInputFiles({ name: 'inventory-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
-  await expect(page.getByRole('heading', { name: 'Ready for your review' })).toBeVisible({ timeout: 60000 });
+  await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
   await expect(page.getByLabel('Import Braton Prime', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Import Wisp Prime', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).not.toBeChecked();
   await expect(page.getByLabel('Mastered: Boltor', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Import Lex Prime', { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(savedBeforeReview);
+  await page.getByRole('button', { name: 'Deselect all' }).click();
+  await expect(page.getByRole('button', { name: 'Import 0 items' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Select all' }).click();
+  await page.getByText('Screenshot preview', { exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Import source: inventory-test.png' })).toBeVisible();
+  await page.getByText('Screenshot preview', { exact: true }).click();
   await page.screenshot({ path: 'test-results/import-review.png', fullPage: true });
   await page.getByRole('button', { name: 'Import 3 items' }).click();
   await expect(page.getByText('1 added · 2 updated').first()).toBeVisible();
@@ -219,7 +227,11 @@ test('canceling OCR releases the importer for another batch', async ({ page }) =
   await page.getByRole('button', { name: 'Cancel reading' }).click();
   await expect(page.getByText('Reading canceled.', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Drop your screenshots here', exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false })).toBeVisible();
+  await page.getByLabel('Screenshots from').selectOption('arsenal');
+  await page.getByLabel('Choose screenshots').setInputFiles({ name: 'retry-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
+  await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
+  await expect(page.getByLabel('Owned: Braton Prime', { exact: true })).not.toBeChecked();
 });
 
 test('unreadable saved data is preserved and failed saves remain visible', async ({ page }) => {

@@ -125,7 +125,7 @@ export default function App() {
           const current = inventoryRef.current;
           commit({ ...current, relics: (current.relics ?? []).map(relic => relic.id === id ? { ...relic, quantity: Math.max(0, Math.min(MAX_RELIC_QUANTITY, relic.quantity + change)), updatedAt: new Date().toISOString() } : relic) });
         }} />}
-        {page === 'import' && <ScreenshotImport items={inventory.items} history={inventory.imports} onInventory={() => navigate('weapons')} onImport={(observations, files) => { const merged = mergeObservations(inventoryRef.current.items, observations); const next = { ...inventoryRef.current, items: merged.items, imports: [{ id: crypto.randomUUID(), date: new Date().toISOString(), files, added: merged.added, updated: merged.updated }, ...inventoryRef.current.imports].slice(0, 100) }; return commit(next) ? { added: merged.added, updated: merged.updated } : null; }} />}
+        {page === 'import' && <ScreenshotImport onInventory={() => navigate('weapons')} onImport={(observations, files) => { const merged = mergeObservations(inventoryRef.current.items, observations); const next = { ...inventoryRef.current, items: merged.items, imports: [{ id: crypto.randomUUID(), date: new Date().toISOString(), files, added: merged.added, updated: merged.updated }, ...inventoryRef.current.imports].slice(0, 100) }; return commit(next) ? { added: merged.added, updated: merged.updated } : null; }} />}
         {page === 'backups' && <Backups inventory={inventory} onRestore={data => commit(data, true)} />}
       </main>
     </div>
