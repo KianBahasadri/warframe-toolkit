@@ -105,6 +105,62 @@ test('navigation, dialogs, and tables fit narrow screens and support keyboard us
   await expect(page.getByRole('button', { name: 'Add relic', exact: true })).toBeFocused();
 });
 
+test('dropdowns support keyboard selection and relic suggestions preserve manual entry', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await page.getByLabel('Filter by slot').focus();
+  await page.keyboard.press('Space');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Filter by slot')).toHaveValue('Amp');
+  await page.getByRole('link', { name: 'Relics', exact: true }).click();
+  await page.getByRole('button', { name: 'Add relic', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add relic' });
+  const name = dialog.getByRole('combobox', { name: 'Relic name', exact: true });
+  await name.fill('Lith A');
+  await name.press('ArrowDown');
+  await name.press('ArrowDown');
+  await expect(page.getByRole('listbox', { name: 'Matching relics' }).getByRole('option', { selected: true })).toHaveText('Lith A2');
+  await name.press('Enter');
+  await expect(name).toHaveValue('Lith A2');
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await name.fill('Lith A');
+  await page.getByRole('option', { name: 'Lith A3', exact: true }).click();
+  await expect(name).toHaveValue('Lith A3');
+  await name.fill('Lith A');
+  await name.press('Escape');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(name).toHaveValue('Lith A');
+  await page.setViewportSize({ width: 320, height: 720 });
+  await name.click();
+  await name.press('ArrowUp');
+  const suggestions = page.getByRole('listbox', { name: 'Matching relics' });
+  await expect(suggestions.getByRole('option').last()).toHaveAttribute('aria-selected', 'true');
+  await expect(suggestions.getByRole('option').last()).toBeInViewport();
+  const bounds = await suggestions.boundingBox();
+  expect(bounds && bounds.x >= 0 && bounds.x + bounds.width <= 320 && bounds.y >= 0 && bounds.y + bounds.height <= 720).toBe(true);
+  await name.press('Tab');
+  await expect(suggestions).toHaveCount(0);
+  await name.fill('Lith ZZ999');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  const refinement = dialog.getByRole('combobox', { name: 'Refinement', exact: true });
+  await refinement.focus();
+  await page.keyboard.press('Space');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(refinement).toHaveValue('Exceptional');
+  await refinement.click();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Edit Lith ZZ999 Exceptional', exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('relic refinements and quantity edits persist without changing an older equipment save', async ({ page }) => {
   await page.goto('/');
   const originalItems = await page.evaluate(() => {

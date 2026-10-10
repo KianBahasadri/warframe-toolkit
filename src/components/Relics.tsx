@@ -1,9 +1,81 @@
-import { useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowDownToLine, ArrowUp, Minus, Plus, Search } from 'lucide-react';
 import { Dialog } from './Dialog';
 import relicCatalog from '../data/relics.json';
 import { createRelic, MAX_RELIC_QUANTITY, parseRelicName, refinements, relicEras, relicKey } from '../lib/relics';
 import type { Relic, Refinement } from '../lib/relics';
+
+function RelicNameInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const id = useId();
+  const input = useRef<HTMLInputElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const matches = relicCatalog.names.filter(name => name.toLowerCase().includes(value.trim().toLowerCase()));
+  const expanded = open && matches.length > 0;
+  const choose = (name: string) => { onChange(name); setOpen(false); setActive(-1); };
+  useLayoutEffect(() => {
+    const menu = list.current;
+    if (!expanded || !menu) return;
+    menu.showPopover();
+    const position = () => {
+      const field = input.current!.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportHeight = viewport?.height ?? innerHeight;
+      const viewportWidth = viewport?.width ?? innerWidth;
+      const below = viewportTop + viewportHeight - field.bottom - 8;
+      const above = field.top - viewportTop - 8;
+      const desiredHeight = Math.min(320, viewportHeight / 2, menu.scrollHeight + 2);
+      const opensAbove = below < desiredHeight && above > below;
+      const height = Math.max(0, Math.min(desiredHeight, opensAbove ? above : below));
+      const width = Math.min(field.width, viewportWidth - 16);
+      Object.assign(menu.style, {
+        width: `${width}px`, maxHeight: `${height}px`,
+        left: `${Math.max(viewportLeft + 8, Math.min(field.left, viewportLeft + viewportWidth - width - 8))}px`,
+        top: `${opensAbove ? field.top - height - 4 : field.bottom + 4}px`,
+      });
+    };
+    position();
+    window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, true);
+    window.visualViewport?.addEventListener('resize', position);
+    window.visualViewport?.addEventListener('scroll', position);
+    return () => {
+      window.removeEventListener('resize', position);
+      window.removeEventListener('scroll', position, true);
+      window.visualViewport?.removeEventListener('resize', position);
+      window.visualViewport?.removeEventListener('scroll', position);
+      menu.hidePopover();
+    };
+  }, [expanded, matches.length]);
+  useEffect(() => {
+    if (expanded && active >= 0) list.current?.children[active]?.scrollIntoView({ block: 'nearest' });
+  }, [active, expanded]);
+  return <div className="form-field span-2">
+    <label htmlFor={id}>Relic name</label>
+    <div className="autocomplete">
+      <input ref={input} id={id} autoFocus value={value} placeholder="Lith A1" maxLength={40} required autoComplete="off" role="combobox" aria-autocomplete="list" aria-expanded={expanded} aria-controls={expanded ? `${id}-list` : undefined} aria-activedescendant={expanded && active >= 0 ? `${id}-${active}` : undefined}
+        onChange={event => { onChange(event.target.value); setActive(-1); setOpen(Boolean(event.target.value.trim())); }}
+        onFocus={() => { setOpen(Boolean(value.trim())); setActive(-1); }} onClick={() => setOpen(Boolean(value.trim()))} onBlur={() => setOpen(false)}
+        onKeyDown={event => {
+          if (event.nativeEvent.isComposing) return;
+          if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && matches.length) {
+            event.preventDefault(); setOpen(true);
+            setActive(!expanded || active < 0 ? event.key === 'ArrowDown' ? 0 : matches.length - 1 : Math.max(0, Math.min(matches.length - 1, active + (event.key === 'ArrowDown' ? 1 : -1))));
+          } else if (event.key === 'Enter' && expanded && active >= 0) {
+            event.preventDefault(); choose(matches[active]);
+          } else if (event.key === 'Escape' && expanded) {
+            event.preventDefault(); event.stopPropagation(); setOpen(false); setActive(-1);
+          }
+        }} />
+      {expanded && <ul id={`${id}-list`} ref={list} popover="manual" className="suggestion-list" role="listbox" aria-label="Matching relics">
+        {matches.map((name, index) => <li key={name} id={`${id}-${index}`} role="option" aria-selected={active === index} onPointerDown={event => event.preventDefault()} onClick={() => choose(name)}>{name}</li>)}
+      </ul>}
+    </div>
+  </div>;
+}
 
 function RelicForm({ item, existing, onSave, onDelete, onClose }: { item?: Relic; existing: Relic[]; onSave: (item: Relic) => boolean; onDelete: (id: string) => boolean; onClose: () => void }) {
   const [draft, setDraft] = useState<Relic>(() => item ? { ...item } : createRelic());
@@ -21,8 +93,7 @@ function RelicForm({ item, existing, onSave, onDelete, onClose }: { item?: Relic
       onClose();
     }}>
       <div className="form-grid">
-        <label className="span-2">Relic name<input autoFocus list="relic-names" value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} placeholder="Lith A1" maxLength={40} required autoComplete="off" /></label>
-        <datalist id="relic-names">{relicCatalog.names.map(name => <option key={name} value={name} />)}</datalist>
+        <RelicNameInput value={draft.name} onChange={name => setDraft({ ...draft, name })} />
         <label>Refinement<select value={draft.refinement} onChange={event => setDraft({ ...draft, refinement: event.target.value as Refinement })}>{refinements.map(value => <option key={value}>{value}</option>)}</select></label>
         <label>Quantity<input type="number" min={0} max={MAX_RELIC_QUANTITY} step={1} required value={Number.isNaN(draft.quantity) ? '' : draft.quantity} onChange={event => setDraft({ ...draft, quantity: event.target.value === '' ? NaN : Number(event.target.value) })} /></label>
         <div className="form-field span-2"><label htmlFor="relic-notes">Notes</label><textarea id="relic-notes" rows={3} value={draft.notes} onChange={event => setDraft({ ...draft, notes: event.target.value })} maxLength={5000} /></div>
