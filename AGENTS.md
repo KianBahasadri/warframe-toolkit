@@ -2,6 +2,7 @@
 
 Read `README.md` for setup, data semantics, and the code map.
 
+- Save completed work and useful checkpoints in local Git commits regularly, without waiting for the user to ask.
 - Keep the UI limited to useful controls and data. Do not add slogans, promotional headings, or decorative explanatory copy.
 - Keep the app usable locally without an API key or uploading screenshots.
 - Preserve the 14 original spreadsheet fields. Ownership, mastery, and current rank are separate facts.

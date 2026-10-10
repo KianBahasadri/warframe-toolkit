@@ -1,42 +1,56 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rename } from 'node:fs/promises';
+import { buildCatalog } from './build-catalog.mjs';
 
-const source = 'https://raw.githubusercontent.com/WFCD/warframe-items/master';
-const categories = ['Primary', 'Secondary', 'Melee', 'Warframes', 'Arch-Gun', 'Arch-Melee'];
-const lists = await Promise.all(categories.map(async category => {
-  const response = await fetch(`${source}/data/json/${category}.json`);
-  if (!response.ok) throw new Error(`Catalog download failed: ${category} (${response.status})`);
-  return response.json();
+async function fetchChecked(url) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(60000) });
+  if (!response.ok) throw new Error(`Download failed (${response.status}): ${url}`);
+  return response;
+}
+async function revision(repo, branch) {
+  const response = await fetchChecked(`https://api.github.com/repos/${repo}/commits/${branch}`);
+  const { sha } = await response.json();
+  if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error(`Invalid revision for ${repo}`);
+  return sha;
+}
+const wfcdRepo = 'WFCD/warframe-items';
+const gameRepo = 'calamity-inc/warframe-public-export-plus';
+const [wfcdRevision, gameRevision] = await Promise.all([revision(wfcdRepo, 'master'), revision(gameRepo, 'senpai')]);
+const wfcdRaw = `https://raw.githubusercontent.com/${wfcdRepo}/${wfcdRevision}`;
+const gameRaw = `https://raw.githubusercontent.com/${gameRepo}/${gameRevision}`;
+const categories = ['Primary', 'Secondary', 'Melee', 'Warframes', 'Arch-Gun', 'Arch-Melee', 'SentinelWeapons', 'Misc', 'Components', 'Resources'];
+const gameFiles = { weapons: 'ExportWeapons', recipes: 'ExportRecipes', resources: 'ExportResources', keys: 'ExportKeys', dictionary: 'dict.en', images: 'ExportImages' };
+const [lists, game, wfcdLicense, gameLicense] = await Promise.all([
+  Promise.all(categories.map(async category => [category, await (await fetchChecked(`${wfcdRaw}/data/json/${category}.json`)).json()])).then(Object.fromEntries),
+  Promise.all(Object.entries(gameFiles).map(async ([key, name]) => [key, await (await fetchChecked(`${gameRaw}/${name}.json`)).json()])).then(Object.fromEntries),
+  fetchChecked(`${wfcdRaw}/LICENSE`).then(r => r.text()), fetchChecked(`${gameRaw}/LICENSE`).then(r => r.text()),
+]);
+const sources = { wfcd: `https://github.com/${wfcdRepo}/tree/${wfcdRevision}`, game: `https://github.com/${gameRepo}/tree/${gameRevision}`, wfcdRaw };
+const items = buildCatalog(lists, game, sources);
+if (items.length < 700) throw new Error(`Unexpectedly small catalog: ${items.length}`);
+const images = [...new Map(items.map(item => [item.image, item.imageSource])).entries()];
+const previous = await readFile(new URL('../src/data/catalog.json', import.meta.url), 'utf8').then(text => new Map(JSON.parse(text).items.map(item => [item.image, item.imageSource]))).catch(() => new Map());
+await mkdir(new URL('../public/images/equipment/', import.meta.url), { recursive: true });
+let next = 0;
+let done = 0;
+await Promise.all(Array.from({ length: 8 }, async () => {
+  while (next < images.length) {
+    const [path, url] = images[next++];
+    const destination = new URL(`../public${path}`, import.meta.url);
+    const signature = Buffer.from([137,80,78,71,13,10,26,10]);
+    if (previous.get(path) === url && await readFile(destination).then(bytes => bytes.subarray(0, 8).equals(signature)).catch(() => false)) { done++; continue; }
+    const response = await fetchChecked(url);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.subarray(0, 8).equals(signature)) throw new Error(`Not a PNG: ${url}`);
+    const temp = new URL(`${destination.href}.tmp`);
+    await writeFile(temp, bytes); await rename(temp, destination);
+    if (++done % 100 === 0) console.log(`Downloaded ${done}/${images.length} equipment images.`);
+  }
 }));
-const all = lists.flat().filter(item => item.masterable !== false && item.uniqueName && item.name)
-  .map(item => ({ ...item, name: item.name.replace(/^mk1-/i, 'MK1-') }));
-const names = new Map(all.map(item => [item.uniqueName, item.name]));
-const targets = new Map();
-for (const item of all) for (const ingredient of item.components || []) {
-  const name = names.get(ingredient.uniqueName);
-  if (name && name !== item.name) targets.set(name, [...(targets.get(name) || []), item.name]);
-}
-function variant(name) {
-  if (/^MK1-/i.test(name)) return 'MK1';
-  return ['Prime', 'Umbra', 'Wraith', 'Vandal', 'Prisma', 'Kuva', 'Tenet', 'Dex', 'Coda'].find(v => name.split(' ').includes(v)) || 'Base';
-}
-const primeNames = new Set(all.filter(item => item.isPrime).map(item => item.name.replace(/ Prime$/, '')));
-const unique = new Map();
-for (const item of all) {
-  if (unique.has(item.name)) continue;
-  unique.set(item.name, {
-    id: item.uniqueName, name: item.name,
-    slot: item.category === 'Warframes' ? 'Warframe' : item.category === 'Arch-Gun' ? 'Archgun' : item.category === 'Arch-Melee' ? 'Archmelee' : item.category,
-    variant: variant(item.name), masteryReq: item.masteryReq || 0,
-    craftingTarget: [...new Set(targets.get(item.name) || [])].join(', '),
-    hasPrimeVariant: !item.isPrime && primeNames.has(item.name),
-    wikiUrl: `https://wiki.warframe.com/w/${encodeURIComponent(item.name.replaceAll(' ', '_'))}`,
-  });
-}
-const items = [...unique.values()].sort((a, b) => a.name.localeCompare(b.name));
 const out = new URL('../src/data/', import.meta.url);
 await mkdir(out, { recursive: true });
-await writeFile(new URL('catalog.json', out), JSON.stringify({ source: 'https://github.com/WFCD/warframe-items', retrievedAt: new Date().toISOString(), items }, null, 2) + '\n');
-const licenseResponse = await fetch(`${source}/LICENSE`);
-if (!licenseResponse.ok) throw new Error('Catalog license download failed');
-await writeFile(new URL('CATALOG-LICENSE.txt', out), await licenseResponse.text());
-console.log(`Saved ${items.length} equipment names and their crafting relationships.`);
+const data = { source: `https://github.com/${wfcdRepo}`, sources: [sources.wfcd, sources.game], retrievedAt: new Date().toISOString(), items };
+await writeFile(new URL('catalog.json.tmp', out), JSON.stringify(data, null, 2) + '\n');
+await rename(new URL('catalog.json.tmp', out), new URL('catalog.json', out));
+await writeFile(new URL('CATALOG-LICENSE.txt', out), wfcdLicense);
+await writeFile(new URL('GAME-EXPORT-LICENSE.txt', out), gameLicense);
+console.log(`Saved ${items.filter(x => x.slot !== 'Warframe').length} weapons, ${items.filter(x => x.slot === 'Warframe').length} Warframes, and ${images.length} local images.`);

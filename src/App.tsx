@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownToLine, Moon, Plus, ScanLine, Search, Sun, X } from 'lucide-react';
 import { InventoryTable } from './components/InventoryTable';
 import { EquipmentForm } from './components/EquipmentForm';
@@ -9,6 +9,8 @@ import { Commands } from './components/Commands';
 import type { Command } from './components/Commands';
 import { Dialog } from './components/Dialog';
 import { initialInventory } from './data/reference';
+import { catalog } from './data/catalog';
+import { editableRecord, equipmentRows, toggleEquipment } from './lib/weaponCatalog';
 import { mergeObservations } from './lib/model';
 import type { Equipment, Inventory } from './lib/model';
 import { downloadFile, inventoryCsv, parseBackup, relicsCsv, STORAGE_KEY } from './lib/storage';
@@ -68,7 +70,7 @@ export default function App() {
   }, [initial]);
   useEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem('arsenal.theme', theme); } catch { /* Inventory saving reports its own failures. */ } }, [theme]);
   const navigate = (destination: Page) => { setPage(destination); location.hash = destination; setSearch(''); };
-  const exportCsv = () => { downloadFile(`arsenal-inventory-${new Date().toISOString().slice(0, 10)}.csv`, inventoryCsv(inventoryRef.current.items), 'text/csv;charset=utf-8'); setNotice('Inventory CSV downloaded.'); };
+  const exportCsv = () => { downloadFile(`arsenal-inventory-${new Date().toISOString().slice(0, 10)}.csv`, inventoryCsv(equipmentRows(inventoryRef.current.items, catalog)), 'text/csv;charset=utf-8'); setNotice('Inventory CSV downloaded.'); };
   const exportRelics = () => { downloadFile(`arsenal-relics-${new Date().toISOString().slice(0, 10)}.csv`, relicsCsv(inventoryRef.current.relics ?? []), 'text/csv;charset=utf-8'); setNotice('Relics CSV downloaded.'); };
   const commands: Command[] = [
     { label: 'Add equipment', keys: ['Alt', 'N'], run: () => setEditing('new') },
@@ -98,7 +100,7 @@ export default function App() {
   const nav = <nav className="collection-nav" aria-label="Main navigation"><ul>
     {([{ key: 'weapons', icon: weaponsIcon }, { key: 'warframes', icon: warframesIcon }, { key: 'relics', icon: relicsIcon }] as const).map(({ key, icon }) => <li key={key}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={{ maskImage: `url(${icon})` }} /><span>{pageNames[key]}</span></a></li>)}
     </ul></nav>;
-  const visibleItems = inventory.items.filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe');
+  const visibleItems = useMemo(() => equipmentRows(inventory.items, catalog, page === 'weapons').filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe'), [inventory.items, page]);
   const isInventory = page === 'weapons' || page === 'warframes';
   return <div className="app-shell">
     <div className="content-shell"><header className="topbar">{nav}<div className="topbar-right"><div className="page-utilities"><button type="button" className="search-launcher" aria-label="Open search and commands" aria-keyshortcuts="Control+k Meta+k Control+Space" onClick={() => setPalette(true)}><Search size={15} /></button><button type="button" className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button></div></div></header>
@@ -107,12 +109,12 @@ export default function App() {
         {notice && <div className="callout info inline-notice" role="status"><span>{notice}</span><button type="button" className="icon-button" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => setNotice('')}><X size={16} /></button></div>}
         {isInventory && <>
           <section className="inventory-section" aria-labelledby="inventory-title">
-            <div className="section-heading"><h1 id="inventory-title">{pageNames[page]} <span className="count">{visibleItems.length}</span></h1><div className="inventory-actions">
+            <div className="section-heading"><h1 id="inventory-title">{pageNames[page]}</h1><div className="inventory-actions">
               <button type="button" className="button secondary" onClick={() => setEditing('new')}><Plus size={16} />Add equipment</button>
               <button type="button" className="button primary" onClick={() => navigate('import')}><ScanLine size={16} />Import screenshots</button>
               <button type="button" className="button quiet" onClick={exportCsv}><ArrowDownToLine size={15} />Export CSV</button>
             </div></div>
-            <InventoryTable items={visibleItems} search={search} setSearch={setSearch} onEdit={setEditing} onToggle={(item, field) => commit({ ...inventoryRef.current, items: inventoryRef.current.items.map(entry => entry.id === item.id ? { ...entry, [field]: !entry[field], updatedAt: new Date().toISOString() } : entry) })} />
+            <InventoryTable key={page} weapons={page === 'weapons'} items={visibleItems} search={search} setSearch={setSearch} onEdit={row => setEditing(editableRecord(row))} onToggle={(item, field) => commit({ ...inventoryRef.current, items: toggleEquipment(inventoryRef.current.items, item, field) })} />
           </section>
         </>}
         {page === 'relics' && <Relics relics={relics} onExport={exportRelics} onSave={relic => {

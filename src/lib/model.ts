@@ -1,8 +1,8 @@
 import type { Relic } from './relics.ts';
 
-export const slots = ['Primary', 'Secondary', 'Melee', 'Warframe', 'Archgun', 'Archmelee'] as const;
+export const slots = ['Primary', 'Secondary', 'Melee', 'Warframe', 'Archgun', 'Archmelee', 'Companion', 'Exalted', 'Kitgun', 'Amp'] as const;
 export type Slot = (typeof slots)[number];
-export const variants = ['Base', 'Prime', 'MK1', 'Umbra', 'Wraith', 'Vandal', 'Prisma', 'Kuva', 'Tenet', 'Dex', 'Coda', 'Other'] as const;
+export const variants = ['Base', 'Prime', 'MK1', 'Umbra', 'Wraith', 'Vandal', 'Prisma', 'Kuva', 'Tenet', 'Dex', 'Coda', 'Sancti', 'Secura', 'Synoid', 'Rakta', 'Vaykor', 'Telos', 'Mara', 'Other'] as const;
 export type Variant = (typeof variants)[number];
 export type Upgrade = 'Unknown' | 'Yes' | 'No';
 export type Override = 'None' | 'Keep' | "Don't keep";
@@ -16,6 +16,52 @@ export interface CatalogItem {
   craftingTarget: string;
   hasPrimeVariant: boolean;
   wikiUrl: string;
+  description?: string;
+  image?: string;
+  imageSource?: string;
+  weaponType?: string;
+  family?: string;
+  tags?: string[];
+  maxRank?: number;
+  masterable?: boolean;
+  vaulted?: boolean | null;
+  tradable?: boolean;
+  releaseDate?: string | null;
+  polarities?: string[];
+  craftingTargets?: { id: string; name: string; count: number }[];
+  recipes?: Recipe[];
+  incarnon?: IncarnonInfo;
+  quests?: QuestSource[];
+  acquisition?: string[];
+  market?: { credits: number | null; platinum: number | null; blueprintCredits: number | null };
+  stats?: Record<string, number | string>;
+  damage?: Record<string, number>;
+  attacks?: { name: string; stats: Record<string, number | string>; damage: Record<string, number> }[];
+  modular?: string | null;
+  sourceUrls?: string[];
+}
+
+export interface Recipe {
+  id: string;
+  name: string;
+  credits: number | null;
+  seconds: number | null;
+  quantity: number;
+  ingredients: { id: string; name: string; count: number; equipment: boolean; recipes?: Recipe[] }[];
+}
+
+export interface IncarnonInfo {
+  type: 'none' | 'native' | 'genesis';
+  name: string;
+  description: string;
+  installation: Recipe | null;
+  wikiUrl: string;
+}
+
+export interface QuestSource {
+  name: string;
+  kind: 'Weapon reward' | 'Blueprint reward';
+  url: string;
 }
 
 export interface Equipment {
@@ -60,14 +106,14 @@ export function normalizeName(value: string): string {
   return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-export function createEquipment(item: Pick<CatalogItem, 'name' | 'slot' | 'variant'> & Partial<CatalogItem>): Equipment {
+export function createEquipment(item: Pick<CatalogItem, 'name' | 'slot' | 'variant'> & Partial<CatalogItem>, overrides: Partial<Equipment> = {}): Equipment {
   return {
-    id: crypto.randomUUID(), name: item.name, slot: item.slot, variant: item.variant,
+    id: overrides.id ?? crypto.randomUUID(), name: item.name, slot: item.slot, variant: item.variant,
     owned: true, mastered: false, dontKeep: false,
     craftingIngredient: Boolean(item.craftingTarget), craftingTarget: item.craftingTarget || '',
-    incarnon: false, questWeapon: false, upgraded: 'Unknown', powerful: false,
+    incarnon: Boolean(item.incarnon && item.incarnon.type !== 'none'), questWeapon: Boolean(item.quests?.length), upgraded: 'Unknown', powerful: false,
     hasPrimeVariant: item.hasPrimeVariant || false, override: 'None', rank: null, notes: '',
-    source: 'Added manually', updatedAt: new Date().toISOString(),
+    source: 'Added manually', updatedAt: overrides.updatedAt ?? new Date().toISOString(), ...overrides,
   };
 }
 

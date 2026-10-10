@@ -101,7 +101,55 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .relic-form-error { margin-top: 20px; }
 .empty-state { text-align: center; padding: 56px 24px; color: var(--muted); }.empty-state > svg { margin-bottom: 16px; color: var(--faint); }.empty-state h3 { font-size: 18px; }.empty-state p { font-size: 13px; }
 
-dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 6px; width: min(480px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 48px); overflow: auto; box-shadow: 0 16px 40px rgba(0,0,0,.42); }dialog::backdrop { background: rgba(0,0,0,.65); backdrop-filter: blur(3px); }.dialog-inner { padding: 24px; min-width: 0; }.dialog-header { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 16px; }.dialog-header h2 { font-size: 18px; font-weight: 600; margin: 0; }.dialog-header .icon-button { margin: -8px -8px -8px 0; }.dialog-footer { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; align-items: center; margin-top: 24px; }.push-right { margin-right: auto; }.equipment-dialog { width: min(600px, calc(100vw - 32px)); }
+.inventory-toolbar { flex-wrap: wrap; margin-bottom: 16px; }
+.inventory-toolbar > .button { font-size: 12px; height: 40px; }
+.owned-filter { display: inline-flex; align-items: center; gap: 8px; padding: 0 8px; min-height: 40px; white-space: nowrap; cursor: pointer; }
+.filter-result { color: var(--muted); font: 11px var(--mono); white-space: nowrap; margin-left: auto; }
+.weapon-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+.weapon-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+.weapon-filters select, .weapon-filters input { width: 100%; font-size: 12px; color: var(--ink); }
+.equipment-image { width: 64px; height: 44px; object-fit: contain; flex-shrink: 0; }
+.catalog-yes { font-size: 12px; color: var(--derived); }
+.equipment-dialog { width: min(760px, calc(100vw - 32px)); }
+.weapon-overview { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; }
+.weapon-overview img { object-fit: contain; flex-shrink: 0; width: 152px; height: 116px; }
+.weapon-overview > div { min-width: 0; }
+.weapon-overview p { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+.weapon-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.equipment-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+.equipment-tabs button { font-size: 13px; border: 0; border-bottom: 2px solid transparent; padding: 10px 0; color: var(--muted); background: transparent; }
+.equipment-tabs button[aria-selected="true"] { color: var(--ink-strong); border-bottom-color: var(--accent); }
+.weapon-details section { margin: 24px 0; }
+.weapon-details section + section { border-top: 1px solid var(--line); padding-top: 24px; }
+.weapon-details h4 { font-weight: 500; font-size: 13px; margin: 16px 0 8px; }
+.weapon-details p { margin-bottom: 12px; }
+.weapon-details ul { padding-left: 20px; font-size: 13px; }
+.weapon-recipe { margin-bottom: 20px; }
+.recipe-cost { display: flex; flex-wrap: wrap; gap: 20px; padding: 12px 16px; margin: 0 0 8px; background: var(--surface); border-radius: 4px; }
+.recipe-cost dt { font-size: 11px; color: var(--muted); }
+.recipe-cost dd { margin: 4px 0 0; font: 13px var(--mono); }
+.weapon-details .recipe-materials { list-style: none; padding: 0; margin: 0; }
+.recipe-materials > li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.recipe-materials > li > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.recipe-materials strong { font: 12px var(--mono); white-space: nowrap; }
+.recipe-materials small { font-size: 10px; display: block; color: var(--caution); }
+.recipe-materials details { margin: 8px 0 0 8px; padding-left: 12px; border-left: 1px solid var(--line); }
+.weapon-details summary { cursor: pointer; font-size: 12px; color: var(--muted); padding: 8px 0; }
+.weapon-details summary:hover { color: var(--ink); }
+.crafting-targets { margin-top: 20px; }
+.quest-rewards { list-style: none; padding: 0 !important; }
+.quest-rewards li { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; margin: 12px 0; }
+.weapon-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; font-size: 12px; margin: 12px 0; }
+.weapon-stats > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.weapon-stats dt { color: var(--muted); }
+.weapon-stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+.detail-link { font-size: 12px; display: inline-block; margin-top: 12px; }
+.attack-details { border: 1px solid var(--line); border-radius: 4px; padding: 4px 12px; margin-top: 12px; }
+.drop-locations ul { max-height: 260px; overflow: auto; }
+.drop-locations li { margin-bottom: 6px; }
+.catalog-notice { font-size: 11px; color: var(--muted); margin-top: 20px; }
+
+dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 6px; width: min(480px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: calc(100dvh - 48px); overflow: auto; box-shadow: 0 16px 40px rgba(0,0,0,.42); }dialog::backdrop { background: rgba(0,0,0,.65); backdrop-filter: blur(3px); }.dialog-inner { padding: 24px; min-width: 0; }.dialog-header { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 16px; }.dialog-header h2 { font-size: 18px; font-weight: 600; margin: 0; }.dialog-header .icon-button { margin: -8px -8px -8px 0; }.dialog-footer { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; align-items: center; margin-top: 24px; }.push-right { margin-right: auto; }.equipment-dialog { width: min(760px, calc(100vw - 32px)); }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.form-grid label { display: flex; flex-direction: column; gap: 8px; }.span-2 { grid-column: span 2; }.checkbox-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.check-row { display: flex; align-items: center; gap: 12px; cursor: pointer; min-height: 44px; }.check-row small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 4px; }.catalog-picker { margin-bottom: 24px; }.catalog-picker > label { display: block; margin-bottom: 8px; }.catalog-results { background: var(--surface); border-radius: 0 0 6px 6px; margin-top: 4px; padding: 4px; }.catalog-results button { border: 0; border-radius: 4px; padding: 10px 8px; display: flex; width: 100%; gap: 12px; justify-content: space-between; background: transparent; font-size: 13px; text-align: left; }.catalog-results button:hover { background: var(--surface-raised); }.catalog-results p { font-size: 13px; padding: 8px; margin: 0; }.record-meta { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 12px; font-size: 10px; color: var(--muted); margin-top: 24px; }.record-meta a { display: inline-flex; gap: 4px; align-items: center; }
 .import-steps { list-style: none; padding: 0 0 24px; margin: 0 0 32px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 24px; border-bottom: 1px solid var(--line); }.import-steps li { font-size: 13px; color: var(--faint); display: flex; align-items: center; gap: 12px; }.import-steps span { font: 11px var(--mono); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }.import-steps .current { color: var(--ink-strong); }.import-steps .current span { background: var(--surface-raised); border-color: var(--line-strong); }
 .import-controls { display: flex; align-items: flex-end; gap: 24px; margin-bottom: 20px; }.import-controls label { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }.import-controls p { color: var(--muted); font-size: 12px; max-width: 500px; margin: 0 0 8px; }
@@ -119,3 +167,12 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 @media (max-width: 700px) { .page-heading { flex-direction: column; align-items: flex-start; gap: 24px; }.heading-actions { width: 100%; }.import-controls { flex-direction: column; align-items: stretch; gap: 12px; }.scan-workspace { grid-template-columns: minmax(0,1fr); gap: 16px; }.scan-details { padding: 8px 0; }.backup-options { grid-template-columns: minmax(0,1fr); }.backup-option { padding: 24px; }.backup-option .button { width: auto; }.storage-summary { flex-wrap: wrap; }.storage-summary > div { flex: 1; min-width: 200px; }.storage-summary .badge { margin-left: 44px; }.import-notes { gap: 24px; }.import-steps { gap: 12px; }.import-steps li { flex-direction: column; align-items: flex-start; gap: 8px; font-size: 12px; } }
 @media (max-width: 600px) { .collection-nav { width: 100%; }.collection-nav ul { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px; }.collection-nav li { min-width: 0; }.collection-nav a { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 1fr; justify-items: center; text-align: center; gap: 4px; height: 100%; padding: 10px 8px; font-size: 12px; }.collection-nav .nav-icon { display: none; }.collection-nav a > span { overflow-wrap: normal; }.topbar { padding: 12px; min-height: 68px; gap: 8px; }.topbar-right { margin-left: auto; }main { padding: 32px 16px 24px; }h1 { font-size: 32px; }.eyebrow { font-size: 9px; }.heading-actions { flex-wrap: wrap; }.heading-actions .button { font-size: 12px; padding: 10px 12px; }.inventory-search { flex-basis: 100%; width: 100%; margin: 0; }.inventory-toolbar select { flex: 1; min-width: 100px; }.fields-button { width: 100%; }.section-heading { flex-wrap: wrap; }.section-heading > .button { font-size: 12px; }.import-notes { grid-template-columns: minmax(0,1fr); gap: 16px; }.import-notes > div { position: relative; padding-left: 40px; }.note-number { position: absolute; top: 3px; left: 0; }.import-notes p { max-width: none; }.drop-zone { padding: 40px 16px; }.drop-zone strong { font-size: 17px; }.paste-hint { font-size: 10px; text-align: center; }.import-footer, .import-success { flex-direction: column; align-items: stretch; }.import-footer .button { width: 100%; }.history-row { flex-wrap: wrap; }.history-row time { margin-left: 48px; width: calc(100% - 48px); }.about-data dl > div { grid-template-columns: minmax(0,1fr); gap: 8px; }.dialog-inner { padding: 20px 16px; }.checkbox-grid { gap: 16px 12px; }.check-row { align-items: flex-start; }.check-row input { margin-top: 2px; }.check-row small { font-size: 10px; }.dialog-footer { gap: 8px; }.dialog-footer .button { font-size: 12px; padding: 9px 12px; }.dialog-footer .push-right { width: 100%; justify-content: flex-start; }.shortcut-list > div { flex-wrap: wrap; gap: 8px; }.command-option { gap: 12px; }.key-group kbd { font-size: 9px; padding: 2px 4px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }button:active:not(:disabled) { transform: none; } }
+@media (max-width: 1000px) { .weapon-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .weapon-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 12px; }
+  .weapon-overview { flex-direction: column; align-items: stretch; gap: 8px; }
+  .weapon-overview img { align-self: center; }
+  .weapon-stats { grid-template-columns: minmax(0, 1fr); }
+  .recipe-materials details { margin-left: 0; padding-left: 6px; }
+  .recipe-cost { padding: 10px; gap: 12px; }
+}

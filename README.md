@@ -16,7 +16,7 @@ Open **http://127.0.0.1:5173**. Keep using the same hostname and port: browser s
 ```sh
 npm run build       # Production files in dist/
 npm run preview     # Preview the production build on port 4173
-npm test            # Matching, import merging, backup validation, CSV tests
+npm test            # Catalog, filtering, matching, merging, backup and CSV tests
 npm run test:browser
 ```
 
@@ -26,14 +26,30 @@ Browser tests use an installed Chromium at `/usr/bin/chromium`; set `CHROMIUM_PA
 
 The initial inventory transcribes **35 visible weapon rows** from the supplied reference image. It is a partial transcription, not the entire spreadsheet. Hidden rows are not available. It includes the visible ownership, mastery, and planning flags as supplied, not independently verified gameplay advice.
 
-All 14 spreadsheet fields are stored: Owned, Weapon Name, Don't Keep, Crafting Ingredient, Crafting Target, Variant, Incarnon, Quest Weapon, Upgraded, Mastered, Meta / Powerful, Slot, Has Prime Variant, and Override. Rank, notes, source, and modification time are also retained. The same fields support Warframes, primary/secondary/melee weapons, Archguns, and Archmelee equipment.
+All 14 spreadsheet fields are stored: Owned, Weapon Name, Don't Keep, Crafting Ingredient, Crafting Target, Variant, Incarnon, Quest Weapon, Upgraded, Mastered, Meta / Powerful, Slot, Has Prime Variant, and Override. Rank, notes, source, and modification time are also retained. The same fields support Warframes, primary/secondary/melee weapons, Archguns, Archmelee, companion and exalted weapons, Kitguns, and Amps.
 
-- Ownership and mastery checkboxes save immediately. Select a name to edit every field.
-- Search names, crafting targets, and notes; filter by slot or status.
+- Ownership and mastery checkboxes save immediately and remain independent of rank. Select a name for **Weapon details** or **My inventory**.
+- Weapons starts with **Owned only** checked. Uncheck it to browse the entire catalog, including unowned weapons. Browsing never adds catalog entries to your save. Checking ownership or saving an inventory edit adds only that weapon.
+- Search names, crafting targets, notes, weapon types, tags, and quest names. Combine slot and Incarnon filters with weapon type, variant, mastery, quest rewards, crafting use, Foundry recipes, Prime counterparts, vault status, keep preference, and maximum required MR. Reset filters restores the owned view.
 - **All 14 fields** switches to the full spreadsheet view.
 - Sort by multiple columns; repeated header clicks cycle ascending, descending, and unsorted.
 - The override takes precedence over the Don't Keep checkbox. No item is automatically marked safe to sell.
-- Catalog suggestions can be replaced with a custom item name when adding equipment.
+- Known equipment gets its slot, variant, crafting targets, Incarnon eligibility, quest rewards, and Prime counterpart automatically. Those facts are read-only. Keep preferences, ownership, mastery, rank, upgrades, favorites, and notes remain personal.
+- Catalog suggestions can be replaced with a custom item name when adding equipment. Custom items retain manual fields and an initials placeholder when no game image is known.
+
+## Weapon database
+
+The bundled snapshot contains **683 weapons** and **122 Warframe-category entries**, with **789 distinct local game images** shared by 805 entries. It includes weapon variants, Archguns/Archmelee, companion weapons, exalted weapons, seven modular Amp prisms plus Mote Amp and Sirocco, six Kitgun chambers, and Zaw strikes. Modular families represent their mastery-bearing part; arbitrary assembled combinations and custom names are not separate catalog entries.
+
+Each weapon's details include its image and description, MR, unmodded stats and attack modes where exported, damage types, polarities, maximum rank, recipes, credit costs, materials and quantities, build times, and weapons that consume it. Expand a crafted material or weapon to inspect its component recipe. Recipe costs are per listed batch and do not include blueprint purchases or the cost of obtaining drops; ingredient recipes show their own costs. Identical required weapons are combined (for example, Aklex Prime consumes two Lex Primes), and base/Prime variants are not interchangeable.
+
+Incarnon data distinguishes native transformations from Genesis compatibility and includes adapter installation materials and available attack-mode stats. Eligibility does **not** mean an adapter is installed. Evolution challenges and perk choices link to the corresponding wiki page. Quest data identifies weapon rewards separately from blueprint rewards. Acquisition includes exported drops, blueprint prices, market prices, and faction/vendor tags where available; it is not a complete live vendor inventory or event schedule.
+
+Sources are [WFCD/warframe-items](https://github.com/WFCD/warframe-items) and the community-maintained [Warframe Public Export Plus](https://github.com/calamity-inc/warframe-public-export-plus), supplemented by sourced quest rewards in `scripts/catalog-supplements.mjs`. Every snapshot records pinned upstream revisions and its retrieval date. Images are served locally; attribution and download provenance are in [public/images/SOURCES.md](public/images/SOURCES.md). Browsing and filtering make no external requests. Wiki/source links open only when selected.
+
+Run `npm run catalog:update` to regenerate the snapshot and images. It validates ingredient names and downloads all new or changed images before replacing the catalog; it never touches browser saves. Tests cover local image integrity, exact variant matching, recipes, Incarnon eligibility, quest rewards, filtering, and preservation of saved fields. Sources can lag game updates or omit details: absent recipes and drop locations are labeled as unrecorded, not free or unobtainable. Modular assembly stats depend on the chosen parts, and the assembled Mote Amp's stats are unavailable in these sources.
+
+Existing saves retain all 14 original fields and historical planning values in JSON backups. The UI and CSV exports overlay current catalog facts without rewriting those historical values; manual information can still be recovered from JSON. New saved entries receive current catalog facts. Database updates never change ownership, mastery, current rank, keep decisions, upgrades, or notes.
 
 ## Relics
 
@@ -48,7 +64,7 @@ Search names and notes, filter by era or refinement, and sort columns. **Export 
 3. Text recognition starts automatically. Review matched names, ownership, mastery, and rank before importing.
 4. Correct a matched name with its dropdown, deselect unwanted results, and save the selected rows.
 
-The reader uses [Tesseract.js](https://github.com/naptha/tesseract.js) entirely in the browser with a bundled English model. It matches names against 731 bundled equipment names from [WFCD/warframe-items](https://github.com/WFCD/warframe-items). `npm run catalog:update` refreshes that snapshot and its license; it never modifies your saved inventory.
+The reader uses [Tesseract.js](https://github.com/naptha/tesseract.js) entirely in the browser with a bundled English model. It matches names against the 805 bundled equipment names in the weapon database. `npm run catalog:update` refreshes that snapshot and its licenses; it never modifies your saved inventory.
 
 Recognition is a starting point for review. This version has been tested against a synthetic equipment screenshot; actual user inventory/Arsenal screenshots are still needed to tune it to the in-game layout. It does not recognize checkmark icons, equipment pictures, or arbitrary custom weapon names. Prime and other variants are matched separately. Blueprint/component lines are excluded; uncertain fuzzy matches are not selected automatically.
 
@@ -67,7 +83,8 @@ Unparseable existing storage is preserved instead of silently resetting it. The 
 ## Code map
 
 - `src/App.tsx`: navigation, persistence, and inventory operations.
-- `src/components/`: inventory table, equipment editor, import review, backups, command palette.
+- `src/components/`: inventory table, weapon filters and details, equipment editor, import review, backups, command palette.
+- `src/lib/weaponCatalog.ts`: catalog/inventory projection, combined filters, and safe catalog-entry ownership updates.
 - `src/assets/warframe/`: bundled in-game tab icons; original asset links and attribution are in [SOURCES.md](src/assets/warframe/SOURCES.md).
 - `src/lib/model.ts`: equipment schema and conservative import merging.
 - `src/lib/relics.ts`: relic schema, name normalization, and validation.
@@ -77,6 +94,8 @@ Unparseable existing storage is preserved instead of silently resetting it. The 
 - `src/data/reference.ts`: manually transcribed reference rows.
 - `src/data/catalog.json`: generated equipment catalog; attribution in `CATALOG-LICENSE.txt`.
 - `src/data/relics.json`: generated relic name catalog, using the same attribution.
-- `scripts/`: catalog updates and local OCR asset preparation.
+- `scripts/build-catalog.mjs`: source normalization, recipes and reverse crafting dependencies, variant families, Incarnon and quest mapping.
+- `scripts/update-catalog.mjs`: pinned source downloads and local image refresh; `catalog-supplements.mjs` holds sourced script-granted quest rewards.
+- `scripts/`: also relic updates and local OCR asset preparation.
 
 This is an independent fan tool, not affiliated with Digital Extremes.

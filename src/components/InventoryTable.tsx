@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Search, SlidersHorizontal } from 'lucide-react';
-import { disposition, slots } from '../lib/model';
+import { disposition } from '../lib/model';
 import type { Equipment } from '../lib/model';
+import { catalogFields, defaultWeaponFilters, filterEquipment } from '../lib/weaponCatalog';
+import type { BooleanField, EquipmentRow } from '../lib/weaponCatalog';
+import { WeaponFilters } from './WeaponFilters';
 
 type Column = { key: keyof Equipment | 'keep'; title: string; kind?: 'boolean' };
 const compact: Column[] = [
@@ -19,15 +22,18 @@ const full: Column[] = [
   { key: 'hasPrimeVariant', title: 'Has Prime variant', kind: 'boolean' }, { key: 'override', title: 'Override' },
 ];
 
-export function InventoryTable({ items, onEdit, onToggle, search, setSearch }: { items: Equipment[]; onEdit: (item: Equipment) => void; onToggle: (item: Equipment, field: keyof Equipment) => void; search: string; setSearch: (query: string) => void }) {
-  const [slot, setSlot] = useState('All slots');
-  const [status, setStatus] = useState('All equipment');
+export function InventoryTable({ items, onEdit, onToggle, search, setSearch, weapons = false }: { items: EquipmentRow[]; onEdit: (item: EquipmentRow) => void; onToggle: (item: EquipmentRow, field: BooleanField) => void; search: string; setSearch: (query: string) => void; weapons?: boolean }) {
+  const [filters, setFilters] = useState({ ...defaultWeaponFilters, ownedOnly: weapons });
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [allFields, setAllFields] = useState(false);
   const [sorting, setSorting] = useState<{ key: Column['key']; direction: 1 | -1 }[]>([]);
   const [active, setActive] = useState('');
   const rowButtons = useRef(new Map<string, HTMLButtonElement>());
   const columns = allFields ? full : compact;
-  const filtered = items.filter(item => `${item.name} ${item.craftingTarget} ${item.notes}`.toLowerCase().includes(search.toLowerCase()) && (slot === 'All slots' || item.slot === slot) && (status === 'All equipment' || status === 'Owned' && item.owned || status === 'Not owned' && !item.owned || status === 'Not mastered' && !item.mastered || status === "Don't keep" && disposition(item) === "Don't keep" || status === 'Crafting ingredients' && item.craftingIngredient));
+  const filtered = filterEquipment(items, search, filters);
+  const clearFilters = () => { setSearch(''); setFilters({ ...defaultWeaponFilters, ownedOnly: weapons }); };
+  const changed = Boolean(search || Object.entries(filters).some(([key, value]) => value !== (key === 'ownedOnly' ? weapons : defaultWeaponFilters[key as keyof typeof filters])));
+  const advancedCount = Object.entries(filters).filter(([key, value]) => !['ownedOnly', 'slot', 'incarnon'].includes(key) && value !== '').length;
   const getValue = (item: Equipment, key: Column['key']) => key === 'keep' ? disposition(item) : item[key];
   const sorted = [...filtered].sort((a, b) => {
     for (const sort of sorting) {
@@ -45,13 +51,18 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch }: {
   return <>
     <div className="inventory-toolbar">
       <div className="search-field inventory-search"><Search size={16} /><input id="inventory-search" aria-label="Search equipment" placeholder="Search equipment…" value={search} onChange={event => setSearch(event.target.value)} /></div>
-      <select aria-label="Filter by slot" value={slot} onChange={event => setSlot(event.target.value)}><option>All slots</option>{slots.map(value => <option key={value}>{value}</option>)}</select>
-      <select aria-label="Filter by status" value={status} onChange={event => setStatus(event.target.value)}>{['All equipment', 'Owned', 'Not owned', 'Not mastered', "Don't keep", 'Crafting ingredients'].map(value => <option key={value}>{value}</option>)}</select>
+      <label className="owned-filter"><input type="checkbox" checked={filters.ownedOnly} onChange={event => setFilters({ ...filters, ownedOnly: event.target.checked })} />Owned only</label>
+      {weapons && <><select aria-label="Filter by slot" value={filters.slot} onChange={event => setFilters({ ...filters, slot: event.target.value })}><option value="">All slots</option>{[...new Set(items.map(item => item.slot))].sort().map(value => <option key={value}>{value}</option>)}</select>
+      <select aria-label="Incarnon filter" value={filters.incarnon} onChange={event => setFilters({ ...filters, incarnon: event.target.value })}><option value="">Any Incarnon status</option><option value="yes">All Incarnon weapons</option><option value="native">Native Incarnon</option><option value="genesis">Incarnon Genesis compatible</option><option value="none">No Incarnon</option></select>
+      <button type="button" className={`button secondary ${filtersOpen ? 'selected' : ''}`} aria-expanded={filtersOpen} aria-controls="weapon-filters" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />Filters{advancedCount > 0 ? ` (${advancedCount})` : ''}</button></>}
       <button type="button" className={`button secondary fields-button ${allFields ? 'selected' : ''}`} onClick={() => setAllFields(!allFields)} aria-pressed={allFields}><SlidersHorizontal size={16} />{allFields ? 'Compact view' : 'All 14 fields'}</button>
+      {changed && <button type="button" className="button quiet" onClick={clearFilters}>Reset filters</button>}
+      <span className="filter-result" role="status">{filtered.length} of {items.length}</span>
     </div>
+    {weapons && filtersOpen && <WeaponFilters items={items} filters={filters} onChange={setFilters} />}
     <div className="table-scroll" role="region" aria-label="Equipment inventory" tabIndex={0}>
       <table className={allFields ? 'full-table' : ''}>
-        <caption className="sr-only">Your Warframe equipment. Checkboxes save automatically. Select an equipment name to edit all fields.</caption>
+        <caption className="sr-only">Equipment catalog and inventory. Ownership and planning checkboxes save automatically. Select a name for game details and inventory settings.</caption>
         <thead><tr>{columns.map(column => {
           const sortIndex = sorting.findIndex(sort => sort.key === column.key);
           const sort = sorting[sortIndex];
@@ -64,8 +75,8 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch }: {
               event.preventDefault();
               const next = sorted[Math.max(0, Math.min(sorted.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
               rowButtons.current.get(next.id)?.focus({ preventScroll: true }); rowButtons.current.get(next.id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-            }}><span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span><span>{item.name}{item.incarnon && <small>Incarnon</small>}</span></button>
-              : column.kind === 'boolean' ? <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} onChange={() => onToggle(item, column.key as keyof Equipment)} /></label>
+            }}>{item.catalogItem?.image ? <img className="equipment-image" src={item.catalogItem.image} width="64" height="44" alt="" loading="lazy" /> : <span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span>}<span>{item.name}{item.incarnon && <small>{item.catalogItem?.incarnon?.type === 'genesis' ? 'Incarnon Genesis' : 'Incarnon'}</small>}</span></button>
+              : column.kind === 'boolean' ? item.catalogItem && catalogFields.some(key => key === column.key) ? <span className={item[column.key as keyof Equipment] ? 'catalog-yes' : 'faint'} aria-label={`${column.title}: ${item.name}: ${item[column.key as keyof Equipment] ? 'Yes' : 'No'}`}>{item[column.key as keyof Equipment] ? 'Yes' : '—'}</span> : <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} onChange={() => onToggle(item, column.key as BooleanField)} /></label>
               : column.key === 'keep' ? <span className={`badge ${disposition(item) === "Don't keep" ? 'caution-badge' : ''}`}>{disposition(item)}{item.override !== 'None' ? ' · override' : ''}</span>
               : column.key === 'variant' ? <span className={`badge ${item.variant === 'Prime' ? 'prime-badge' : ''}`}>{item.variant}</span>
               : column.key === 'craftingTarget' ? <span className="crafting-cell">{item.craftingTarget || <span className="faint">—</span>}</span>
@@ -73,7 +84,7 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch }: {
           </td>)}
         </tr>)}</tbody>
       </table>
-      {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{items.length ? 'No matching equipment' : 'Your collection starts here'}</h3><p>{items.length ? 'Try another name or clear your filters.' : 'Add an item or import an inventory screenshot.'}</p>{items.length > 0 && <button type="button" className="button secondary" onClick={() => { setSearch(''); setSlot('All slots'); setStatus('All equipment'); }}>Clear filters</button>}</div>}
+      {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{items.length ? 'No matching equipment' : 'Your collection starts here'}</h3><p>{items.length ? 'Change your filters to see more equipment.' : 'Add an item or import an inventory screenshot.'}</p>{items.length > 0 && <button type="button" className="button secondary" onClick={clearFilters}>Reset filters</button>}</div>}
     </div>
   </>;
 }

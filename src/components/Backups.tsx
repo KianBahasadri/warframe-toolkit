@@ -4,6 +4,7 @@ import { Dialog } from './Dialog';
 import { catalog, catalogDate } from '../data/catalog';
 import { downloadFile, inventoryCsv, parseBackup } from '../lib/storage';
 import type { Inventory } from '../lib/model';
+import { equipmentRows } from '../lib/weaponCatalog';
 
 export function Backups({ inventory, onRestore }: { inventory: Inventory; onRestore: (inventory: Inventory) => boolean }) {
   const input = useRef<HTMLInputElement>(null);
@@ -18,7 +19,7 @@ export function Backups({ inventory, onRestore }: { inventory: Inventory; onRest
     <div className="storage-summary"><HardDrive size={24} /><div><h2>Saved in this browser</h2><p>{inventory.items.length} equipment entries and {relics.length} relic stacks. Export a backup before clearing browser data or switching devices. There is no cloud sync.</p></div><span className="badge">Local storage</span></div>
     <div className="backup-options">
       <section className="backup-option"><Database size={24} /><h2>Full inventory backup</h2><p>Equipment, relics, notes, and import history.</p><button type="button" className="button primary" onClick={() => { backup(); setStatus('JSON backup downloaded.'); }}><Download size={16} />Download JSON</button></section>
-      <section className="backup-option"><FileSpreadsheet size={24} /><h2>Spreadsheet export</h2><p>Your original 14 columns, with rank and notes. Opens in Google Sheets or Excel.</p><button type="button" className="button secondary" onClick={() => { downloadFile(`arsenal-inventory-${date}.csv`, inventoryCsv(inventory.items), 'text/csv;charset=utf-8'); setStatus('Spreadsheet CSV downloaded.'); }}><Download size={16} />Download CSV</button></section>
+      <section className="backup-option"><FileSpreadsheet size={24} /><h2>Spreadsheet export</h2><p>Your original 14 columns, with rank, notes, and current catalog facts.</p><button type="button" className="button secondary" onClick={() => { downloadFile(`arsenal-inventory-${date}.csv`, inventoryCsv(equipmentRows(inventory.items, catalog)), 'text/csv;charset=utf-8'); setStatus('Spreadsheet CSV downloaded.'); }}><Download size={16} />Download CSV</button></section>
       <section className="backup-option"><FolderOpen size={24} /><h2>Restore a backup</h2><p>Choose an Arsenal JSON backup. You’ll review the replacement before saving.</p><button type="button" className="button secondary" onClick={() => input.current?.click()}><FolderOpen size={16} />Choose backup</button><input className="sr-only" ref={input} type="file" accept=".json,application/json" aria-label="Choose inventory backup" tabIndex={-1} onChange={async event => {
         const file = event.target.files?.[0]; event.target.value = '';
         if (!file) return;
