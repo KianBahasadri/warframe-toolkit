@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+
+async function chooseOption(page: Page, label: string, option: string) {
+  await page.getByRole('combobox', { name: label, exact: true }).click();
+  await page.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: option, exact: true }).click();
+}
 
 test('inventory edits persist, full fields are available, and equipment can be added', async ({ page }) => {
   const errors: string[] = [];
@@ -55,6 +61,19 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).not.toBeChecked();
   await expect(page.getByLabel('Mastered: Boltor', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Import Lex Prime', { exact: true })).toHaveCount(0);
+  await expect(page.locator('select')).toHaveCount(0);
+  const matchedName = page.getByRole('combobox', { name: 'Matched name for BRATON PRIME RANK 30', exact: true });
+  await matchedName.click();
+  const matchesMenu = page.getByRole('listbox', { name: 'Matched name for BRATON PRIME RANK 30', exact: true });
+  await expect(matchesMenu.getByRole('option')).toHaveCount(805);
+  await page.keyboard.press('End');
+  await expect(matchesMenu.getByRole('option').last()).toBeInViewport();
+  await page.keyboard.press('Escape');
+  await expect(matchedName).toHaveText('Braton Prime');
+  await page.keyboard.type('braton vandal');
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Import Braton Vandal', { exact: true })).toBeChecked();
+  await chooseOption(page, 'Matched name for BRATON PRIME RANK 30', 'Braton Prime');
   expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(savedBeforeReview);
   await page.getByRole('button', { name: 'Deselect all' }).click();
   await expect(page.getByRole('button', { name: 'Import 0 items' })).toBeDisabled();
@@ -113,7 +132,7 @@ test('dropdowns support keyboard selection and relic suggestions preserve manual
   await page.keyboard.press('Space');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
-  await expect(page.getByLabel('Filter by slot')).toHaveValue('Amp');
+  await expect(page.getByLabel('Filter by slot')).toHaveText('Amp');
   await page.getByRole('link', { name: 'Relics', exact: true }).click();
   await page.getByRole('button', { name: 'Add relic', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Add relic' });
@@ -151,7 +170,7 @@ test('dropdowns support keyboard selection and relic suggestions preserve manual
   await page.keyboard.press('Space');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
-  await expect(refinement).toHaveValue('Exceptional');
+  await expect(refinement).toHaveText('Exceptional');
   await refinement.click();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeVisible();
@@ -159,6 +178,55 @@ test('dropdowns support keyboard selection and relic suggestions preserve manual
   await page.reload();
   await expect(page.getByRole('button', { name: 'Edit Lith ZZ999 Exceptional', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('custom dropdowns cancel changes, follow focus, and fit dialogs in both themes', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await expect(page.locator('select')).toHaveCount(0);
+  const slot = page.getByRole('combobox', { name: 'Filter by slot', exact: true });
+  await slot.click();
+  const menu = page.getByRole('listbox', { name: 'Filter by slot', exact: true });
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('End');
+  await expect(menu.getByRole('option', { name: 'Secondary', exact: true })).toBeInViewport();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(slot).toHaveText('All slots');
+  await expect(slot).toBeFocused();
+  await page.keyboard.type('secondary');
+  await page.keyboard.press('Enter');
+  await expect(slot).toHaveText('Secondary');
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Tab');
+  await expect(slot).toHaveText('All slots');
+  const incarnon = page.getByRole('combobox', { name: 'Incarnon filter', exact: true });
+  await expect(incarnon).toBeFocused();
+  await incarnon.click();
+  await page.keyboard.press('End');
+  await page.getByRole('heading', { name: 'Weapons', exact: true }).click();
+  await expect(incarnon).toHaveText('Any Incarnon status');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Switch to light theme' }).click();
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.getByRole('button', { name: 'Add equipment', exact: true }).click();
+  await expect(page.locator('select')).toHaveCount(0);
+  const variant = page.getByRole('combobox', { name: 'Variant', exact: true });
+  await variant.click();
+  const variants = page.getByRole('listbox', { name: 'Variant', exact: true });
+  await expect(variants).toBeVisible();
+  const bounds = await variants.boundingBox();
+  expect(bounds && bounds.x >= 0 && bounds.x + bounds.width <= 320 && bounds.y >= 0 && bounds.y + bounds.height <= 720).toBe(true);
+  await page.keyboard.press('End');
+  await expect(variants.getByRole('option').last()).toBeInViewport();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(variant).toBeFocused();
+  await chooseOption(page, 'Variant', 'Prime');
+  await expect(variant).toHaveText('Prime');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('relic refinements and quantity edits persist without changing an older equipment save', async ({ page }) => {
@@ -188,7 +256,8 @@ test('relic refinements and quantity edits persist without changing an older equ
   await page.getByRole('button', { name: 'Add relic', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Add relic' });
   await dialog.getByLabel('Relic name').fill('Lith A1');
-  await dialog.getByRole('combobox', { name: 'Refinement', exact: true }).selectOption('Radiant');
+  await dialog.getByLabel('Relic name').press('Tab');
+  await chooseOption(page, 'Refinement', 'Radiant');
   await dialog.getByLabel('Quantity').fill('2');
   await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Relics 6' })).toBeVisible();
@@ -199,10 +268,10 @@ test('relic refinements and quantity edits persist without changing an older equ
   await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('already tracked');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await page.getByLabel('Filter by refinement').selectOption('Radiant');
+  await chooseOption(page, 'Filter by refinement', 'Radiant');
   await expect(page.getByRole('button', { name: 'Edit Lith A1 Intact' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Edit Lith A1 Radiant' })).toBeVisible();
-  await page.getByLabel('Filter by era').selectOption('Axi');
+  await chooseOption(page, 'Filter by era', 'Axi');
   await expect(page.getByText('No matching relics.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Clear filters' }).click();
 
@@ -225,7 +294,8 @@ test('relic CSV and full backups retain records through deletion and restoration
   await page.getByRole('button', { name: 'Add relic', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Add relic' });
   await dialog.getByLabel('Relic name').fill('Neo N1');
-  await dialog.getByRole('combobox', { name: 'Refinement', exact: true }).selectOption('Flawless');
+  await dialog.getByLabel('Relic name').press('Tab');
+  await chooseOption(page, 'Refinement', 'Flawless');
   await dialog.getByLabel('Quantity').fill('5');
   await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
   const csvPromise = page.waitForEvent('download');
@@ -284,7 +354,7 @@ test('canceling OCR releases the importer for another batch', async ({ page }) =
   await expect(page.getByText('Reading canceled.', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false })).toBeVisible();
-  await page.getByLabel('Screenshots from').selectOption('arsenal');
+  await chooseOption(page, 'Screenshots from', 'Arsenal · review ownership');
   await page.getByLabel('Choose screenshots').setInputFiles({ name: 'retry-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
   await expect(page.getByLabel('Owned: Braton Prime', { exact: true })).not.toBeChecked();
@@ -314,11 +384,11 @@ test('weapon catalog defaults to owned, combines filters, and adds an unowned we
   expect(await page.getByRole('button', { name: /^Edit / }).count()).toBeGreaterThan(650);
   await page.getByLabel('Search equipment').fill('bronco');
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
-  await page.getByLabel('Variant filter', { exact: true }).selectOption('Prime');
-  await page.getByLabel('Incarnon filter', { exact: true }).selectOption('genesis');
-  await page.getByLabel('Filter by slot').selectOption('Secondary');
-  await page.getByLabel('Used in crafting', { exact: true }).selectOption('yes');
-  await page.getByLabel('Mastery', { exact: true }).selectOption('no');
+  await chooseOption(page, 'Variant filter', 'Prime');
+  await chooseOption(page, 'Incarnon filter', 'Incarnon Genesis compatible');
+  await chooseOption(page, 'Filter by slot', 'Secondary');
+  await chooseOption(page, 'Used in crafting', 'Crafting ingredient');
+  await chooseOption(page, 'Mastery', 'Not mastered');
   await page.getByLabel('Maximum required MR').fill('8');
   await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Edit Bronco Prime', exact: true })).toBeVisible();
@@ -357,8 +427,8 @@ test('quest and crafting details stay local and filters fit mobile', async ({ pa
   await page.goto('/');
   await page.getByLabel('Owned only', { exact: true }).uncheck();
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
-  await page.getByLabel('Quest reward', { exact: true }).selectOption('yes');
-  await page.getByLabel('Foundry recipe', { exact: true }).selectOption('no');
+  await chooseOption(page, 'Quest reward', 'Weapon or blueprint reward');
+  await chooseOption(page, 'Foundry recipe', 'No recorded recipe');
   await page.getByLabel('Search equipment').fill('Nataruk');
   await expect(page.getByRole('button', { name: 'Edit Nataruk', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -372,7 +442,7 @@ test('quest and crafting details stay local and filters fit mobile', async ({ pa
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Reset filters', exact: true }).first().click();
   await expect(page.getByLabel('Owned only', { exact: true })).toBeChecked();
-  await expect(page.getByLabel('Quest reward', { exact: true })).toHaveValue('');
+  await expect(page.getByLabel('Quest reward', { exact: true })).toHaveText('Any');
   await page.getByLabel('Search equipment').fill('Boltor');
   await page.getByRole('button', { name: 'Edit Boltor', exact: true }).click();
   await expect(page.getByRole('dialog').getByText('Boltor Incarnon Genesis', { exact: true }).first()).toBeVisible();

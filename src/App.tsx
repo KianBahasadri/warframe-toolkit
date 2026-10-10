@@ -88,7 +88,7 @@ export default function App() {
   const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
   keyHandler.current = event => {
     if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'k' || event.ctrlKey && event.code === 'Space')) { if (palette || !document.querySelector('dialog[open]')) { event.preventDefault(); setPalette(value => !value); } return; }
-    if ((event.target as HTMLElement)?.closest('input, textarea, select, [contenteditable], dialog') || !event.altKey) return;
+    if ((event.target as HTMLElement)?.closest('input, textarea, [role="combobox"], [contenteditable], dialog') || !event.altKey) return;
     const key = event.key.toLowerCase();
     const command = [...commands, ...destinations].find(option => option.keys.at(-1)?.toLowerCase() === key && option.keys.includes('Shift') === event.shiftKey);
     if (command) { event.preventDefault(); command.run(); }

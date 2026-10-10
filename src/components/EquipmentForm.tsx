@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { Dialog } from './Dialog';
+import { Select } from './Select';
 import { WeaponDetails } from './WeaponDetails';
 import { catalog } from '../data/catalog';
 import { createEquipment, normalizeName, slots, variants } from '../lib/model';
@@ -50,14 +51,14 @@ export function EquipmentForm({ item, existing, onSave, onClose, onDelete }: { i
       </div>}
       <div className="form-grid">
         {(!entry || !item) && <label className="span-2">Equipment name<input value={draft.name} onChange={event => update('name', event.target.value)} maxLength={100} required /></label>}
-        {!entry && <><label>Slot<select value={draft.slot} onChange={event => update('slot', event.target.value as Slot)}>{slots.map(slot => <option key={slot}>{slot}</option>)}</select></label><label>Variant<select value={draft.variant} onChange={event => update('variant', event.target.value as Variant)}>{variants.map(variant => <option key={variant}>{variant}</option>)}</select></label></>}
-        <label>Upgraded<select value={draft.upgraded} onChange={event => update('upgraded', event.target.value as Upgrade)}>{['Unknown', 'Yes', 'No'].map(value => <option key={value}>{value}</option>)}</select></label>
+        {!entry && <><label>Slot<Select label="Slot" value={draft.slot} onChange={value => update('slot', value as Slot)} options={slots.map(value => ({ value, label: value }))} /></label><label>Variant<Select label="Variant" value={draft.variant} onChange={value => update('variant', value as Variant)} options={variants.map(value => ({ value, label: value }))} /></label></>}
+        <label>Upgraded<Select label="Upgraded" value={draft.upgraded} onChange={value => update('upgraded', value as Upgrade)} options={['Unknown', 'Yes', 'No'].map(value => ({ value, label: value }))} /></label>
         <label>Current rank<input type="number" min="0" max="40" step="1" placeholder="Unknown" value={draft.rank ?? ''} onChange={event => update('rank', event.target.value === '' ? null : Number(event.target.value))} /></label>
       </div>
       <fieldset className="checkbox-grid"><legend>Inventory & planning</legend>{fields.filter(([key]) => !entry || !catalogFields.some(field => field === key)).map(([key, title, description]) => <label className="check-row" key={key}><input type="checkbox" checked={draft[key]} onChange={event => update(key, event.target.checked)} /><span>{title}<small>{description}</small></span></label>)}</fieldset>
       <div className="form-grid">
         {!entry && <label className="span-2">Crafting target<input value={draft.craftingTarget} onChange={event => update('craftingTarget', event.target.value)} placeholder="e.g. Proboscis Cernos" maxLength={500} /></label>}
-        <label className="span-2">Keep preference override<select value={draft.override} onChange={event => update('override', event.target.value as Override)}><option>None</option><option>Keep</option><option>Don't keep</option></select></label>
+        <label className="span-2">Keep preference override<Select label="Keep preference override" value={draft.override} onChange={value => update('override', value as Override)} options={['None', 'Keep', "Don't keep"].map(value => ({ value, label: value }))} /></label>
         <div className="form-field span-2"><label htmlFor="equipment-notes">Notes</label><textarea id="equipment-notes" rows={3} value={draft.notes} onChange={event => update('notes', event.target.value)} placeholder="Build ideas, Forma investment, things to remember…" maxLength={5000} /></div>
       </div>
       {entry && <p className="catalog-notice">Crafting, Incarnon, quest, and variant details are filled from the weapon catalog.</p>}

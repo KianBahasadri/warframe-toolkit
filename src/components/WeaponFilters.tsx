@@ -1,7 +1,8 @@
 import type { EquipmentRow, WeaponFilters as Filters } from '../lib/weaponCatalog';
+import { Select } from './Select';
 
 export function WeaponFilters({ items, filters, onChange }: { items: EquipmentRow[]; filters: Filters; onChange: (value: Filters) => void }) {
-  const select = (key: keyof Filters, label: string, choices: [string, string][]) => <label key={key}>{label}<select aria-label={label} value={String(filters[key])} onChange={event => onChange({ ...filters, [key]: event.target.value })}><option value="">Any</option>{choices.map(([value, title]) => <option key={value} value={value}>{title}</option>)}</select></label>;
+  const select = (key: keyof Filters, label: string, choices: [string, string][]) => <label key={key}>{label}<Select label={label} value={String(filters[key])} onChange={value => onChange({ ...filters, [key]: value })} options={[{ value: '', label: 'Any' }, ...choices.map(([value, title]) => ({ value, label: title }))]} /></label>;
   const types = [...new Set(items.map(item => item.catalogItem?.weaponType).filter((type): type is string => Boolean(type)))].sort();
   const variants = [...new Set(items.map(item => item.variant))].sort();
   return <div id="weapon-filters" className="weapon-filters" role="group" aria-label="Weapon filters">

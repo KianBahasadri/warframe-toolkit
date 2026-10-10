@@ -22,6 +22,8 @@ npm run test:browser
 
 Browser tests use an installed Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` for another location. The production build can be served from the root of any static host. OCR assets are copied locally during `npm install` and included in `dist/`; screenshots never leave the browser. HTTPS or localhost is required for browser APIs such as `crypto.randomUUID`.
 
+To run the same browser checks in Firefox, install its Playwright build with `npx playwright install firefox`, then run `WARFRAME_TEST_BROWSER=firefox npm run test:browser`.
+
 ## Inventory
 
 The initial inventory transcribes **35 visible weapon rows** from the supplied reference image. It is a partial transcription, not the entire spreadsheet. Hidden rows are not available. It includes the visible ownership, mastery, and planning flags as supplied, not independently verified gameplay advice.
@@ -84,6 +86,7 @@ Unparseable existing storage is preserved instead of silently resetting it. The 
 
 - `src/App.tsx`: navigation, persistence, and inventory operations.
 - `src/components/`: inventory table, weapon filters and details, equipment editor, import review, backups, command palette.
+- `src/components/Select.tsx`: shared custom dropdowns with keyboard navigation, type-to-select, and viewport positioning; no native select popup or experimental picker CSS.
 - `src/lib/weaponCatalog.ts`: catalog/inventory projection, combined filters, and safe catalog-entry ownership updates.
 - `src/assets/warframe/`: bundled in-game tab icons; original asset links and attribution are in [SOURCES.md](src/assets/warframe/SOURCES.md).
 - `src/lib/model.ts`: equipment schema and conservative import merging.

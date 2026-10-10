@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowDownToLine, ArrowUp, Minus, Plus, Search } from 'lucide-react';
 import { Dialog } from './Dialog';
+import { Select } from './Select';
 import relicCatalog from '../data/relics.json';
 import { createRelic, MAX_RELIC_QUANTITY, parseRelicName, refinements, relicEras, relicKey } from '../lib/relics';
 import type { Relic, Refinement } from '../lib/relics';
@@ -94,7 +95,7 @@ function RelicForm({ item, existing, onSave, onDelete, onClose }: { item?: Relic
     }}>
       <div className="form-grid">
         <RelicNameInput value={draft.name} onChange={name => setDraft({ ...draft, name })} />
-        <label>Refinement<select value={draft.refinement} onChange={event => setDraft({ ...draft, refinement: event.target.value as Refinement })}>{refinements.map(value => <option key={value}>{value}</option>)}</select></label>
+        <label>Refinement<Select label="Refinement" value={draft.refinement} onChange={value => setDraft({ ...draft, refinement: value as Refinement })} options={refinements.map(value => ({ value, label: value }))} /></label>
         <label>Quantity<input type="number" min={0} max={MAX_RELIC_QUANTITY} step={1} required value={Number.isNaN(draft.quantity) ? '' : draft.quantity} onChange={event => setDraft({ ...draft, quantity: event.target.value === '' ? NaN : Number(event.target.value) })} /></label>
         <div className="form-field span-2"><label htmlFor="relic-notes">Notes</label><textarea id="relic-notes" rows={3} value={draft.notes} onChange={event => setDraft({ ...draft, notes: event.target.value })} maxLength={5000} /></div>
       </div>
@@ -138,8 +139,8 @@ export function Relics({ relics, onSave, onDelete, onQuantityChange, onExport }:
     <div className="section-heading"><h1 id="relics-title">Relics <span className="count">{total}</span></h1><div className="heading-actions"><button type="button" className="button quiet" onClick={onExport}><ArrowDownToLine size={15} />Export CSV</button><button type="button" className="button primary" onClick={() => setEditing('new')}><Plus size={16} />Add relic</button></div></div>
     <div className="inventory-toolbar relic-toolbar">
       <div className="search-field inventory-search"><Search size={16} /><input aria-label="Search relics" placeholder="Search relics…" value={search} onChange={event => setSearch(event.target.value)} /></div>
-      <select aria-label="Filter by era" value={era} onChange={event => setEra(event.target.value)}><option>All eras</option>{relicEras.map(value => <option key={value}>{value}</option>)}</select>
-      <select aria-label="Filter by refinement" value={refinement} onChange={event => setRefinement(event.target.value)}><option>All refinements</option>{refinements.map(value => <option key={value}>{value}</option>)}</select>
+      <Select label="Filter by era" value={era} onChange={setEra} options={['All eras', ...relicEras].map(value => ({ value, label: value }))} />
+      <Select label="Filter by refinement" value={refinement} onChange={setRefinement} options={['All refinements', ...refinements].map(value => ({ value, label: value }))} />
       <label className="owned-relics"><input type="checkbox" checked={ownedOnly} onChange={event => setOwnedOnly(event.target.checked)} />Owned only</label>
     </div>
     <div className="table-scroll" role="region" aria-label="Relic inventory" tabIndex={0}>

@@ -5,6 +5,7 @@ import type { Equipment } from '../lib/model';
 import { catalogFields, defaultWeaponFilters, filterEquipment } from '../lib/weaponCatalog';
 import type { BooleanField, EquipmentRow } from '../lib/weaponCatalog';
 import { WeaponFilters } from './WeaponFilters';
+import { Select } from './Select';
 
 type Column = { key: keyof Equipment | 'keep'; title: string; kind?: 'boolean' };
 const compact: Column[] = [
@@ -52,8 +53,8 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
     <div className="inventory-toolbar">
       <div className="search-field inventory-search"><Search size={16} /><input id="inventory-search" aria-label="Search equipment" placeholder="Search equipment…" value={search} onChange={event => setSearch(event.target.value)} /></div>
       <label className="owned-filter"><input type="checkbox" checked={filters.ownedOnly} onChange={event => setFilters({ ...filters, ownedOnly: event.target.checked })} />Owned only</label>
-      {weapons && <><select aria-label="Filter by slot" value={filters.slot} onChange={event => setFilters({ ...filters, slot: event.target.value })}><option value="">All slots</option>{[...new Set(items.map(item => item.slot))].sort().map(value => <option key={value}>{value}</option>)}</select>
-      <select aria-label="Incarnon filter" value={filters.incarnon} onChange={event => setFilters({ ...filters, incarnon: event.target.value })}><option value="">Any Incarnon status</option><option value="yes">All Incarnon weapons</option><option value="native">Native Incarnon</option><option value="genesis">Incarnon Genesis compatible</option><option value="none">No Incarnon</option></select>
+      {weapons && <><Select label="Filter by slot" value={filters.slot} onChange={slot => setFilters({ ...filters, slot })} options={[{ value: '', label: 'All slots' }, ...[...new Set(items.map(item => item.slot))].sort().map(value => ({ value, label: value }))]} />
+      <Select label="Incarnon filter" value={filters.incarnon} onChange={incarnon => setFilters({ ...filters, incarnon })} options={[{ value: '', label: 'Any Incarnon status' }, { value: 'yes', label: 'All Incarnon weapons' }, { value: 'native', label: 'Native Incarnon' }, { value: 'genesis', label: 'Incarnon Genesis compatible' }, { value: 'none', label: 'No Incarnon' }]} />
       <button type="button" className={`button secondary ${filtersOpen ? 'selected' : ''}`} aria-expanded={filtersOpen} aria-controls="weapon-filters" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />Filters{advancedCount > 0 ? ` (${advancedCount})` : ''}</button></>}
       <button type="button" className={`button secondary fields-button ${allFields ? 'selected' : ''}`} onClick={() => setAllFields(!allFields)} aria-pressed={allFields}><SlidersHorizontal size={16} />{allFields ? 'Compact view' : 'All 14 fields'}</button>
       {changed && <button type="button" className="button quiet" onClick={clearFilters}>Reset filters</button>}
