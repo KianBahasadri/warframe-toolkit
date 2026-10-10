@@ -1,0 +1,229 @@
+import { test, expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+
+test('inventory edits persist, full fields are available, and equipment can be added', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Weapons 35' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(35);
+  await page.getByLabel('Search equipment').fill('Boltor');
+  await page.getByLabel('Owned: Boltor', { exact: true }).uncheck();
+  await page.reload();
+  await page.getByLabel('Search equipment').fill('Boltor');
+  await expect(page.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
+  await page.getByRole('button', { name: 'Edit Boltor', exact: true }).click();
+  await page.getByLabel('Notes', { exact: true }).fill('Keep for my next build');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByRole('button', { name: 'All 14 fields' }).click();
+  await expect(page.getByRole('columnheader')).toHaveCount(14);
+  await page.getByRole('button', { name: 'Add equipment', exact: true }).click();
+  await page.getByLabel('Find in the equipment catalog').fill('Wisp Prime');
+  await page.getByRole('button', { name: 'Wisp Prime Warframe', exact: true }).click();
+  await page.getByRole('button', { name: 'Add equipment', exact: true }).last().click();
+  await page.getByRole('link', { name: 'Warframes' }).click();
+  await expect(page.getByRole('button', { name: 'Edit Wisp Prime' })).toBeVisible();
+  await page.screenshot({ path: 'test-results/warframes.png', fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test('real local OCR reads an image and merges reviewed imports without losing notes', async ({ page }) => {
+  await page.goto('/');
+  const dataUrl = await page.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 700;
+    const context = canvas.getContext('2d')!; context.fillStyle = '#181e23'; context.fillRect(0, 0, 1400, 700);
+    context.fillStyle = '#ffffff'; context.font = '36px Arial';
+    ['BRATON PRIME RANK 30', 'BOLTOR MASTERED', 'WISP PRIME UNRANKED', 'LEX PRIME BLUEPRINT'].forEach((line, index) => context.fillText(line, 100, 130 + index * 130));
+    return canvas.toDataURL('image/png');
+  });
+  await page.getByRole('button', { name: 'Edit Boltor', exact: true }).click();
+  await page.getByLabel('Notes', { exact: true }).fill('Important crafting note');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  const externalRequests: string[] = [];
+  page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
+  await page.getByLabel('Choose screenshots').setInputFiles({ name: 'inventory-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
+  await expect(page.getByRole('heading', { name: 'Ready for your review' })).toBeVisible({ timeout: 60000 });
+  await expect(page.getByLabel('Import Braton Prime', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Import Wisp Prime', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Mastered: Boltor', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Import Lex Prime', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/import-review.png', fullPage: true });
+  await page.getByRole('button', { name: 'Import 3 items' }).click();
+  await expect(page.getByText('1 added · 2 updated').first()).toBeVisible();
+  await page.getByRole('button', { name: 'View inventory' }).click();
+  await page.getByRole('button', { name: 'Edit Boltor', exact: true }).click();
+  await expect(page.getByLabel('Notes', { exact: true })).toHaveValue('Important crafting note');
+  expect(externalRequests).toEqual([]);
+});
+
+test('navigation, dialogs, and tables fit narrow screens and support keyboard use', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Weapons 35' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/mobile.png', fullPage: true });
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Warframes' }).click();
+  await expect(page.getByRole('heading', { name: 'Warframes 0' })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Weapons' }).click();
+  await expect(page.getByRole('heading', { name: 'Weapons 35' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open search and commands' }).click();
+  await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
+  await page.getByRole('option', { name: 'Data & backups', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Data & backups' })).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 720 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Open search and commands' }).click();
+  await page.getByRole('combobox', { name: 'Search commands' }).fill('Add equipment');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: 'Add equipment' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Relics', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Relics 0' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Add relic', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Add relic' })).toBeVisible();
+  expect(await page.getByRole('dialog').evaluate(dialog => dialog.scrollWidth <= dialog.clientWidth)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Add relic', exact: true })).toBeFocused();
+});
+
+test('relic refinements and quantity edits persist without changing an older equipment save', async ({ page }) => {
+  await page.goto('/');
+  const originalItems = await page.evaluate(() => {
+    const key = 'warframe-toolkit.inventory.v1';
+    const data = JSON.parse(localStorage.getItem(key)!);
+    delete data.relics;
+    localStorage.setItem(key, JSON.stringify(data));
+    return data.items;
+  });
+  await page.reload();
+  await page.getByRole('link', { name: 'Relics', exact: true }).click();
+  await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add relic', exact: true }).click();
+  let dialog = page.getByRole('dialog', { name: 'Add relic' });
+  await dialog.getByLabel('Relic name').fill('lith a1');
+  await dialog.getByLabel('Quantity').fill('3');
+  await dialog.getByLabel('Notes', { exact: true }).fill('Save for a group');
+  await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
+  await page.getByRole('button', { name: 'Increase Lith A1 Intact quantity' }).click();
+  await page.reload();
+  await expect(page.getByLabel('Lith A1 Intact quantity', { exact: true })).toHaveText('4');
+  await expect(page.getByText('Save for a group', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add relic', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: 'Add relic' });
+  await dialog.getByLabel('Relic name').fill('Lith A1');
+  await dialog.getByRole('combobox', { name: 'Refinement', exact: true }).selectOption('Radiant');
+  await dialog.getByLabel('Quantity').fill('2');
+  await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Relics 6' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add relic', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: 'Add relic' });
+  await dialog.getByLabel('Relic name').fill('LITH A1 relic');
+  await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('already tracked');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByLabel('Filter by refinement').selectOption('Radiant');
+  await expect(page.getByRole('button', { name: 'Edit Lith A1 Intact' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Edit Lith A1 Radiant' })).toBeVisible();
+  await page.getByLabel('Filter by era').selectOption('Axi');
+  await expect(page.getByText('No matching relics.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+
+  await page.getByRole('button', { name: 'Edit Lith A1 Intact' }).click();
+  await page.getByRole('dialog').getByLabel('Quantity').fill('0');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('button', { name: 'Decrease Lith A1 Intact quantity' })).toBeDisabled();
+  await page.getByLabel('Owned only').check();
+  await expect(page.getByRole('button', { name: 'Edit Lith A1 Intact' })).toHaveCount(0);
+  await page.getByLabel('Owned only').uncheck();
+  await page.getByRole('button', { name: 'Decrease Lith A1 Radiant quantity' }).click();
+  await page.reload();
+  await expect(page.getByLabel('Lith A1 Intact quantity', { exact: true })).toHaveText('0');
+  await expect(page.getByLabel('Lith A1 Radiant quantity', { exact: true })).toHaveText('1');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!).items)).toEqual(originalItems);
+});
+
+test('relic CSV and full backups retain records through deletion and restoration', async ({ page }) => {
+  await page.goto('/#relics');
+  await page.getByRole('button', { name: 'Add relic', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add relic' });
+  await dialog.getByLabel('Relic name').fill('Neo N1');
+  await dialog.getByRole('combobox', { name: 'Refinement', exact: true }).selectOption('Flawless');
+  await dialog.getByLabel('Quantity').fill('5');
+  await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
+  const csvPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
+  const csv = await csvPromise;
+  expect(csv.suggestedFilename()).toMatch(/^arsenal-relics-.*\.csv$/);
+  expect(await readFile((await csv.path())!, 'utf8')).toContain('"Neo N1","Neo","Flawless","5"');
+  await page.getByRole('button', { name: 'Open search and commands' }).click();
+  await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
+  await page.getByRole('option', { name: 'Data & backups', exact: true }).click();
+  const backupPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download JSON' }).click();
+  const backupPath = (await (await backupPromise).path())!;
+  const backup = JSON.parse(await readFile(backupPath, 'utf8'));
+  expect(backup.relics).toHaveLength(1);
+  expect(backup.relics[0]).toMatchObject({ name: 'Neo N1', refinement: 'Flawless', quantity: 5 });
+  expect(backup.items).toHaveLength(35);
+
+  await page.getByRole('link', { name: 'Relics', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit Neo N1 Flawless' }).click();
+  await page.getByRole('button', { name: 'Remove entry', exact: true }).click();
+  await page.getByRole('button', { name: 'Remove relic', exact: true }).click();
+  await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open search and commands' }).click();
+  await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
+  await page.getByRole('option', { name: 'Data & backups', exact: true }).click();
+  await page.getByLabel('Choose inventory backup').setInputFiles(backupPath);
+  await expect(page.getByRole('dialog')).toContainText('1 relic stacks');
+  await page.getByRole('button', { name: 'Back up & restore' }).click();
+  await page.getByRole('link', { name: 'Relics', exact: true }).click();
+  await expect(page.getByLabel('Neo N1 Flawless quantity', { exact: true })).toHaveText('5');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!))).toEqual(backup);
+});
+
+test('invalid backups are rejected and exports download', async ({ page }) => {
+  await page.goto('/#backups');
+  await page.getByLabel('Choose inventory backup').setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{"version":1,"items":[{}],"imports":[]}') });
+  await expect(page.getByRole('alert')).toContainText('Couldn’t restore');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download JSON' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^arsenal-backup-.*\.json$/);
+  const path = await download.path();
+  await page.getByLabel('Choose inventory backup').setInputFiles(path!);
+  await expect(page.getByRole('dialog', { name: 'Restore this inventory?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back up & restore' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('Backup restored.', { exact: false })).toBeVisible();
+});
+
+test('canceling OCR releases the importer for another batch', async ({ page }) => {
+  await page.goto('/#import');
+  const dataUrl = await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 700; const context = canvas.getContext('2d')!; context.fillStyle = '#ffffff'; context.fillRect(0, 0, 1400, 700); context.fillStyle = '#000000'; context.font = '42px Arial'; context.fillText('BRATON PRIME', 100, 150); return canvas.toDataURL('image/png'); });
+  await page.getByLabel('Choose screenshots').setInputFiles({ name: 'cancel-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
+  await page.getByRole('button', { name: 'Cancel reading' }).click();
+  await expect(page.getByText('Reading canceled.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Drop your screenshots here', exact: false })).toBeVisible();
+});
+
+test('unreadable saved data is preserved and failed saves remain visible', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('warframe-toolkit.inventory.v1', 'broken original data'));
+  await page.goto('/');
+  await expect(page.getByRole('alert')).toContainText('could not be read');
+  await page.getByRole('button', { name: 'Add equipment', exact: true }).click();
+  await page.getByLabel('Equipment name', { exact: true }).fill('Custom item');
+  await page.getByRole('button', { name: 'Add equipment', exact: true }).last().click();
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Couldn’t save');
+  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe('broken original data');
+});
