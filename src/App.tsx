@@ -100,7 +100,7 @@ export default function App() {
   const isInventory = page === 'weapons' || page === 'warframes';
   return <div className="app-shell">
     <div className="content-shell"><header className="topbar">{nav}<div className="topbar-right"><div className="page-utilities"><button type="button" className="search-launcher" aria-label="Open search and commands" aria-keyshortcuts="Control+k Meta+k Control+Space" onClick={() => setPalette(true)}><Search size={15} /></button><button type="button" className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button></div></div></header>
-      <main id="main-content">
+      <main id="main-content" className={page === 'import' ? 'import-page' : undefined}>
         {storageError && <div className="callout danger" role="alert"><strong>Storage problem:</strong> {storageError}{initial.error && <button type="button" className="button secondary" onClick={() => { try { downloadFile('arsenal-original-data.txt', localStorage.getItem(STORAGE_KEY) || '', 'text/plain'); } catch { setNotice('Browser storage is unavailable.'); } }}>Download original data</button>}</div>}
         {notice && <div className="callout info inline-notice" role="status"><span>{notice}</span><button type="button" className="icon-button" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => setNotice('')}><X size={16} /></button></div>}
         {isInventory && <>
