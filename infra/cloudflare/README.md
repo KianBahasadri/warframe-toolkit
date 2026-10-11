@@ -68,8 +68,9 @@ An object alarm schedules each successful fetch one hour later; failed fetches
 retry after five minutes. Both check the persisted due time and share an active
 refresh, so clock ticks do not add extra upstream requests. Page reads never
 start updates. The last successful fetch time survives restarts and failures.
-Initial cron propagation can take several minutes; until its first fetch, the
-drop endpoint returns 503 with a retry interval. Other features work immediately.
+New cron schedules can take [up to 15 minutes to propagate](https://developers.cloudflare.com/workers/configuration/cron-triggers/),
+then run on the next five-minute boundary. Until the first fetch, the drop
+endpoint returns 503 with a retry interval. Other features work immediately.
 
 This uses Free-compatible resources, without enabling a paid subscription. Free
 quotas still apply: Workers and Durable Objects each allow 100,000 requests/day;
@@ -106,3 +107,12 @@ touch the production database. Run `npm run test:cloudflare` for API, concurrenc
 large-profile, restart, corruption, scheduled-refresh and conditional-read tests.
 The browser suite can use either the Node backend or the Cloudflare backend via
 `WARFRAME_TEST_BACKEND=cloudflare`.
+
+Deployment verification on 2026-10-11 passed 67 Node tests, 4 Cloudflare runtime
+tests, all 53 browser tests against D1, and 14 account browser tests against the
+local Node server. Live HTTPS checks exercised account creation, saves, revision
+conflicts, key replacement, and logout; the temporary account was removed. The
+first scheduled production fetch loaded 43,367 entries at 22:21:11 UTC, and
+conditional reads returned 304. Live desktop/mobile browsing, game artwork and
+timezone display passed without JavaScript errors. A final Terraform plan
+reported no changes.

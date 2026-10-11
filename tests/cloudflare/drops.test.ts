@@ -18,7 +18,10 @@ test('scheduled drop updates persist, support conditional reads, and retain the 
   };
   try {
     assert.equal((await read()).status, 503); assert.equal(calls, 0);
-    await refresh(); assert.equal(calls, 1);
+    const scheduled = await api.mf.dispatchFetch('https://toolkit.test/cdn-cgi/local/scheduled?format=json');
+    assert.equal(scheduled.status, 200);
+    assert.equal((await scheduled.json() as any).outcome, 'ok');
+    assert.equal(calls, 1);
     const first = await read(), etag = first.headers.get('etag')!, data = await first.json() as any;
     assert.equal(first.status, 200); assert.ok(data.rows.length > 10); assert.equal(data.refreshError, null);
     assert.equal((await read({ 'If-None-Match': etag })).status, 304);

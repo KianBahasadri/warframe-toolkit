@@ -10,7 +10,7 @@ export async function cloudflareRuntime(options: { origin?: string; persist?: st
     durableObjects: { ACCOUNTS: { className: 'AccountGateway', useSQLite: true }, DROPS: { className: 'DropTables', useSQLite: true } },
     ...(options.outbound ? { outboundService: options.outbound } : {}),
   });
-  const mf = new Miniflare({ ...config, unsafeInspectDurableObjects: true, ...(options.persist ? { resourcePersistencePath: options.persist } : {}) });
+  const mf = new Miniflare({ ...config, unsafeTriggerHandlers: true, unsafeInspectDurableObjects: true, ...(options.persist ? { resourcePersistencePath: options.persist } : {}) });
   const db = await mf.getD1Database('DB');
   const existing = await db.prepare("SELECT name FROM sqlite_master WHERE name = 'accounts'").first();
   if (!existing) for (const file of (await readdir('cloudflare/migrations')).filter(name => name.endsWith('.sql')).sort()) {
