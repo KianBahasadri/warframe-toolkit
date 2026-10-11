@@ -15,11 +15,13 @@ export function TablePopover({ anchor, point, label, role = 'group', className =
   const close = useRef(onClose); close.current = onClose;
   useLayoutEffect(() => {
     const popup = panel.current!;
+    let anchorBounds = anchor.getBoundingClientRect();
     const position = () => {
       const viewport = window.visualViewport;
       const left = viewport?.offsetLeft ?? 0, top = viewport?.offsetTop ?? 0;
       const width = viewport?.width ?? innerWidth, height = viewport?.height ?? innerHeight;
-      const bounds = anchor.getBoundingClientRect();
+      if (anchor.isConnected) anchorBounds = anchor.getBoundingClientRect();
+      const bounds = anchorBounds;
       const bottom = point?.y ?? bounds.bottom;
       const above = (point?.y ?? bounds.top) - top - 12;
       const below = top + height - bottom - 12;

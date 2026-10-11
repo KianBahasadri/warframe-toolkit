@@ -1,76 +1,96 @@
 import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Search, SlidersHorizontal } from 'lucide-react';
+import { ArrowDown, ArrowUp, Filter, MoreHorizontal, Search, SlidersHorizontal, X } from 'lucide-react';
 import { disposition } from '../lib/model';
 import type { Equipment } from '../lib/model';
 import { catalogFields, defaultWeaponFilters, filterEquipment } from '../lib/weaponCatalog';
 import type { BooleanField, EquipmentRow } from '../lib/weaponCatalog';
 import { COLUMNS_STORAGE_KEY, defaultColumns, inventoryColumns, loadColumns } from '../lib/inventoryColumns';
 import type { Column } from '../lib/inventoryColumns';
+import { filterLabel, filterRows, moveColumnSort, setColumnSort, sortRows } from '../lib/tableView';
+import type { ColumnFilter, ColumnFilters, ColumnKey, ColumnSort } from '../lib/tableView';
 import { ColumnPicker } from './ColumnPicker';
+import { ColumnMenu } from './ColumnMenu';
 import { WeaponFilters } from './WeaponFilters';
+
+const weaponFilterColumns = { ownedOnly: 'owned', slot: 'slot', variant: 'variant', mastery: 'mastered', incarnon: 'incarnon', quest: 'questWeapon', ingredient: 'craftingIngredient', prime: 'hasPrimeVariant', keep: 'keep' } as const;
 
 export function InventoryTable({ items, onEdit, onToggle, search, setSearch, weapons = false, actions }: { items: EquipmentRow[]; onEdit: (item: EquipmentRow) => void; onToggle: (item: EquipmentRow, field: BooleanField) => void; search: string; setSearch: (query: string) => void; weapons?: boolean; actions?: ReactNode }) {
   const [filters, setFilters] = useState({ ...defaultWeaponFilters, ownedOnly: weapons });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState(loadColumns);
-  const [sorting, setSorting] = useState<{ key: Column['key']; direction: 1 | -1 }[]>([]);
+  const [sorting, setSorting] = useState<ColumnSort[]>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({});
+  const [menu, setMenu] = useState<{ id: number; key: ColumnKey; anchor: HTMLElement; point?: { x: number; y: number }; initialView?: 'filter' } | null>(null);
+  const menuSequence = useRef(0);
+  const headerButtons = useRef(new Map<ColumnKey, HTMLButtonElement>());
   const [active, setActive] = useState('');
   const rowButtons = useRef(new Map<string, HTMLButtonElement>());
   const filterButton = useRef<HTMLButtonElement>(null);
   const availableColumns = inventoryColumns.map(column => weapons && column.key === 'name' ? { ...column, title: 'Weapon' } : column);
   const columns = availableColumns.filter(column => visibleColumns.includes(column.key));
+  const openMenu = (key: ColumnKey, anchor: HTMLElement, point?: { x: number; y: number }, initialView?: 'filter') => setMenu({ id: ++menuSequence.current, key, anchor, point, initialView });
   const changeColumns = (next: Column['key'][]) => {
     setVisibleColumns(next);
     setSorting(current => current.filter(sort => next.includes(sort.key)));
     try { localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(next)); }
     catch { /* Column changes still work for this view if preferences cannot be saved. */ }
   };
-  const filtered = filterEquipment(items, search, filters);
-  const clearFilters = () => { setSearch(''); setFilters({ ...defaultWeaponFilters, ownedOnly: weapons }); if (weapons) filterButton.current?.focus(); };
-  const changed = Boolean(search || Object.entries(filters).some(([key, value]) => value !== (key === 'ownedOnly' ? weapons : defaultWeaponFilters[key as keyof typeof filters])));
+  const changeVisibility = (key: ColumnKey, visible: boolean) => changeColumns(availableColumns.filter(column => column.required || (column.key === key ? visible : visibleColumns.includes(column.key))).map(column => column.key));
+  const changeWeaponFilters = (next: typeof filters) => {
+    const updated = { ...columnFilters };
+    for (const [key, column] of Object.entries(weaponFilterColumns)) if (next[key as keyof typeof next] !== filters[key as keyof typeof filters]) delete updated[column];
+    setColumnFilters(updated); setFilters(next);
+  };
+  const changeColumnFilter = (key: ColumnKey, filter?: ColumnFilter) => {
+    const next = { ...columnFilters };
+    if (filter) next[key] = filter; else delete next[key];
+    setColumnFilters(next);
+    const matching = Object.entries(weaponFilterColumns).find(([, column]) => column === key)?.[0];
+    if (matching) setFilters(current => ({ ...current, [matching]: matching === 'ownedOnly' ? false : '' }));
+  };
+  const filtered = filterRows(filterEquipment(items, search, filters), columnFilters);
+  const clearFilters = () => { setSearch(''); setFilters({ ...defaultWeaponFilters, ownedOnly: weapons }); setColumnFilters({}); if (weapons) filterButton.current?.focus(); };
+  const changed = Boolean(search || Object.keys(columnFilters).length || Object.entries(filters).some(([key, value]) => value !== (key === 'ownedOnly' ? weapons : defaultWeaponFilters[key as keyof typeof filters])));
   const filterCount = Object.entries(filters).filter(([key, value]) => value !== defaultWeaponFilters[key as keyof typeof filters]).length;
-  const getValue = (item: Equipment, key: Column['key']) => key === 'keep' ? disposition(item) : item[key];
-  const sorted = [...filtered].sort((a, b) => {
-    for (const sort of sorting) {
-      const av = getValue(a, sort.key); const bv = getValue(b, sort.key);
-      if (av === null || bv === null) {
-        if (av !== bv) return av === null ? 1 : -1;
-        continue;
-      }
-      const result = (typeof av === 'boolean' && typeof bv === 'boolean') || (typeof av === 'number' && typeof bv === 'number') ? Number(av) - Number(bv) : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base', numeric: true });
-      if (result) return result * sort.direction;
-    }
-    return 0;
-  });
+  const sorted = sortRows(filtered, sorting);
   const activeId = sorted.some(item => item.id === active) ? active : sorted[0]?.id;
   const sortBy = (key: Column['key']) => setSorting(current => {
     const existing = current.find(sort => sort.key === key);
-    return !existing ? [...current, { key, direction: 1 }] : existing.direction === 1 ? current.map(sort => sort.key === key ? { key, direction: -1 } : sort) : current.filter(sort => sort.key !== key);
+    return setColumnSort(current, key, !existing ? 1 : existing.direction === 1 ? -1 : 0);
   });
   return <>
     <div className="inventory-toolbar">
       <div className="search-field inventory-search"><Search size={16} /><input id="inventory-search" aria-label={weapons ? 'Search weapons' : 'Search equipment'} placeholder={weapons ? 'Search weapons…' : 'Search equipment…'} value={search} onChange={event => setSearch(event.target.value)} /></div>
-      {!weapons && <label className="owned-filter"><input type="checkbox" checked={filters.ownedOnly} onChange={event => setFilters({ ...filters, ownedOnly: event.target.checked })} />Owned only</label>}
+      {!weapons && <label className="owned-filter"><input type="checkbox" checked={filters.ownedOnly} onChange={event => changeWeaponFilters({ ...filters, ownedOnly: event.target.checked })} />Owned only</label>}
       {weapons && <button ref={filterButton} type="button" className={`button secondary ${filtersOpen ? 'selected' : ''}`} aria-label="Filters" aria-expanded={filtersOpen} aria-controls="weapon-filters" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />Filters{filterCount > 0 ? ` (${filterCount})` : ''}</button>}
-      <ColumnPicker options={availableColumns} selected={visibleColumns} onChange={(key, visible) => changeColumns(availableColumns.filter(column => column.required || (column.key === key ? visible : visibleColumns.includes(column.key))).map(column => column.key))} onReset={() => changeColumns(defaultColumns)} />
+      <ColumnPicker options={availableColumns} selected={visibleColumns} onChange={changeVisibility} onReset={() => changeColumns(defaultColumns)} />
       {changed && <button type="button" className="button quiet" onClick={clearFilters}>Reset filters</button>}
       <span className="filter-result" role="status">{filtered.length} of {items.length}</span>
       {actions && <div className="inventory-actions">{actions}</div>}
     </div>
     {weapons && (filtersOpen || filterCount > 0) && <WeaponFilters activeOnly={!filtersOpen} items={items} filters={filters} onChange={next => {
       const hidesControl = !filtersOpen && Object.entries(next).some(([key, value]) => value !== filters[key as keyof typeof filters] && value === defaultWeaponFilters[key as keyof typeof filters]);
-      setFilters(next);
+      changeWeaponFilters(next);
       if (hidesControl) requestAnimationFrame(() => filterButton.current?.focus());
     }} />}
+    {Object.keys(columnFilters).length > 0 && <div className="column-filter-list" role="group" aria-label="Column filters">{availableColumns.filter(column => columnFilters[column.key]).map(column => <div className="column-filter-chip" key={column.key}>
+      <button type="button" onClick={event => openMenu(column.key, event.currentTarget, undefined, 'filter')}><Filter size={14} aria-hidden="true" />{column.title}: {filterLabel(columnFilters[column.key]!)}</button>
+      <button type="button" className="icon-button" aria-label={`Remove ${column.title} filter`} title={`Remove ${column.title} filter`} onClick={() => { changeColumnFilter(column.key); filterButton.current?.focus(); }}><X size={14} aria-hidden="true" /></button>
+    </div>)}</div>}
     <div className="table-scroll inventory-grid" role="region" aria-label={weapons ? 'Weapon inventory' : 'Equipment inventory'} tabIndex={0}>
       <table className="inventory-table" style={{ minWidth: columns.reduce((width, column) => width + column.width, 0) }}>
-        <caption className="sr-only">{weapons ? 'Weapon' : 'Equipment'} catalog and inventory. Ownership and planning checkboxes save automatically. Select a name for game details and inventory settings.</caption>
+        <caption className="sr-only">{weapons ? 'Weapon' : 'Equipment'} catalog and inventory. Ownership and planning checkboxes save automatically. Select a name for game details and inventory settings. Right-click a header or press Shift+F10 for column actions.</caption>
         <colgroup>{columns.map(column => <col key={column.key} style={{ width: column.width }} />)}</colgroup>
         <thead><tr>{columns.map(column => {
           const sortIndex = sorting.findIndex(sort => sort.key === column.key);
           const sort = sorting[sortIndex];
-          return <th scope="col" key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : ''} aria-sort={sortIndex === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}><button type="button" className="sort-button" onClick={() => sortBy(column.key)} aria-label={`Sort ${column.title}${sort ? `, priority ${sortIndex + 1}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : ', unsorted'}`}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button></th>;
+          return <th scope="col" key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : ''} aria-sort={sortIndex === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}
+            onContextMenu={event => { event.preventDefault(); openMenu(column.key, headerButtons.current.get(column.key)!, event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : undefined); }}
+            onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { event.preventDefault(); event.stopPropagation(); openMenu(column.key, event.target as HTMLElement); } }}>
+            <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" onClick={() => sortBy(column.key)} aria-label={`Sort ${column.title}${sort ? `, priority ${sortIndex + 1}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : ', unsorted'}`} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button>
+              <button type="button" className={`column-menu-trigger ${columnFilters[column.key] ? 'has-filter' : ''}`} aria-label={`${column.title} column options`} title={`${column.title} column options`} aria-haspopup="menu" aria-expanded={menu?.key === column.key} onClick={event => openMenu(column.key, event.currentTarget)}>{columnFilters[column.key] ? <Filter size={14} aria-hidden="true" /> : <MoreHorizontal size={14} aria-hidden="true" />}</button>
+            </div></th>;
         })}</tr></thead>
         <tbody>{sorted.map((item, index) => <tr key={item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, select, a, label') && !window.getSelection()?.toString()) onEdit(item); }}>
           {columns.map(column => <td key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : column.key === 'name' ? 'equipment-cell' : column.key === 'craftingTarget' || column.key === 'notes' ? 'wrapping-cell' : ''}>
@@ -92,5 +112,11 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
       </table>
       {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{items.length ? `No matching ${weapons ? 'weapons' : 'equipment'}` : 'Your collection starts here'}</h3><p>{items.length ? `Change your filters to see more ${weapons ? 'weapons' : 'equipment'}.` : `Add ${weapons ? 'a weapon' : 'an item'} or import an inventory screenshot.`}</p>{items.length > 0 && <button type="button" className="button secondary" onClick={clearFilters}>Reset filters</button>}</div>}
     </div>
+    {menu && <ColumnMenu key={menu.id} anchor={menu.anchor} point={menu.point} initialView={menu.initialView} column={availableColumns.find(column => column.key === menu.key)!} columns={availableColumns} selected={visibleColumns} items={items} sorting={sorting} filter={columnFilters[menu.key]}
+      onVisibility={changeVisibility} onReset={() => changeColumns(defaultColumns)} onSort={direction => setSorting(current => setColumnSort(current, menu.key, direction))} onPriority={index => setSorting(current => moveColumnSort(current, menu.key, index))} onFilter={filter => changeColumnFilter(menu.key, filter)} onClose={() => {
+        setMenu(null);
+        requestAnimationFrame(() => { if (!menu.anchor.isConnected && document.activeElement === document.body) headerButtons.current.get('name')?.focus({ preventScroll: true }); });
+      }}
+      onHide={() => { changeVisibility(menu.key, false); setMenu(null); headerButtons.current.get('name')?.focus({ preventScroll: true }); }} />}
   </>;
 }
