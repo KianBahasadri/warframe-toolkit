@@ -45,8 +45,11 @@ test('inventory edits persist, full fields are available, and equipment can be a
   await page.getByRole('tab', { name: 'My inventory' }).click();
   await page.getByLabel('Notes', { exact: true }).fill('Keep for my next build');
   await page.getByRole('button', { name: 'Save changes' }).click();
-  await page.getByRole('button', { name: 'All 14 fields' }).click();
-  await expect(page.getByRole('columnheader')).toHaveCount(14);
+  await page.getByRole('button', { name: 'Columns', exact: true }).click();
+  const columnOptions = page.getByRole('group', { name: 'Table columns' }).getByRole('checkbox');
+  for (const option of await columnOptions.all()) if (!await option.isChecked()) await option.check();
+  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Keep preference', 'Crafting target', "Don't keep", 'Crafting ingredient', 'Variant', 'Quest weapon', 'Meta / powerful', 'Slot', 'Has Prime variant', 'Override', 'Notes']);
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
   await page.getByLabel('Find in the weapon catalog').fill('Wisp Prime');
   await page.getByRole('button', { name: 'Wisp Prime Warframe', exact: true }).click();
@@ -57,7 +60,7 @@ test('inventory edits persist, full fields are available, and equipment can be a
   expect(errors).toEqual([]);
 });
 
-test('compact table keeps rank separate from mastery and sorts unknown ranks last', async ({ page }) => {
+test('table keeps rank separate from mastery and preserves sorting when changing unrelated columns', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('region', { name: 'Weapons', exact: true }).waitFor();
   await page.evaluate(() => {
@@ -95,11 +98,83 @@ test('compact table keeps rank separate from mastery and sorts unknown ranks las
   await expect(page.getByRole('dialog', { name: 'Bo', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(next).toBeFocused();
-  await page.getByRole('button', { name: 'All 14 fields', exact: true }).click();
-  await expect(page.getByRole('columnheader')).toHaveCount(14);
-  await expect(anku.getByText('Rank 0', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Compact view', exact: true }).click();
+  await page.getByRole('button', { name: 'Columns', exact: true }).click();
+  const columns = page.getByRole('group', { name: 'Table columns' });
+  await columns.getByRole('checkbox', { name: 'Upgraded', exact: true }).uncheck();
+  await columns.getByRole('checkbox', { name: 'Slot', exact: true }).check();
+  await page.keyboard.press('Escape');
+  await expect(anku.getByRole('cell').nth(2)).toHaveText('0');
+  await expect(anku.locator('.equipment-meta')).toHaveCount(0);
   await expect(names).toHaveText(['Anku', 'Bo', 'Arca Titron', 'Atomos']);
+  await page.getByRole('button', { name: 'Columns', exact: true }).click();
+  await columns.getByRole('button', { name: 'Reset to default' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('columnheader')).toHaveCount(8);
+  await expect(names).toHaveText(['Anku', 'Bo', 'Arca Titron', 'Atomos']);
+});
+
+test('column choices persist across reloads and equipment tabs without changing inventory', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Keep preference', 'Crafting target']);
+  await expect(page.getByRole('button', { name: /^(All 14 fields|Compact view)$/ })).toHaveCount(0);
+  const before = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  const boltor = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Boltor', exact: true }) });
+  await expect(boltor.locator('.equipment-meta')).toHaveText('Primary');
+  await expect(boltor.getByLabel('Incarnon: Boltor: Genesis compatible', { exact: true })).toHaveText('Genesis compatible');
+  await page.getByRole('button', { name: /^Sort Incarnon,/ }).click();
+  const trigger = page.getByRole('button', { name: 'Columns', exact: true });
+  await trigger.click();
+  const columns = page.getByRole('group', { name: 'Table columns' });
+  await expect(columns.getByRole('checkbox', { name: 'Weapon', exact: true })).toBeChecked();
+  await expect(columns.getByRole('checkbox', { name: 'Weapon', exact: true })).toBeDisabled();
+  await columns.getByRole('checkbox', { name: 'Incarnon', exact: true }).uncheck();
+  await columns.getByRole('checkbox', { name: 'Keep preference', exact: true }).uncheck();
+  await columns.getByRole('checkbox', { name: 'Notes', exact: true }).check();
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  const chosenHeaders = ['Weapon', 'Owned', 'Rank', 'Mastered', 'Upgraded', 'Crafting target', 'Notes'];
+  await expect(page.getByRole('columnheader')).toHaveText(chosenHeaders);
+  await expect(page.locator('th[aria-sort]')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('columnheader')).toHaveText(chosenHeaders);
+  await trigger.click();
+  await columns.getByRole('checkbox', { name: 'Incarnon', exact: true }).check();
+  await page.getByLabel('Search weapons').click();
+  await expect(columns).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Sort Incarnon,/ })).toHaveAccessibleName('Sort Incarnon, unsorted');
+  await page.getByRole('link', { name: 'Warframes', exact: true }).click();
+  await expect(page.getByRole('columnheader')).toHaveText(['Equipment', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Crafting target', 'Notes']);
+  await trigger.click();
+  await columns.getByRole('button', { name: 'Reset to default' }).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('link', { name: 'Weapons', exact: true }).click();
+  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Keep preference', 'Crafting target']);
+  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(before);
+});
+
+test('column picker supports keyboard toggles and fits narrow screens', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto('/');
+  const trigger = page.getByRole('button', { name: 'Columns', exact: true });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const columns = page.getByRole('group', { name: 'Table columns' });
+  await expect(columns.getByRole('checkbox', { name: 'Owned', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(columns.getByRole('checkbox', { name: 'Rank', exact: true })).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('button', { name: /^Sort Rank,/ })).toHaveCount(0);
+  await expect(columns).toBeVisible();
+  const bounds = await columns.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(720);
+  await columns.getByRole('button', { name: 'Reset to default' }).click();
+  await expect(page.getByRole('button', { name: /^Sort Rank,/ })).toHaveCount(1);
+  await page.keyboard.press('Tab');
+  await expect(columns).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('real local OCR reads an image and merges reviewed imports without losing notes', async ({ page }) => {

@@ -35,7 +35,7 @@ All 14 spreadsheet fields are stored: Owned, Weapon Name, Don't Keep, Crafting I
 - Ownership and mastery checkboxes save immediately and remain independent of rank. Select a name for **Weapon details** or **My inventory**.
 - Weapons starts with **Owned only** checked under **Filters**. Uncheck it to browse the entire catalog, including unowned weapons. Browsing never adds catalog entries to your save. Checking ownership or saving an inventory edit adds only that weapon.
 - Search names, crafting targets, notes, weapon types, tags, and quest names. Open **Filters** to choose slot, Incarnon status, weapon type, variant, mastery, quest rewards, crafting use, Foundry recipes, Prime counterparts, vault status, keep preference, and maximum required MR. With the panel closed, only controls changed from their defaults remain visible. Returning a filter to its default hides it again; **Reset filters** restores the owned view.
-- The compact table groups the slot and Incarnon status under each name, with larger game images and separate ownership, current rank, and mastery columns. **All 14 fields** switches to the full spreadsheet view; current rank remains visible under the name there. Routine values and checkboxes use neutral colors.
+- The default table shows the name and image, ownership, current rank, mastery, Incarnon status, upgrades, keep preference, and crafting target. Incarnon distinguishes native forms from Genesis compatibility. **Columns** adds or removes individual columns, including all 14 spreadsheet fields and notes; the name stays visible. **Reset to default** restores the starting columns. Column choices are remembered locally across Weapons and Warframes, separately from saved inventory. Slot appears under the name unless its own column is shown. Routine values and checkboxes use neutral colors.
 - Sort by multiple columns; repeated header clicks cycle ascending, descending, and unsorted.
 - The override takes precedence over the Don't Keep checkbox. No item is automatically marked safe to sell.
 - Known equipment gets its slot, variant, crafting targets, Incarnon eligibility, quest rewards, and Prime counterpart automatically. Those facts are read-only. Keep preferences, ownership, mastery, rank, upgrades, favorites, and notes remain personal.
@@ -92,6 +92,7 @@ Unparseable existing storage is preserved instead of silently resetting it. The 
 
 - `src/App.tsx`: navigation, persistence, and inventory operations.
 - `src/components/`: inventory table, weapon filters and details, equipment editor, import review, relics, command palette.
+- `src/components/ColumnPicker.tsx` and `src/lib/inventoryColumns.ts`: table column selection, default layout, and local display preferences.
 - `src/components/Select.tsx`: shared custom dropdowns with keyboard navigation, type-to-select, and viewport positioning; no native select popup or experimental picker CSS.
 - `src/components/ScreenshotHelp.tsx`: source-specific screenshot instructions and the local Inventory example.
 - `src/lib/weaponCatalog.ts`: catalog/inventory projection, combined filters, and safe catalog-entry ownership updates.
