@@ -15,8 +15,9 @@ import { WeaponFilters } from './WeaponFilters';
 
 const weaponFilterColumns = { ownedOnly: 'owned', slot: 'slot', variant: 'variant', mastery: 'mastered', incarnon: 'incarnon', quest: 'questWeapon', ingredient: 'craftingIngredient', prime: 'hasPrimeVariant', keep: 'keep' } as const;
 
-export function InventoryTable({ items, onEdit, onToggle, search, setSearch, weapons = false, actions }: { items: EquipmentRow[]; onEdit: (item: EquipmentRow) => void; onToggle: (item: EquipmentRow, field: BooleanField) => void; search: string; setSearch: (query: string) => void; weapons?: boolean; actions?: ReactNode }) {
-  const [filters, setFilters] = useState({ ...defaultWeaponFilters, ownedOnly: weapons });
+export function InventoryTable({ items, onEdit, onToggle, search, setSearch, weapons = false, ownedOnlyDefault = weapons, actions }: { items: EquipmentRow[]; onEdit: (item: EquipmentRow) => void; onToggle: (item: EquipmentRow, field: BooleanField) => void; search: string; setSearch: (query: string) => void; weapons?: boolean; ownedOnlyDefault?: boolean; actions?: ReactNode }) {
+  const defaults = { ...defaultWeaponFilters, ownedOnly: ownedOnlyDefault };
+  const [filters, setFilters] = useState(defaults);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState(loadColumns);
   const [sorting, setSorting] = useState<ColumnSort[]>([]);
@@ -54,9 +55,9 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
     if (matching) setFilters(current => ({ ...current, [matching]: matching === 'ownedOnly' ? false : '' }));
   };
   const filtered = filterRows(filterEquipment(items, search, filters), columnFilters);
-  const clearFilters = () => { setSearch(''); setFilters({ ...defaultWeaponFilters, ownedOnly: weapons }); setColumnFilters({}); if (weapons) filterButton.current?.focus(); };
-  const changed = Boolean(search || Object.keys(columnFilters).length || Object.entries(filters).some(([key, value]) => value !== (key === 'ownedOnly' ? weapons : defaultWeaponFilters[key as keyof typeof filters])));
-  const filterCount = Object.entries(filters).filter(([key, value]) => value !== defaultWeaponFilters[key as keyof typeof filters]).length;
+  const clearFilters = () => { setSearch(''); setFilters(defaults); setColumnFilters({}); if (weapons) filterButton.current?.focus(); };
+  const changed = Boolean(search || Object.keys(columnFilters).length || Object.entries(filters).some(([key, value]) => value !== defaults[key as keyof typeof filters]));
+  const filterCount = Object.entries(filters).filter(([key, value]) => value !== defaults[key as keyof typeof filters]).length;
   const sorted = sortRows(filtered, sorting);
   const activeId = sorted.some(item => item.id === active) ? active : sorted[0]?.id;
   return <>
@@ -69,8 +70,8 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
       <span className="filter-result" role="status">{filtered.length} of {items.length}</span>
       {actions && <div className="inventory-actions">{actions}</div>}
     </div>
-    {weapons && (filtersOpen || filterCount > 0) && <WeaponFilters activeOnly={!filtersOpen} items={items} filters={filters} onChange={next => {
-      const hidesControl = !filtersOpen && Object.entries(next).some(([key, value]) => value !== filters[key as keyof typeof filters] && value === defaultWeaponFilters[key as keyof typeof filters]);
+    {weapons && (filtersOpen || filterCount > 0) && <WeaponFilters activeOnly={!filtersOpen} ownedOnlyDefault={ownedOnlyDefault} items={items} filters={filters} onChange={next => {
+      const hidesControl = !filtersOpen && Object.entries(next).some(([key, value]) => value !== filters[key as keyof typeof filters] && value === defaults[key as keyof typeof filters]);
       changeWeaponFilters(next);
       if (hidesControl) requestAnimationFrame(() => filterButton.current?.focus());
     }} />}
@@ -80,7 +81,7 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
     </div>)}</div>}
     <div className="table-scroll inventory-grid" role="region" aria-label={weapons ? 'Weapon inventory' : 'Equipment inventory'} tabIndex={0}>
       <table className="inventory-table" style={{ minWidth: columns.reduce((width, column) => width + column.width, 0) }}>
-        <caption className="sr-only">{weapons ? 'Weapon' : 'Equipment'} catalog and inventory. Ownership and planning checkboxes save automatically. Select a name for game details and inventory settings. Click or right-click a header, or press Shift+F10, for column actions.</caption>
+        <caption className="sr-only">{weapons ? 'Weapon' : 'Equipment'} catalog and inventory. Changes save automatically when signed in. Select a name for game details and inventory settings. Click or right-click a header, or press Shift+F10, for column actions.</caption>
         <colgroup>{columns.map(column => <col key={column.key} style={{ width: column.width }} />)}</colgroup>
         <thead><tr>{columns.map(column => {
           const sortIndex = sorting.findIndex(sort => sort.key === column.key);

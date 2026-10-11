@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './accountFixture';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import inventoryScreenshots from '../fixtures/inventory-screenshots.json' with { type: 'json' };
@@ -6,6 +6,10 @@ import codexScreenshot from '../fixtures/codex-screenshot.json' with { type: 'js
 import type { Inventory } from '../../src/lib/model';
 import { createEquipment } from '../../src/lib/model';
 import { parseDropTables } from '../../src/lib/dropTableParser';
+
+async function waitForSave(page: Page) {
+  await expect(page.getByRole('status', { name: 'Save status', exact: true })).toHaveText('Saved');
+}
 
 async function chooseOption(page: Page, label: string, option: string) {
   await page.getByRole('combobox', { name: label, exact: true }).click();
@@ -32,13 +36,13 @@ test('inventory edits persist, full fields are available, and equipment can be a
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(30);
   await page.getByLabel('Search weapons').fill('Boltor');
   await page.getByLabel('Owned: Boltor', { exact: true }).click();
   await expect(page.getByLabel('Owned: Boltor', { exact: true })).toHaveCount(0);
-  await page.reload();
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page.getByLabel('Owned only', { exact: true }).uncheck();
   await page.getByLabel('Search weapons').fill('Boltor');
@@ -62,17 +66,14 @@ test('inventory edits persist, full fields are available, and equipment can be a
   expect(errors).toEqual([]);
 });
 
-test('table keeps rank separate from mastery and preserves sorting when changing unrelated columns', async ({ page }) => {
-  await page.goto('/');
+test('table keeps rank separate from mastery and preserves sorting when changing unrelated columns', async ({ page, account }) => {
+  await page.goto('/'); await waitForSave(page);
   await page.getByRole('region', { name: 'Weapons', exact: true }).waitFor();
-  await page.evaluate(() => {
-    const key = 'warframe-toolkit.inventory.v1';
-    const inventory = JSON.parse(localStorage.getItem(key)!);
-    const ranks: Record<string, number | null> = { Anku: 0, 'Arca Titron': 30, Atomos: null, Bo: 9 };
-    inventory.items = inventory.items.filter((item: { name: string }) => item.name in ranks).map((item: { name: string }) => ({ ...item, owned: true, rank: ranks[item.name], mastered: item.name === 'Anku' }));
-    localStorage.setItem(key, JSON.stringify(inventory));
-  });
-  await page.reload();
+  const inventory = await account.inventory();
+  const ranks: Record<string, number | null> = { Anku: 0, 'Arca Titron': 30, Atomos: null, Bo: 9 };
+  inventory.items = inventory.items.filter((item: { name: string }) => item.name in ranks).map((item: { name: string }) => ({ ...item, owned: true, rank: ranks[item.name], mastered: item.name === 'Anku' }));
+  await account.setInventory(inventory);
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   const rows = page.locator('.inventory-table tbody tr');
   const names = page.locator('.inventory-table .equipment-label');
   const anku = rows.filter({ has: page.getByRole('button', { name: 'Edit Anku', exact: true }) });
@@ -122,11 +123,11 @@ test('table keeps rank separate from mastery and preserves sorting when changing
   await expect(names).toHaveText(['Anku', 'Bo', 'Arca Titron', 'Atomos']);
 });
 
-test('column choices persist across reloads and equipment tabs without changing inventory', async ({ page }) => {
-  await page.goto('/');
+test('column choices persist across reloads and equipment tabs without changing inventory', async ({ page, account }) => {
+  await page.goto('/'); await waitForSave(page);
   await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Keep preference', 'Crafting target']);
   await expect(page.getByRole('button', { name: /^(All 14 fields|Compact view)$/ })).toHaveCount(0);
-  const before = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  const before = JSON.stringify(await account.inventory());
   const boltor = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Boltor', exact: true }) });
   await expect(boltor.locator('.equipment-meta')).toHaveText('Primary');
   await expect(boltor.getByLabel('Incarnon: Boltor: Genesis compatible', { exact: true })).toHaveText('Genesis compatible');
@@ -146,7 +147,7 @@ test('column choices persist across reloads and equipment tabs without changing 
   const chosenHeaders = ['Weapon', 'Owned', 'Rank', 'Mastered', 'Upgraded', 'Crafting target', 'Notes'];
   await expect(page.getByRole('columnheader')).toHaveText(chosenHeaders);
   await expect(page.locator('th[aria-sort]')).toHaveCount(0);
-  await page.reload();
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await expect(page.getByRole('columnheader')).toHaveText(chosenHeaders);
   await trigger.click();
   await columns.getByRole('checkbox', { name: 'Incarnon', exact: true }).check();
@@ -160,12 +161,12 @@ test('column choices persist across reloads and equipment tabs without changing 
   await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
   await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Keep preference', 'Crafting target']);
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(before);
+  expect(JSON.stringify(await account.inventory())).toBe(before);
 });
 
 test('column picker supports keyboard toggles and fits narrow screens', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   const trigger = page.getByRole('button', { name: 'Columns', exact: true });
   await trigger.focus();
   await page.keyboard.press('Enter');
@@ -187,18 +188,15 @@ test('column picker supports keyboard toggles and fits narrow screens', async ({
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('column context menus sort by multiple priorities and add or hide columns', async ({ page }) => {
-  await page.goto('/');
+test('column context menus sort by multiple priorities and add or hide columns', async ({ page, account }) => {
+  await page.goto('/'); await waitForSave(page);
   await page.getByRole('button', { name: 'Edit Anku', exact: true }).waitFor();
-  await page.evaluate(() => {
-    const key = 'warframe-toolkit.inventory.v1';
-    const inventory = JSON.parse(localStorage.getItem(key)!);
-    const ranks: Record<string, number> = { Anku: 30, 'Arca Titron': 30, Atomos: 20, Bo: 20 };
-    inventory.items = inventory.items.filter((item: { name: string }) => item.name in ranks).map((item: { name: string }) => ({ ...item, owned: true, rank: ranks[item.name], mastered: ['Anku', 'Bo'].includes(item.name) }));
-    localStorage.setItem(key, JSON.stringify(inventory));
-  });
-  await page.reload();
-  const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  const inventory = await account.inventory();
+  const ranks: Record<string, number> = { Anku: 30, 'Arca Titron': 30, Atomos: 20, Bo: 20 };
+  inventory.items = inventory.items.filter((item: { name: string }) => item.name in ranks).map((item: { name: string }) => ({ ...item, owned: true, rank: ranks[item.name], mastered: ['Anku', 'Bo'].includes(item.name) }));
+  await account.setInventory(inventory);
+  await waitForSave(page); await page.reload(); await waitForSave(page);
+  const saved = JSON.stringify(await account.inventory());
   const names = page.locator('.inventory-table .equipment-label');
   const menu = page.getByRole('menu', { name: /Column actions for/ });
   await page.getByRole('button', { name: 'Mastered column options', exact: true }).click();
@@ -232,11 +230,11 @@ test('column context menus sort by multiple priorities and add or hide columns',
   await columns.getByRole('checkbox', { name: 'Notes', exact: true }).check();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Notes column options', exact: true })).toHaveCount(1);
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
+  expect(JSON.stringify(await account.inventory())).toBe(saved);
 });
 
 test('column filters combine, survive hiding their column, and coordinate with weapon filters', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   const menu = page.getByRole('menu', { name: /Column actions for/ });
   const names = page.locator('.inventory-table .equipment-label');
   await page.getByRole('button', { name: 'Weapon column options', exact: true }).click({ button: 'right' });
@@ -281,7 +279,7 @@ test('column filters combine, survive hiding their column, and coordinate with w
 
 test('left-click, right-click, and keyboard activation open the same column menu without sorting', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 });
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   const header = page.getByRole('button', { name: 'Weapon column options', exact: true });
   const menu = page.getByRole('menu', { name: 'Column actions for Weapon' });
   const names = page.locator('.inventory-table .equipment-label');
@@ -327,8 +325,8 @@ test('left-click, right-click, and keyboard activation open the same column menu
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('real local OCR reads an image and merges reviewed imports without losing notes', async ({ page }) => {
-  await page.goto('/');
+test('real local OCR reads an image and merges reviewed imports without losing notes', async ({ page, account }) => {
+  await page.goto('/'); await waitForSave(page);
   const dataUrl = await page.evaluate(() => {
     const canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 700;
     const context = canvas.getContext('2d')!; context.fillStyle = '#181e23'; context.fillRect(0, 0, 1400, 700);
@@ -341,7 +339,7 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await page.getByLabel('Notes', { exact: true }).fill('Important crafting note');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
-  const savedBeforeReview = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  const savedBeforeReview = JSON.stringify(await account.inventory());
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
   await page.getByLabel('Choose inventory screenshots').setInputFiles({ name: 'inventory-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
@@ -377,7 +375,7 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await chooseOption(page, 'Matched name for BRATON PRIME RANK 30', 'Braton Prime');
   await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).not.toBeChecked();
   await page.getByLabel('Mastered: Braton Prime', { exact: true }).check();
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(savedBeforeReview);
+  expect(JSON.stringify(await account.inventory())).toBe(savedBeforeReview);
   await page.getByRole('button', { name: 'Deselect all' }).click();
   await expect(page.getByRole('button', { name: 'Import 0 items' })).toBeDisabled();
   await page.getByRole('button', { name: 'Select all' }).click();
@@ -403,7 +401,7 @@ test('real local OCR reads an image and merges reviewed imports without losing n
 
 test('navigation, dialogs, and tables fit narrow screens and support keyboard use', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile.png', fullPage: true });
@@ -437,7 +435,7 @@ test('navigation, dialogs, and tables fit narrow screens and support keyboard us
 test('dropdowns support keyboard selection and relic suggestions preserve manual entry', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page.getByLabel('Filter by slot').focus();
   await page.keyboard.press('Space');
@@ -486,13 +484,13 @@ test('dropdowns support keyboard selection and relic suggestions preserve manual
   await page.keyboard.press('Escape');
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
-  await page.reload();
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await expect(page.getByRole('button', { name: 'Edit Lith ZZ999 Exceptional', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
 test('custom dropdowns cancel changes, follow focus, and fit dialogs in both themes', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await expect(page.locator('select')).toHaveCount(0);
   const slot = page.getByRole('combobox', { name: 'Filter by slot', exact: true });
@@ -540,16 +538,13 @@ test('custom dropdowns cancel changes, follow focus, and fit dialogs in both the
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('relic refinements and quantity edits persist without changing an older equipment save', async ({ page }) => {
-  await page.goto('/');
-  const originalItems = await page.evaluate(() => {
-    const key = 'warframe-toolkit.inventory.v1';
-    const data = JSON.parse(localStorage.getItem(key)!);
-    delete data.relics;
-    localStorage.setItem(key, JSON.stringify(data));
-    return data.items;
-  });
-  await page.reload();
+test('relic refinements and quantity edits persist without changing an older equipment save', async ({ page, account }) => {
+  await page.goto('/'); await waitForSave(page);
+  const oldSave = await account.inventory();
+  const originalItems = oldSave.items;
+  delete (oldSave as Partial<Inventory>).relics;
+  await account.setInventory(oldSave);
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await page.getByRole('link', { name: 'Relics', exact: true }).click();
   await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
 
@@ -560,7 +555,7 @@ test('relic refinements and quantity edits persist without changing an older equ
   await dialog.getByLabel('Notes', { exact: true }).fill('Save for a group');
   await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
   await page.getByRole('button', { name: 'Increase Lith A1 Intact quantity' }).click();
-  await page.reload();
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await expect(page.getByLabel('Lith A1 Intact quantity', { exact: true })).toHaveText('4');
   await expect(page.getByText('Save for a group', { exact: true })).toBeVisible();
 
@@ -594,16 +589,16 @@ test('relic refinements and quantity edits persist without changing an older equ
   await expect(page.getByRole('button', { name: 'Edit Lith A1 Intact' })).toHaveCount(0);
   await page.getByLabel('Owned only').uncheck();
   await page.getByRole('button', { name: 'Decrease Lith A1 Radiant quantity' }).click();
-  await page.reload();
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await expect(page.getByLabel('Lith A1 Intact quantity', { exact: true })).toHaveText('0');
   await expect(page.getByLabel('Lith A1 Radiant quantity', { exact: true })).toHaveText('1');
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!).items)).toEqual(originalItems);
+  expect((await account.inventory()).items).toEqual(originalItems);
 });
 
-test('relic CSV exports records and deletions persist without changing equipment', async ({ page }) => {
-  await page.goto('/#relics');
+test('relic CSV exports records and deletions persist without changing equipment', async ({ page, account }) => {
+  await page.goto('/#relics'); await waitForSave(page);
   await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
-  const originalItems = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!).items);
+  const originalItems = (await account.inventory()).items;
   await page.getByRole('button', { name: 'Add relic', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Add relic' });
   await dialog.getByLabel('Relic name').fill('Neo N1');
@@ -620,18 +615,18 @@ test('relic CSV exports records and deletions persist without changing equipment
   await page.getByRole('button', { name: 'Remove entry', exact: true }).click();
   await page.getByRole('button', { name: 'Remove relic', exact: true }).click();
   await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
-  await page.reload();
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!));
+  const saved = await account.inventory();
   expect(saved.relics).toEqual([]);
   expect(saved.items).toEqual(originalItems);
 });
 
-test('old backups links open weapons without changing saved data and CSV still exports', async ({ page }) => {
-  await page.goto('/');
+test('old backups links open weapons without changing saved data and CSV still exports', async ({ page, account }) => {
+  await page.goto('/'); await waitForSave(page);
   await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
-  const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
-  await page.goto('/#backups');
+  const saved = JSON.stringify(await account.inventory());
+  await page.goto('/#backups'); await waitForSave(page);
   await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Data & backups' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open search and commands' }).click();
@@ -643,13 +638,13 @@ test('old backups links open weapons without changing saved data and CSV still e
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^arsenal-inventory-.*\.csv$/);
   expect(await readFile((await download.path())!, 'utf8')).toContain('"Boltor"');
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
+  expect(JSON.stringify(await account.inventory())).toBe(saved);
 });
 
 test('Alt number shortcuts follow the top tabs and stay inactive while editing', async ({ page }) => {
   const drops = parseDropTables(await readFile(new URL('../fixtures/drop-tables.html', import.meta.url), 'utf8'));
   await page.route('**/api/droptables', route => route.fulfill({ json: drops }));
-  await page.goto('/#import');
+  await page.goto('/#import'); await waitForSave(page);
   const navigation = page.getByRole('navigation', { name: 'Main navigation' });
   const tabs = ['Weapons', 'Warframes', 'Relics', 'Drop Tables'];
   await expect(navigation.getByRole('link')).toHaveText(tabs);
@@ -688,8 +683,8 @@ test('Alt number shortcuts follow the top tabs and stay inactive while editing',
   await expect(shortcuts).not.toContainText('Data & backups');
 });
 
-test('screenshot instructions show the local example and fit desktop and mobile', async ({ page }) => {
-  await page.goto('/#import');
+test('screenshot instructions show the local example and fit desktop and mobile', async ({ page, account }) => {
+  await page.goto('/#import'); await waitForSave(page);
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
   const codex = page.getByRole('region', { name: 'Codex', exact: true });
   await expect(inventory).toBeVisible();
@@ -701,7 +696,7 @@ test('screenshot instructions show the local example and fit desktop and mobile'
     await expect(example).toHaveAttribute('src', `/images/import/${source}-weapons.png`);
     await expect(example).toHaveJSProperty('naturalWidth', 1920);
   }
-  const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  const saved = JSON.stringify(await account.inventory());
   const instructions = inventory.getByRole('button', { name: 'Inventory instructions' });
   await instructions.click();
   const guide = page.getByRole('dialog', { name: 'Inventory screenshots', exact: true });
@@ -737,12 +732,12 @@ test('screenshot instructions show the local example and fit desktop and mobile'
   await page.screenshot({ path: 'test-results/inventory-instructions-mobile.png' });
   await guide.getByRole('button', { name: 'Close instructions', exact: true }).click();
   await expect(instructions).toBeFocused();
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
+  expect(JSON.stringify(await account.inventory())).toBe(saved);
   await expect(page.getByRole('list', { name: 'Screenshot previews' })).toHaveCount(0);
 });
 
 test('pointer highlights the paste destination and a batch hides the other source', async ({ page, context, browserName }) => {
-  await page.goto('/#import');
+  await page.goto('/#import'); await waitForSave(page);
   const screenshot = await equipmentScreenshot(page, 'paste.png', ['BOLTOR [30]']);
   const base64 = screenshot.buffer.toString('base64');
   if (browserName === 'chromium') {
@@ -826,19 +821,15 @@ test('pointer highlights the paste destination and a batch hides the other sourc
   await expect(codex).toBeVisible();
 });
 
-test('real Codex OCR reads exact variants and mastery, preserving ownership, ranks, and review edits', async ({ page }) => {
+test('real Codex OCR reads exact variants and mastery, preserving ownership, ranks, and review edits', async ({ page, account }) => {
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
-  await page.goto('/#import');
+  await page.goto('/#import'); await waitForSave(page);
   await expect(page.getByRole('region', { name: 'Codex', exact: true })).toBeVisible();
-  const original: Inventory = await page.evaluate(() => {
-    const key = 'warframe-toolkit.inventory.v1';
-    const inventory = JSON.parse(localStorage.getItem(key)!);
-    Object.assign(inventory.items.find((item: { name: string }) => item.name === 'Boltor'), { owned: true, mastered: false, rank: 7, notes: 'Keep this Forma plan', dontKeep: true, override: 'Keep' });
-    localStorage.setItem(key, JSON.stringify(inventory));
-    return inventory;
-  });
-  await page.reload();
+  const original = await account.inventory();
+  Object.assign(original.items.find(item => item.name === 'Boltor')!, { owned: true, mastered: false, rank: 7, notes: 'Keep this Forma plan', dontKeep: true, override: 'Keep' });
+  await account.setInventory(original);
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await page.getByLabel('Choose codex screenshots').setInputFiles(codexScreenshot.file);
   await waitForScreenshotReview(page);
   const names = await page.locator('.review-table [role="combobox"]').allTextContents();
@@ -850,14 +841,14 @@ test('real Codex OCR reads exact variants and mastery, preserving ownership, ran
     await expect(page.getByLabel(`Owned: ${name}`, { exact: true })).not.toBeChecked();
     await expect(page.getByLabel(`Rank: ${name}`, { exact: true })).toHaveValue('');
   }
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!))).toEqual(original);
+  expect(await account.inventory()).toEqual(original);
   await page.getByLabel('Mastered: Afuris', { exact: true }).uncheck();
   await page.getByLabel('Choose codex screenshots').setInputFiles(codexScreenshot.file);
   await waitForScreenshotReview(page);
   await expect(page.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(2);
   await expect(page.getByLabel('Mastered: Afuris', { exact: true })).not.toBeChecked();
   await page.getByRole('button', { name: 'Import 32 items', exact: true }).click();
-  const saved: Inventory = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!));
+  const saved: Inventory = await account.inventory();
   const boltor = saved.items.find(item => item.name === 'Boltor')!;
   expect(boltor).toMatchObject({ owned: true, mastered: true, rank: 7, notes: 'Keep this Forma plan', dontKeep: true, override: 'Keep' });
   for (const old of original.items) {
@@ -872,7 +863,7 @@ test('real Codex OCR reads exact variants and mastery, preserving ownership, ran
 });
 
 test('resized Codex images keep badges tied to cards and reject missing badges and green blocks', async ({ page }) => {
-  await page.goto('/#import');
+  await page.goto('/#import'); await waitForSave(page);
   const changed = await page.evaluate(async () => {
     const bitmap = await createImageBitmap(await (await fetch('/images/import/codex-weapons.png')).blob());
     const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
@@ -895,12 +886,12 @@ test('resized Codex images keep badges tied to cards and reject missing badges a
   }
 });
 
-for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every name and rank: ${fixture.file}`, async ({ page }) => {
+for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every name and rank: ${fixture.file}`, async ({ page, account }) => {
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
-  await page.goto('/#import');
+  await page.goto('/#import'); await waitForSave(page);
   await expect(page.getByRole('region', { name: 'Import screenshots', exact: true })).toBeVisible();
-  const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  const saved = JSON.stringify(await account.inventory());
   await page.getByLabel('Choose inventory screenshots').setInputFiles(fixture.file);
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
   const codex = page.getByRole('region', { name: 'Codex', exact: true });
@@ -917,22 +908,18 @@ for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every
   await inventory.getByRole('button', { name: 'Inventory instructions' }).click();
   await page.keyboard.press('Escape');
   await expect(inventory.getByRole('button', { name: `Import ${names.length} items`, exact: true })).toBeEnabled();
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
+  expect(JSON.stringify(await account.inventory())).toBe(saved);
   expect(externalRequests).toEqual([]);
 });
 
-test('real screenshot batches merge duplicates and preserve planning, prior mastery, and absent equipment', async ({ page }) => {
+test('real screenshot batches merge duplicates and preserve planning, prior mastery, and absent equipment', async ({ page, account }) => {
   test.setTimeout(180000);
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
-  const original: Inventory = await page.evaluate(vasto => {
-    const key = 'warframe-toolkit.inventory.v1';
-    const data = JSON.parse(localStorage.getItem(key)!);
-    data.items.push(vasto);
-    localStorage.setItem(key, JSON.stringify(data));
-    return data;
-  }, createEquipment({ name: 'Vasto', slot: 'Secondary', variant: 'Base' }, { mastered: true, rank: 30, notes: 'Keep my crafting plan', dontKeep: true, override: 'Keep', upgraded: 'Yes' }));
-  await page.reload();
+  const original = await account.inventory();
+  original.items.push(createEquipment({ name: 'Vasto', slot: 'Secondary', variant: 'Base' }, { mastered: true, rank: 30, notes: 'Keep my crafting plan', dontKeep: true, override: 'Keep', upgraded: 'Yes' }));
+  await account.setInventory(original);
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   await page.getByLabel('Choose inventory screenshots').setInputFiles(inventoryScreenshots[0].file);
   await waitForScreenshotReview(page);
@@ -952,7 +939,7 @@ test('real screenshot batches merge duplicates and preserve planning, prior mast
   expect(names.sort()).toEqual(Object.keys(expected).sort());
   await expect(page.getByLabel('Rank: Vasto', { exact: true })).toHaveValue('0');
   await expect(page.getByLabel('Mastered: Vasto', { exact: true })).not.toBeChecked();
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!))).toEqual(original);
+  expect(await account.inventory()).toEqual(original);
   const gallery = page.getByRole('list', { name: 'Screenshot previews' });
   await expect(gallery.locator('figcaption')).toHaveText(['1. inventory-weapons.png', '2. inventory-weapons-bottom.png', '3. inventory-weapons.png']);
   const desktopImages = await gallery.getByRole('img').evaluateAll(images => images.map(image => {
@@ -974,8 +961,8 @@ test('real screenshot batches merge duplicates and preserve planning, prior mast
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole('button', { name: 'Import 37 items', exact: true }).click();
   await expect(page.getByRole('button', { name: 'View inventory' })).toBeVisible();
-  await page.reload();
-  const saved: Inventory = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!));
+  await waitForSave(page); await page.reload(); await waitForSave(page);
+  const saved: Inventory = await account.inventory();
   expect(saved.items.length).toBe(new Set([...original.items.map(item => item.name), ...Object.keys(expected)]).size);
   for (const [name, rank] of Object.entries(expected)) {
     expect(saved.items.filter(item => item.name === name)).toHaveLength(1);
@@ -989,11 +976,11 @@ test('real screenshot batches merge duplicates and preserve planning, prior mast
   expect(saved.imports).toHaveLength(original.imports.length + 1);
 });
 
-test('background reading keeps the list editable while paste and drop add screenshots', async ({ page }) => {
-  await page.goto('/#import');
+test('background reading keeps the list editable while paste and drop add screenshots', async ({ page, account }) => {
+  await page.goto('/#import'); await waitForSave(page);
   const first = await equipmentScreenshot(page, 'first.png', ['BOLTOR [30]', 'BRATON PRIME [30]', 'VASTO [0]']);
   const later = await equipmentScreenshot(page, 'later.png', ['BOLTOR [30]', 'BRATON PRIME [30]', 'VASTO [30]', 'PARIS [30]']);
-  const savedBefore = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  const savedBefore = JSON.stringify(await account.inventory());
   await page.getByLabel('Choose inventory screenshots').setInputFiles(first);
   await waitForScreenshotReview(page);
 
@@ -1044,7 +1031,7 @@ test('background reading keeps the list editable while paste and drop add screen
   await page.getByRole('option', { name: 'Braton Vandal', exact: true }).click();
   await page.getByLabel('Rank: Boltor', { exact: true }).focus();
   await expect(page.getByRole('button', { name: 'Import 2 items', exact: true })).toBeDisabled();
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(savedBefore);
+  expect(JSON.stringify(await account.inventory())).toBe(savedBefore);
   await page.screenshot({ path: 'test-results/import-background-reading.png', fullPage: true });
   await resume.evaluate(release => release());
   await resume.dispose();
@@ -1099,10 +1086,10 @@ test('background reading keeps the list editable while paste and drop add screen
   await expect(page.getByRole('alert')).toContainText('Up to 10 screenshots per batch');
   await expect(add).toContainText('3/10 images');
   await expect(page.getByRole('button', { name: 'Import 3 items', exact: true })).toBeEnabled();
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(savedBefore);
+  expect(JSON.stringify(await account.inventory())).toBe(savedBefore);
   await page.getByRole('button', { name: 'Import 3 items', exact: true }).click();
   await expect(page.getByRole('button', { name: 'View inventory' })).toBeVisible();
-  const saved: Inventory = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!));
+  const saved: Inventory = await account.inventory();
   expect(saved.items.find(item => item.name === 'Vasto')).toMatchObject({ rank: 0, mastered: true });
   expect(saved.items.find(item => item.name === 'Braton Vandal')).toMatchObject({ rank: 30, mastered: true });
   expect(saved.items.find(item => item.name === 'Boltor')).toEqual(JSON.parse(savedBefore!).items.find((item: { name: string }) => item.name === 'Boltor'));
@@ -1114,7 +1101,7 @@ test('background reading keeps the list editable while paste and drop add screen
 });
 
 test('canceling or failing an added screenshot keeps earlier matches and allows another upload', async ({ page }) => {
-  await page.goto('/#import');
+  await page.goto('/#import'); await waitForSave(page);
   const first = await equipmentScreenshot(page, 'first.png', ['BOLTOR [30]']);
   const next = await equipmentScreenshot(page, 'next.png', ['VASTO [0]']);
   await page.getByLabel('Choose codex screenshots').setInputFiles(first);
@@ -1145,7 +1132,7 @@ test('canceling or failing an added screenshot keeps earlier matches and allows 
 });
 
 test('canceling OCR releases the importer and paste uses the focused source', async ({ page }) => {
-  await page.goto('/#import');
+  await page.goto('/#import'); await waitForSave(page);
   const dataUrl = await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 700; const context = canvas.getContext('2d')!; context.fillStyle = '#ffffff'; context.fillRect(0, 0, 1400, 700); context.fillStyle = '#000000'; context.font = '42px Arial'; context.fillText('BRATON PRIME', 100, 150); return canvas.toDataURL('image/png'); });
   await page.getByLabel('Choose inventory screenshots').setInputFiles({ name: 'cancel-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
   await page.getByRole('button', { name: 'Cancel reading' }).click();
@@ -1173,7 +1160,8 @@ test('canceling OCR releases the importer and paste uses the focused source', as
   await expect(codex.getByLabel('Owned: Braton Prime', { exact: true })).not.toBeChecked();
 });
 
-test('unreadable saved data is preserved and failed saves remain visible', async ({ page }) => {
+test('unreadable saved data is preserved and failed saves remain visible', async ({ page, account }) => {
+  await account.signOut();
   await page.addInitScript(() => localStorage.setItem('warframe-toolkit.inventory.v1', 'broken original data'));
   await page.goto('/');
   await expect(page.getByRole('alert')).toContainText('could not be read');
@@ -1184,12 +1172,12 @@ test('unreadable saved data is preserved and failed saves remain visible', async
   expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe('broken original data');
 });
 
-test('weapon catalog defaults to owned, combines filters, and adds an unowned weapon without saving the catalog', async ({ page }) => {
+test('weapon catalog defaults to owned, combines filters, and adds an unowned weapon without saving the catalog', async ({ page, account }) => {
   const externalRequests: string[] = [];
   const errors: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Filter by slot', exact: true })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'Incarnon filter', exact: true })).toHaveCount(0);
@@ -1199,7 +1187,7 @@ test('weapon catalog defaults to owned, combines filters, and adds an unowned we
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await expect(page.getByLabel('Owned only', { exact: true })).toBeChecked();
   await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(30);
-  const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  const saved = JSON.stringify(await account.inventory());
   await page.getByLabel('Owned only', { exact: true }).uncheck();
   expect(await page.getByRole('button', { name: /^Edit / }).count()).toBeGreaterThan(650);
   await page.getByLabel('Search weapons').fill('bronco');
@@ -1223,7 +1211,7 @@ test('weapon catalog defaults to owned, combines filters, and adds an unowned we
   await chooseOption(page, 'Incarnon filter', 'Any Incarnon status');
   await expect(page.getByRole('combobox', { name: 'Incarnon filter', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Edit Bronco Prime', exact: true })).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
+  expect(JSON.stringify(await account.inventory())).toBe(saved);
   await page.getByRole('button', { name: 'Edit Bronco Prime', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Bronco Prime', exact: true });
   await expect(dialog.getByRole('heading', { name: 'Crafting', exact: true })).toBeVisible();
@@ -1238,11 +1226,11 @@ test('weapon catalog defaults to owned, combines filters, and adds an unowned we
   await dialog.getByLabel('Notes', { exact: true }).fill('Build an Incarnon loadout');
   await dialog.getByRole('checkbox', { name: 'Owned', exact: false }).check();
   await dialog.getByRole('button', { name: 'Save changes' }).click();
-  const data = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!));
+  const data = await account.inventory();
   expect(data.items).toHaveLength(36);
   expect(data.items.find((item: { name: string }) => item.name === 'Bronco Prime')).toMatchObject({ owned: true, mastered: false, incarnon: true, craftingTarget: 'Akbronco Prime', notes: 'Build an Incarnon loadout' });
   expect(data.items.filter((item: { name: string }) => item.name !== 'Bronco Prime')).toEqual(JSON.parse(saved!).items);
-  await page.reload();
+  await waitForSave(page); await page.reload(); await waitForSave(page);
   await expect(page.getByRole('group', { name: 'Active weapon filters', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await expect(page.getByLabel('Owned only', { exact: true })).toBeChecked();
@@ -1257,7 +1245,7 @@ test('weapon catalog defaults to owned, combines filters, and adds an unowned we
 
 test('quest and crafting details stay local and filters fit mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('/'); await waitForSave(page);
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page.getByLabel('Owned only', { exact: true }).uncheck();
   await chooseOption(page, 'Quest reward', 'Weapon or blueprint reward');

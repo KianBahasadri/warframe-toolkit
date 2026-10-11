@@ -109,12 +109,12 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
       json(res, 200, signIn(req, res, account)); return;
     }
     const account = session(req);
-    if (!account) throw new ApiError(401, 'Sign in to save your changes.');
-    if (value.accountId !== account.id) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
+    if (account && value.accountId !== account.id) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
     if (path === '/api/account/logout' && req.method === 'POST') {
       db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(digest(token(req)));
       setCookie(req, res, ''); json(res, 200, { user: null }); return;
     }
+    if (!account) throw new ApiError(401, 'Sign in to save your changes.');
     if (path === '/api/account/profile' && req.method === 'PUT') {
       snapshot(account);
       if (!Number.isSafeInteger(value.revision) || Number(value.revision) < 0) throw new ApiError(400, 'Invalid save revision.');

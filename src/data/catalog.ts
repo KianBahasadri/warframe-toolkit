@@ -1,4 +1,4 @@
-import data from './catalog.json';
+import data from './catalog.json' with { type: 'json' };
 import type { CatalogItem } from '../lib/model';
 
 // JSON inference widens the heterogeneous stat keys to optional properties.

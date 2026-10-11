@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownToLine, Moon, Plus, ScanLine, Search, Sun, Table2, X } from 'lucide-react';
+import { ArrowDownToLine, Moon, Plus, ScanLine, Search, Sun, Table2, UserRound, X } from 'lucide-react';
 import { InventoryTable } from './components/InventoryTable';
 import { EquipmentForm } from './components/EquipmentForm';
 import { ScreenshotImport } from './components/ScreenshotImport';
@@ -9,12 +9,14 @@ import type { DropTableActions } from './components/DropTables';
 import { Commands } from './components/Commands';
 import type { Command } from './components/Commands';
 import { Dialog } from './components/Dialog';
-import { initialInventory } from './data/reference';
+import { AccountDialog } from './components/AccountDialog';
+import { useAccount } from './lib/useAccount';
+import './components/Account.css';
 import { catalog } from './data/catalog';
 import { editableRecord, equipmentRows, toggleEquipment } from './lib/weaponCatalog';
 import { mergeObservations } from './lib/model';
 import type { Equipment, Inventory } from './lib/model';
-import { downloadFile, inventoryCsv, parseBackup, relicsCsv, STORAGE_KEY } from './lib/storage';
+import { downloadFile, inventoryCsv, relicsCsv, STORAGE_KEY } from './lib/storage';
 import { MAX_RELIC_QUANTITY } from './lib/relics';
 import weaponsIcon from './assets/warframe/weapons.png';
 import warframesIcon from './assets/warframe/warframes.png';
@@ -29,21 +31,12 @@ function pageFromHash(): Page {
   return Object.keys(pageNames).includes(value) ? value as Page : 'weapons';
 }
 
-function loadInventory(): { data: Inventory; error: string; fresh: boolean } {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return { data: saved ? parseBackup(saved) : initialInventory(), error: '', fresh: !saved };
-  } catch {
-    return { data: { version: 1, items: [], relics: [], imports: [], referenceNotice: false }, error: 'Your saved inventory could not be read. It has not been overwritten. Download the original data below.', fresh: false };
-  }
-}
-
 export default function App() {
-  const [initial] = useState(loadInventory);
-  const [inventory, setInventory] = useState(initial.data);
+  const account = useAccount();
+  const inventory = account.profile.inventory;
+  const commit = (next: Inventory) => { const saved = account.commitInventory(next); if (saved) inventoryRef.current = next; return saved; };
+  const [accountOpen, setAccountOpen] = useState(false);
   const inventoryRef = useRef(inventory); inventoryRef.current = inventory;
-  const [storageError, setStorageError] = useState(initial.error);
-  const [unreadable, setUnreadable] = useState(Boolean(initial.error));
   const [page, setPage] = useState<Page>(pageFromHash);
   const equipmentLabel = page === 'weapons' ? 'weapon' : 'equipment';
   const [search, setSearch] = useState('');
@@ -54,24 +47,13 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const dropActions = useRef<DropTableActions>(null);
 
-  const commit = (next: Inventory): boolean => {
-    next = { ...next, relics: next.relics ?? [] };
-    if (unreadable) { setStorageError('Editing is disabled to preserve your unreadable saved inventory. Download the original data below.'); return false; }
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); inventoryRef.current = next; setInventory(next); setStorageError(''); setUnreadable(false); return true; }
-    catch { setStorageError('Your browser could not save changes. Free some browser storage and try again. The last saved inventory is unchanged.'); return false; }
-  };
   useEffect(() => {
-    if (initial.fresh) commit(initial.data);
     const hashChange = () => setPage(pageFromHash());
     hashChange();
-    const storage = (event: StorageEvent) => {
-      if (event.key !== STORAGE_KEY || !event.newValue) return;
-      try { const next = parseBackup(event.newValue); inventoryRef.current = next; setInventory(next); setNotice('Inventory updated from another tab.'); }
-      catch { setStorageError('Another tab wrote an invalid inventory. Your current view has been kept.'); }
-    };
-    window.addEventListener('hashchange', hashChange); window.addEventListener('storage', storage);
-    return () => { window.removeEventListener('hashchange', hashChange); window.removeEventListener('storage', storage); };
-  }, [initial]);
+    window.addEventListener('hashchange', hashChange);
+    return () => window.removeEventListener('hashchange', hashChange);
+  }, []);
+  useEffect(() => { setEditing(null); setSearch(''); }, [account.user?.id]);
   useEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem('arsenal.theme', theme); } catch { /* Inventory saving reports its own failures. */ } }, [theme]);
   const navigate = (destination: Page) => { setPage(destination); location.hash = destination; setSearch(''); };
   const exportCsv = () => { downloadFile(`arsenal-inventory-${new Date().toISOString().slice(0, 10)}.csv`, inventoryCsv(equipmentRows(inventoryRef.current.items, catalog)), 'text/csv;charset=utf-8'); setNotice('Inventory CSV downloaded.'); };
@@ -102,21 +84,22 @@ export default function App() {
   const visibleItems = useMemo(() => equipmentRows(inventory.items, catalog, page === 'weapons').filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe'), [inventory.items, page]);
   const isInventory = page === 'weapons' || page === 'warframes';
   return <div className="app-shell">
-    <div className="content-shell"><header className="topbar">{nav}<div className="topbar-right"><div className="page-utilities"><button type="button" className="search-launcher" aria-label="Open search and commands" aria-keyshortcuts="Control+k Meta+k Control+Space" onClick={() => setPalette(true)}><Search size={15} /></button><button type="button" className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button></div></div></header>
+    <div className="content-shell"><header className="topbar">{nav}<div className="topbar-right"><div className="page-utilities"><button type="button" className="search-launcher" aria-label="Open search and commands" aria-keyshortcuts="Control+k Meta+k Control+Space" onClick={() => setPalette(true)}><Search size={15} /></button><button type="button" className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button><button type="button" className="button secondary account-button" aria-label={account.user ? `Account: ${account.user.username}` : 'Sign in'} aria-haspopup="dialog" disabled={account.checking} onClick={() => setAccountOpen(true)}><UserRound size={16} /><span>{account.user?.username ?? 'Sign in'}</span></button></div></div></header>
       <main id="main-content" className={page === 'import' ? 'import-page' : undefined}>
-        {storageError && <div className="callout danger" role="alert"><strong>Storage problem:</strong> {storageError}{initial.error && <button type="button" className="button secondary" onClick={() => { try { downloadFile('arsenal-original-data.txt', localStorage.getItem(STORAGE_KEY) || '', 'text/plain'); } catch { setNotice('Browser storage is unavailable.'); } }}>Download original data</button>}</div>}
+        <div className="account-save-status" role="status" aria-label="Save status">{account.checking ? 'Checking sign-in…' : account.user ? account.error && account.dirty ? 'Unsaved changes' : account.saving || account.dirty ? 'Saving…' : 'Saved' : <><span>{account.dirty ? 'Changes are temporary.' : 'Browsing without an account.'}</span><button type="button" onClick={() => setAccountOpen(true)}>Sign in to save</button></>}</div>
+        {account.error && <div className="callout danger" role="alert">{account.error}<div className="account-error-actions">{account.unreadable && <button type="button" className="button secondary" onClick={() => { try { downloadFile('arsenal-original-data.txt', localStorage.getItem(STORAGE_KEY) || '', 'text/plain'); } catch { setNotice('Browser storage is unavailable.'); } }}>Download original data</button>}{account.user && <><button type="button" className="button secondary" disabled={account.saving} onClick={() => void account.retrySave()}>Try saving again</button><button type="button" className="button secondary" onClick={() => downloadFile('arsenal-unsaved-profile.json', JSON.stringify(account.profile, null, 2), 'application/json')}>Download changes</button><button type="button" className="button quiet" disabled={account.saving} onClick={() => void account.reloadSaved()}>Discard changes and reload saved data</button></>}</div></div>}
         {notice && <div className="callout info inline-notice" role="status"><span>{notice}</span><button type="button" className="icon-button" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => setNotice('')}><X size={16} /></button></div>}
         {isInventory && <>
           <section className="inventory-section" aria-label={pageNames[page]}>
             {page !== 'weapons' && <div className="section-heading"><h1>{pageNames[page]}</h1></div>}
-            <InventoryTable key={page} weapons={page === 'weapons'} items={visibleItems} search={search} setSearch={setSearch} onEdit={row => setEditing(editableRecord(row))} onToggle={(item, field) => commit({ ...inventoryRef.current, items: toggleEquipment(inventoryRef.current.items, item, field) })} actions={<>
+            <InventoryTable key={`${page}:${account.user?.id ?? 'guest'}`} weapons={page === 'weapons'} ownedOnlyDefault={page === 'weapons' && Boolean(account.user)} items={visibleItems} search={search} setSearch={setSearch} onEdit={row => setEditing(editableRecord(row))} onToggle={(item, field) => commit({ ...inventoryRef.current, items: toggleEquipment(inventoryRef.current.items, item, field) })} actions={<>
               <button type="button" className="button secondary" onClick={() => setEditing('new')}><Plus size={16} />Add {equipmentLabel}</button>
               <button type="button" className="button primary" onClick={() => navigate('import')}><ScanLine size={16} />Import screenshots</button>
               <button type="button" className="button quiet" onClick={exportCsv}><ArrowDownToLine size={15} />Export CSV</button>
             </>} />
           </section>
         </>}
-        {page === 'relics' && <Relics relics={relics} onExport={exportRelics} onSave={relic => {
+        {page === 'relics' && <Relics key={account.user?.id ?? 'guest'} relics={relics} onExport={exportRelics} onSave={relic => {
           const current = inventoryRef.current;
           const existing = current.relics ?? [];
           return commit({ ...current, relics: existing.some(entry => entry.id === relic.id) ? existing.map(entry => entry.id === relic.id ? relic : entry) : [...existing, relic] });
@@ -125,11 +108,12 @@ export default function App() {
           commit({ ...current, relics: (current.relics ?? []).map(relic => relic.id === id ? { ...relic, quantity: Math.max(0, Math.min(MAX_RELIC_QUANTITY, relic.quantity + change)), updatedAt: new Date().toISOString() } : relic) });
         }} />}
         {page === 'import' && <ScreenshotImport onInventory={() => navigate('weapons')} onImport={(observations, files) => { const merged = mergeObservations(inventoryRef.current.items, observations); const next = { ...inventoryRef.current, items: merged.items, imports: [{ id: crypto.randomUUID(), date: new Date().toISOString(), files, added: merged.added, updated: merged.updated }, ...inventoryRef.current.imports].slice(0, 100) }; return commit(next) ? { added: merged.added, updated: merged.updated } : null; }} />}
-        {page === 'droptables' && <DropTables actionsRef={dropActions} />}
+        {page === 'droptables' && <DropTables actionsRef={dropActions} savedViews={account.profile.dropViews} savedViewsError={account.viewsError} canSave={Boolean(account.user)} onSaveViews={account.commitViews} onSignIn={() => setAccountOpen(true)} />}
       </main>
     </div>
     {editing && <EquipmentForm weapons={page === 'weapons'} item={editing === 'new' ? undefined : editing} existing={inventory.items} onClose={() => setEditing(null)} onSave={item => { const current = inventoryRef.current; const exists = current.items.some(entry => entry.id === item.id); if (commit({ ...current, items: exists ? current.items.map(entry => entry.id === item.id ? item : entry) : [...current.items, item] })) { setEditing(null); setNotice(`${item.name} ${exists ? 'updated' : 'added'}.`); return true; } return false; }} onDelete={id => { if (commit({ ...inventoryRef.current, items: inventoryRef.current.items.filter(item => item.id !== id) })) { setEditing(null); setNotice(`${page === 'weapons' ? 'Weapon' : 'Equipment'} entry removed.`); return true; } return false; }} />}
     {palette && <Commands commands={commands} destinations={destinations} onClose={() => setPalette(false)} />}
+    {accountOpen && <AccountDialog user={account.user} dirty={account.dirty} canIncludeCurrent={account.canIncludeCurrent} onAuthenticate={account.authenticate} onSignOut={account.signOut} onClose={() => setAccountOpen(false)} />}
     {shortcuts && <Dialog title="Keyboard shortcuts" onClose={() => setShortcuts(false)}><dl className="shortcut-list"><div><dt>Search and commands</dt><dd><kbd>Ctrl</kbd> + <kbd>K</kbd> / <kbd>⌘</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>Space</kbd></dd></div>{[...commands, ...destinations].map(command => <div key={command.label}><dt>{command.label}</dt><dd>{command.keys.map(key => <kbd key={key}>{key}</kbd>)}</dd></div>)}<div><dt>Column actions</dt><dd><kbd>Shift</kbd> + <kbd>F10</kbd></dd></div><div><dt>Move between {page === 'droptables' ? 'reward' : equipmentLabel} rows</dt><dd><kbd>↑</kbd><kbd>↓</kbd></dd></div><div><dt>Open selected {page === 'droptables' ? 'reward' : equipmentLabel}</dt><dd><kbd>Enter</kbd><kbd>Space</kbd></dd></div></dl></Dialog>}
   </div>;
 }

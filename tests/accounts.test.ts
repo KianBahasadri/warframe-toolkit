@@ -100,6 +100,8 @@ test('accounts and sessions survive a server restart, while expired sessions can
     now += 31 * 24 * 60 * 60 * 1000;
     assert.deepEqual(await (await api.request('session', undefined, cookie)).json(), { user: null });
     assert.equal((await api.request('profile', { accountId: data.user.id, profile: emptyProfile(), revision: 0 }, cookie, { method: 'PUT' })).status, 401);
+    const logout = await api.request('logout', { accountId: data.user.id }, cookie);
+    assert.equal(logout.status, 200); assert.match(logout.headers.get('set-cookie')!, /Max-Age=0/);
   } finally { await api.close(); await rm(directory, { recursive: true }); }
 });
 

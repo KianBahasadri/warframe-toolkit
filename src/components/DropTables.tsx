@@ -9,20 +9,19 @@ import { DropDetails } from './DropDetails';
 import { DropInfo } from './DropInfo';
 import { DropResults } from './DropResults';
 import { DropGroupCard, DropModePicker, DropRewardCards, dropBrowseOptions } from './DropBrowser';
-import { compileDropQuery, defaultDropView, DROP_TABLES_URL, dropColumns, dropFilterLabel, dropRowsCsv, dropViewHash, filterDropRows, isDropView, moveDropSort, readDropView, setDropSort, sortDropRows } from '../lib/dropTables';
+import { compileDropQuery, defaultDropView, DROP_TABLES_URL, dropColumns, dropFilterLabel, dropRowsCsv, dropViewHash, filterDropRows, moveDropSort, readDropView, setDropSort, sortDropRows } from '../lib/dropTables';
 import type { DropBrowseMode, DropColumnKey, DropFilter, DropRow, DropView } from '../lib/dropTables';
 import { groupDropRows } from '../lib/dropExplorer';
 import { useDropData } from '../lib/useDropData';
 import { downloadFile } from '../lib/storage';
+import type { SavedDropView } from '../lib/account';
 import './DropTables.css';
 
 export interface DropTableActions { exportCsv: () => void }
 let sessionView = defaultDropView();
 const facetKeys: DropColumnKey[] = ['category', 'location', 'mission', 'rotation', 'stage', 'era', 'refinement', 'rarity'];
-const viewsKey = 'warframe-toolkit.drop-views.v1';
-type SavedView = { name: string; view: DropView };
 
-export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }) {
+export function DropTables({ actionsRef, savedViews, savedViewsError, canSave, onSaveViews, onSignIn }: { actionsRef: Ref<DropTableActions>; savedViews: SavedDropView[]; savedViewsError: string; canSave: boolean; onSaveViews: (views: SavedDropView[]) => boolean; onSignIn: () => void }) {
   const { data, loading, error } = useDropData();
   const [notice, setNotice] = useState('');
   const [view, setView] = useState(() => location.hash.includes('?') ? readDropView(location.hash) : sessionView);
@@ -31,13 +30,7 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   const [chanceOpen, setChanceOpen] = useState(false);
   const [details, setDetails] = useState<DropRow | null>(null);
   const [viewName, setViewName] = useState('');
-  const [saved, setSaved] = useState<{ views: SavedView[]; error: string }>(() => {
-    try {
-      const raw: unknown = JSON.parse(localStorage.getItem(viewsKey) ?? '[]');
-      if (!Array.isArray(raw) || raw.some(value => !value || typeof value.name !== 'string' || !value.name.trim() || !isDropView(value.view))) throw new Error('Invalid views');
-      return { views: raw, error: '' };
-    } catch { return { views: [], error: 'Saved views could not be read. The original data has been kept.' }; }
-  });
+  const saved = { views: savedViews, error: savedViewsError };
   const searchInput = useRef<HTMLInputElement>(null), viewsButton = useRef<HTMLButtonElement>(null), chanceButton = useRef<HTMLButtonElement>(null);
   const resultsHeading = useRef<HTMLHeadingElement>(null);
   const changeView = (next: DropView) => setView(next);
@@ -85,10 +78,7 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
     setNotice(`Exported all ${rows.length.toLocaleString()} matching entries with all fields.`);
   };
   useImperativeHandle(actionsRef, () => ({ exportCsv }));
-  const saveViews = (next: SavedView[]) => {
-    try { localStorage.setItem(viewsKey, JSON.stringify(next)); setSaved({ views: next, error: '' }); return true; }
-    catch { setNotice('Could not save the view. Browser storage may be full or unavailable.'); return false; }
-  };
+  const saveViews = onSaveViews;
   const closeViews = () => { setViewsOpen(false); requestAnimationFrame(() => viewsButton.current?.focus({ preventScroll: true })); };
   const sortValue = !view.sorting.length ? 'name' : view.sorting.length === 1 && view.sorting[0].key === 'chance' ? view.sorting[0].direction === -1 ? 'chance-desc' : 'chance-asc' : 'custom';
   const browseRelated = (mode: DropBrowseMode, group: string) => {
@@ -132,8 +122,8 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
     {chanceOpen && filtersOpen && <TablePopover anchor={chanceButton.current!} label="Filter Drop chance" onClose={() => setChanceOpen(false)}><div className="column-menu-heading">Drop chance</div><DropFilterForm column={dropColumns.find(column => column.key === 'chance')!} filter={view.filters.chance} onApply={filter => { setFilter('chance', filter); setChanceOpen(false); chanceButton.current?.focus(); }} /></TablePopover>}
     {details && <DropDetails row={details} onClose={() => setDetails(null)} onFindReward={() => browseRelated('item', details.reward)} onFindSource={() => browseRelated('source', details.source)} />}
     {viewsOpen && <TablePopover anchor={viewsButton.current!} label="Drop table views" className="drop-views-popover" onClose={() => setViewsOpen(false)}><div className="column-menu-heading">Saved views</div><div className="column-menu-content">
-      {saved.views.length > 0 ? <div className="drop-saved-views">{saved.views.map((entry, index) => <div key={entry.name}><button type="button" className="column-menu-action" onClick={() => { changeView({ ...entry.view, browse: entry.view.browse ?? { mode: 'item' } }); closeViews(); }}>{entry.name}</button><button type="button" className="icon-button" aria-label={`Delete view ${entry.name}`} onClick={() => saveViews(saved.views.filter((_, position) => position !== index))}><X size={14} /></button></div>)}</div> : <p className="drop-saved-empty muted small">No saved views</p>}
-      <form className="drop-save-view" onSubmit={event => { event.preventDefault(); if (!viewName.trim() || saved.error || !mode) return; if (saved.views.some(entry => entry.name.toLocaleLowerCase() === viewName.trim().toLocaleLowerCase())) { setNotice('A view with that name already exists. Choose another name.'); return; } if (saveViews([...saved.views, { name: viewName.trim(), view: { ...view, browse: view.browse ?? { mode } } }])) { setViewName(''); closeViews(); setNotice('View saved. Drop data updates automatically.'); } }}><label>View name<input maxLength={60} value={viewName} onChange={event => setViewName(event.target.value)} disabled={Boolean(saved.error) || !mode} /></label><button type="submit" className="button secondary" disabled={!viewName.trim() || Boolean(saved.error) || !mode}>Save current view</button>{saved.error && <p className="error-text small">{saved.error}</p>}{!mode && <p className="muted small">Choose a browse view to save it.</p>}</form>
+      {saved.views.length > 0 ? <div className="drop-saved-views">{saved.views.map((entry, index) => <div key={entry.name}><button type="button" className="column-menu-action" onClick={() => { changeView({ ...entry.view, browse: entry.view.browse ?? { mode: 'item' } }); closeViews(); }}>{entry.name}</button>{canSave && <button type="button" className="icon-button" aria-label={`Delete view ${entry.name}`} onClick={() => saveViews(saved.views.filter((_, position) => position !== index))}><X size={14} /></button>}</div>)}</div> : <p className="drop-saved-empty muted small">No saved views</p>}
+      <form className="drop-save-view" onSubmit={event => { event.preventDefault(); if (!canSave) { closeViews(); onSignIn(); return; } if (!viewName.trim() || saved.error || !mode) return; if (saved.views.some(entry => entry.name.toLocaleLowerCase() === viewName.trim().toLocaleLowerCase())) { setNotice('A view with that name already exists. Choose another name.'); return; } if (saveViews([...saved.views, { name: viewName.trim(), view: { ...view, browse: view.browse ?? { mode } } }])) { setViewName(''); closeViews(); } }}><label>View name<input maxLength={60} value={viewName} onChange={event => setViewName(event.target.value)} disabled={!canSave || Boolean(saved.error) || !mode} /></label><button type="submit" className="button secondary" disabled={canSave && (!viewName.trim() || Boolean(saved.error) || !mode)}>{canSave ? 'Save current view' : 'Sign in to save view'}</button>{saved.error && <p className="error-text small">{saved.error}</p>}{!mode && <p className="muted small">Choose a browse view to save it.</p>}</form>
     </div></TablePopover>}
     {help && <Dialog title="Search & drop rates" onClose={() => setHelp(false)} className="drop-help"><h3>Search syntax</h3><p>Combine terms to narrow results. Use quotes for a phrase and a minus sign to exclude a term. Search ignores letter case.</p><dl className="drop-query-examples"><div><dt><code>"nova prime"</code></dt><dd>Find the phrase across all text fields</dd></div><div><dt><code>reward:forma -source:lith</code></dt><dd>Forma rewards, excluding Lith sources</dd></div><div><dt><code>mission:survival rotation:c</code></dt><dd>Survival rewards in rotation C</dd></div><div><dt><code>chance:&gt;=10 chance:&lt;50</code></dt><dd>Drop chance from 10% up to, but excluding, 50%</dd></div></dl><p className="small muted">Fields: reward, source, category, location, mission, rotation, stage, era, refinement, rarity, chance, within, roll. Numeric fields accept =, &gt;, &gt;=, &lt;, and &lt;=.</p><h3>Reading the rates</h3><p><strong>Drop chance</strong> combines the source’s table roll rate with the reward’s within-table chance. Rates above 100% indicate multiple rolls; their overall odds are left uncalculated. The rarity label comes directly from the publisher.</p><p>Bounty stages and rotations are separate opportunities. Duplicate rewards within a table remain separate entries; they are not automatically added together. Reverse indexes for enemy drops are shown once.</p><p className="muted small">The official page describes PC rewards and may omit drops or lag hotfixes. Listed relics or sources can be vaulted or unavailable. Automatic updates retrieve the published page, not an in-game live rotation. CSV exports every matching entry in the current group or view, with all fields; rates are percentages.</p><a href={DROP_TABLES_URL} target="_blank" rel="noreferrer">Open the official drop tables</a></Dialog>}
   </section>;

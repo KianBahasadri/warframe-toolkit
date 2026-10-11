@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './accountFixture';
 import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -219,7 +219,7 @@ test('reward cards expose conditional rates, calculator, unknown odds, keyboard 
   await expect(buttons).toHaveCount(3); await expect(buttons.first()).toContainText('90.00%');
 });
 
-test('all results are available without pagination, and exports, saved views and links preserve the selected group', async ({ page, context }) => {
+test('all results are available without pagination, and exports, saved views and links preserve the selected group', async ({ page, context, account }) => {
   await openDrops(page);
   await expect(page.locator('.drop-group-card')).toHaveCount(new Set(data.rows.map(row => row.reward)).size);
   await expect(page.getByRole('button', { name: /^(Next|Previous) page$/ })).toHaveCount(0);
@@ -242,7 +242,7 @@ test('all results are available without pagination, and exports, saved views and
   await page.getByRole('button', { name: 'Saved views', exact: true }).click();
   await page.getByRole('textbox', { name: 'View name', exact: true }).fill('My farm');
   await page.getByRole('button', { name: 'Save current view', exact: true }).click();
-  const stored = JSON.parse((await page.evaluate(() => localStorage.getItem('warframe-toolkit.drop-views.v1')))!);
+  const stored = (await account.profile()).dropViews;
   expect(stored).toHaveLength(1); expect(stored[0].view.rows).toBeUndefined();
   expect(stored[0].view.pageSize).toBeUndefined();
   expect(stored[0].view.browse).toEqual({ mode: 'source', group: 'Test Source' });
@@ -263,7 +263,8 @@ test('all results are available without pagination, and exports, saved views and
   await expect(page.getByRole('option', { name: 'Export inventory CSV', exact: true })).toHaveCount(0);
 });
 
-test('load failure, malformed saved views, narrow screens and inert source markup remain usable', async ({ page }) => {
+test('load failure, malformed saved views, narrow screens and inert source markup remain usable', async ({ page, account }) => {
+  await account.signOut();
   await page.clock.install();
   await page.route('**/api/droptables', route => route.fulfill({ status: 502, json: { error: 'Upstream timeout' } }));
   await page.addInitScript(() => localStorage.setItem('warframe-toolkit.drop-views.v1', '{broken'));
@@ -317,10 +318,10 @@ test('first-run cache preparation recovers automatically without a fetch or retr
   await expect(page.getByRole('button', { name: /^(Refresh|Retry|Try again)$/ })).toHaveCount(0);
 });
 
-test('legacy shared and saved views still open their results, and navigation shortcuts retain the browser', async ({ page }) => {
+test('legacy shared and saved views still open their results, and navigation shortcuts retain the browser', async ({ page, account }) => {
   await mockDrops(page);
   const view = defaultDropView(); view.query = 'source:"test source"'; view.columns = ['reward', 'chance', 'sourceChance']; view.pageSize = 50;
-  await page.addInitScript(view => localStorage.setItem('warframe-toolkit.drop-views.v1', JSON.stringify([{ name: 'Old view', view }])), view);
+  await account.setProfile({ ...(await account.session()).profile, dropViews: [{ name: 'Old view', view }] });
   await page.goto('/' + dropViewHash(view));
   await expect(page.getByRole('link', { name: 'Drop Tables', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.drop-group-card')).toHaveCount(65);
@@ -332,8 +333,8 @@ test('legacy shared and saved views still open their results, and navigation sho
   await page.getByRole('button', { name: 'Saved views', exact: true }).click();
   await page.getByRole('button', { name: 'Old view', exact: true }).click();
   await expect(page.locator('.drop-group-card')).toHaveCount(65);
-  expect(JSON.parse((await page.evaluate(() => localStorage.getItem('warframe-toolkit.drop-views.v1')))!)[0].view.browse).toBeUndefined();
-  expect(JSON.parse((await page.evaluate(() => localStorage.getItem('warframe-toolkit.drop-views.v1')))!)[0].view.pageSize).toBe(50);
+  expect((await account.profile()).dropViews[0].view.browse).toBeUndefined();
+  expect((await account.profile()).dropViews[0].view.pageSize).toBe(50);
 });
 
 test('large lists append while scrolling, search all data, and keep the final result reachable by keyboard', async ({ page }) => {

@@ -33,7 +33,7 @@ export function EquipmentForm({ item, existing, onSave, onClose, onDelete, weapo
     // New records receive catalog facts, while older saves retain their original
     // planning values. Known facts are always projected from the current catalog.
     const next = entry && !tracked ? withCatalogFacts(record, entry) : record;
-    if (!onSave({ ...next, name: next.name.trim(), updatedAt: new Date().toISOString() })) setError('Browser storage is unavailable. Your last saved inventory is unchanged; close this editor to see recovery options.');
+    if (!onSave({ ...next, name: next.name.trim(), updatedAt: new Date().toISOString() })) setError('Your changes could not be applied. Close this editor to see recovery options.');
   };
   return <Dialog title={item ? item.name : `Add ${noun}`} onClose={onClose} className="equipment-dialog">
     {entry && <div className="weapon-overview">{entry.image && <img src={entry.image} alt={entry.name} width="152" height="116" />}<div><div className="weapon-tags"><span className="badge">{entry.slot}</span><span className="badge">{entry.weaponType}</span><span className="badge">MR {entry.masteryReq}</span><span className="badge">{entry.variant}</span></div><p>{entry.description}</p></div></div>}
@@ -65,7 +65,7 @@ export function EquipmentForm({ item, existing, onSave, onClose, onDelete, weapo
       {entry && <p className="catalog-notice">Crafting, Incarnon, quest, and variant details are filled from the weapon catalog.</p>}
       {tracked && <div className="record-meta"><span>{item?.source}</span></div>}
       {error && <p className="callout danger" role="alert"><strong>Couldn’t save:</strong> {error}</p>}
-      {deleteConfirm && <div className="callout caution"><strong>Remove {item?.name}?</strong> This removes its saved inventory entry; catalog details remain available. <button type="button" className="button danger-button" onClick={() => { if (item && !onDelete(item.id)) setError('Browser storage is unavailable. The entry has not been removed.'); }}>Remove entry</button></div>}
+      {deleteConfirm && <div className="callout caution"><strong>Remove {item?.name}?</strong> This removes its saved inventory entry; catalog details remain available. <button type="button" className="button danger-button" onClick={() => { if (item && !onDelete(item.id)) setError('The entry could not be removed. Close this editor to see recovery options.'); }}>Remove entry</button></div>}
       <div className="dialog-footer">{tracked && <button type="button" className="button quiet push-right" onClick={() => setDeleteConfirm(!deleteConfirm)}>{deleteConfirm ? 'Keep entry' : 'Remove entry'}</button>}<button type="button" className="button secondary" onClick={onClose}>Cancel</button><button type="submit" className="button primary">{item ? 'Save changes' : `Add ${noun}`}</button></div>
     </form>}
   </Dialog>;

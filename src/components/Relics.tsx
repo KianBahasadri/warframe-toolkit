@@ -90,7 +90,7 @@ function RelicForm({ item, existing, onSave, onDelete, onClose }: { item?: Relic
       if (!Number.isInteger(draft.quantity) || draft.quantity < 0 || draft.quantity > MAX_RELIC_QUANTITY) { setError(`Quantity must be a whole number from 0 to ${MAX_RELIC_QUANTITY}.`); return; }
       const next = { ...draft, name: parsed.name, updatedAt: new Date().toISOString() };
       if (existing.some(relic => relic.id !== draft.id && relicKey(relic) === relicKey(next))) { setError('This relic and refinement are already tracked. Edit that entry’s quantity instead.'); return; }
-      if (!onSave(next)) { setError('Could not save to browser storage. Your previous data is unchanged.'); return; }
+      if (!onSave(next)) { setError('Your changes could not be applied. Your previous data is unchanged.'); return; }
       onClose();
     }}>
       <div className="form-grid">
@@ -100,7 +100,7 @@ function RelicForm({ item, existing, onSave, onDelete, onClose }: { item?: Relic
         <div className="form-field span-2"><label htmlFor="relic-notes">Notes</label><textarea id="relic-notes" rows={3} value={draft.notes} onChange={event => setDraft({ ...draft, notes: event.target.value })} maxLength={5000} /></div>
       </div>
       {error && <p className="callout danger relic-form-error" role="alert"><strong>Couldn’t save:</strong> {error}</p>}
-      {confirmDelete && <div className="callout caution relic-form-error"><strong>Remove {item?.name} · {item?.refinement}?</strong><div><button type="button" className="button danger-button" onClick={() => { if (item && onDelete(item.id)) onClose(); else setError('Could not remove this entry from browser storage.'); }}>Remove relic</button></div></div>}
+      {confirmDelete && <div className="callout caution relic-form-error"><strong>Remove {item?.name} · {item?.refinement}?</strong><div><button type="button" className="button danger-button" onClick={() => { if (item && onDelete(item.id)) onClose(); else setError('This entry could not be removed.'); }}>Remove relic</button></div></div>}
       <div className="dialog-footer">{item && <button type="button" className="button quiet push-right" onClick={() => setConfirmDelete(!confirmDelete)}>{confirmDelete ? 'Keep entry' : 'Remove entry'}</button>}<button type="button" className="button secondary" onClick={onClose}>Cancel</button><button type="submit" className="button primary">{item ? 'Save changes' : 'Add relic'}</button></div>
     </form>
   </Dialog>;

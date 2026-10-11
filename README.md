@@ -1,6 +1,6 @@
 # Arsenal · Warframe Toolkit
 
-A local browser app for tracking Warframe equipment using the fields from your spreadsheet, relic quantities, and searching the official drop tables. Built with React, TypeScript, and Vite. No account, paid service, or API key is required. Inventory, relics, and screenshot recognition work offline. Drop-table updates need an internet connection; the most recent successful copy remains available through the local server while offline.
+A browser app for tracking Warframe equipment using the fields from your spreadsheet, relic quantities, and searching the official drop tables. Built with React, TypeScript, and Vite. Browse and try the app without an account; sign in to save your inventory and views. Accounts use your Warframe username and a separate toolkit password, with no email. No paid service or API key is required. Catalog browsing and screenshot recognition work offline, and account saves work through the running local server without internet access. Drop-table updates need an internet connection; the most recent successful copy remains available through the local server while offline.
 
 ## Run
 
@@ -11,30 +11,30 @@ npm install
 npm run dev
 ```
 
-Open **http://127.0.0.1:5173**. Keep using the same hostname and port: browser storage belongs to that origin. `localhost` and `127.0.0.1` have separate inventories.
+Open **http://127.0.0.1:5173**. Account data lives on this server. Sign in from another browser connected to the same server to use the same inventory. Older browser saves and display preferences still belong to their original hostname and port.
 
 ```sh
 npm run build       # Production files in dist/
 npm run preview     # Preview the production build on port 4173
-npm test            # Catalog, drop-table parsing, filtering, OCR matching, storage and CSV tests
+npm test            # Accounts, catalog, drop-table parsing, filtering, OCR matching, storage and CSV tests
 npm run test:browser
 ```
 
-Browser tests use an installed Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` for another location. Both `npm run dev` and `npm run preview` provide `/api/droptables` and start its background updater automatically. The official website does not allow direct cross-origin browser requests, so the local server retrieves and parses its public HTML on a schedule. The endpoint only reads the resulting cache. Static hosting alone supports the inventory, relics, and OCR features; deployed Drop Tables also needs the same-origin endpoint and updater from `server/dropTableCache.ts`. OCR assets are copied locally during `npm install` and included in `dist/`; screenshots never leave the browser. HTTPS or localhost is required for browser APIs such as `crypto.randomUUID`.
+Browser tests use an installed Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` for another location. Both `npm run dev` and `npm run preview` provide `/api/account/*`, `/api/droptables`, and the background drop-table updater. Browser tests use isolated account databases and never create accounts in your local database. The official website does not allow direct cross-origin browser requests, so the local server retrieves and parses its public HTML on a schedule. The endpoint only reads the resulting cache. Static hosting alone supports browsing and temporary edits. Saving requires the same-origin account endpoints from `server/accounts.ts`; Drop Tables also requires the endpoint and updater from `server/dropTableCache.ts`. OCR assets are copied locally during `npm install` and included in `dist/`; screenshots never leave the browser. HTTPS or localhost is required for browser APIs such as `crypto.randomUUID`.
 
 To run the same browser checks in Firefox, install its Playwright build with `npx playwright install firefox`, then run `WARFRAME_TEST_BROWSER=firefox npm run test:browser`.
 
 ## Inventory
 
-The initial inventory transcribes **35 visible weapon rows** from the supplied reference image. It is a partial transcription, not the entire spreadsheet. Hidden rows are not available. It includes the visible ownership, mastery, and planning flags as supplied, not independently verified gameplay advice.
+New accounts start with an empty inventory, unless you choose to copy current data during signup. Existing local inventories are shown to guests without being overwritten. The older reference inventory transcribes **35 visible weapon rows** from the supplied image; it remains in `src/data/reference.ts` for regression tests and is not seeded into new accounts. That transcription is partial, includes only visible fields, and is not independently verified gameplay advice.
 
 All 14 spreadsheet fields are stored: Owned, Weapon Name, Don't Keep, Crafting Ingredient, Crafting Target, Variant, Incarnon, Quest Weapon, Upgraded, Mastered, Meta / Powerful, Slot, Has Prime Variant, and Override. Rank, notes, source, and modification time are also retained. The same fields support Warframes, primary/secondary/melee weapons, Archguns, Archmelee, companion and exalted weapons, Kitguns, and Amps.
 
 **Alt+1**, **Alt+2**, **Alt+3**, and **Alt+4** switch to Weapons, Warframes, Relics, and Drop Tables, matching the tab order. **Alt+I** opens screenshot import. Shortcuts are paused while editing a field or using a dialog.
 
-- Ownership and mastery checkboxes save immediately and remain independent of rank. Select a name for **Weapon details** or **My inventory**.
-- Weapons starts with **Owned only** checked under **Filters**. Uncheck it to browse the entire catalog, including unowned weapons. Browsing never adds catalog entries to your save. Checking ownership or saving an inventory edit adds only that weapon.
-- Search names, crafting targets, notes, weapon types, tags, and quest names. Open **Filters** to choose slot, Incarnon status, weapon type, variant, mastery, quest rewards, crafting use, Foundry recipes, Prime counterparts, vault status, keep preference, and maximum required MR. With the panel closed, only controls changed from their defaults remain visible. Returning a filter to its default hides it again; **Reset filters** restores the owned view.
+- Ownership and mastery checkboxes update immediately and save automatically when signed in; they remain independent of rank. Select a name for **Weapon details** or **My inventory**.
+- Signed-in users start with **Owned only** checked under **Filters**. Uncheck it to browse the entire catalog, including unowned weapons. Guests start with the entire catalog visible. Browsing never adds catalog entries to your save. Checking ownership or saving an inventory edit adds only that weapon.
+- Search names, crafting targets, notes, weapon types, tags, and quest names. Open **Filters** to choose slot, Incarnon status, weapon type, variant, mastery, quest rewards, crafting use, Foundry recipes, Prime counterparts, vault status, keep preference, and maximum required MR. With the panel closed, only controls changed from their defaults remain visible. Returning a filter to its default hides it again; **Reset filters** restores the initial view for the current sign-in state.
 - The default table shows the name and image, ownership, current rank, mastery, Incarnon status, upgrades, keep preference, and crafting target. Incarnon distinguishes native forms from Genesis compatibility. **Columns** adds or removes individual columns, including all 14 spreadsheet fields and notes; the name stays visible. **Reset to default** restores the starting columns. Column choices are remembered locally across Weapons and Warframes, separately from saved inventory. Slot appears under the name unless its own column is shown. Routine values and checkboxes use neutral colors.
 - Left-click or right-click a column header to open its menu for sorting, sort priorities, filters, and adding/removing columns. **Enter**, **Space**, and **Shift+F10** also open the menu while the header is focused. Choose **Sort ascending**, **Sort descending**, or **Remove sort** in the menu. Sort by any number of columns; numbered arrows show their priorities. Changing direction keeps a column's priority, and **Sort priority** moves it earlier or later. Unknown ranks sort last in either direction.
 - Column filters support text matching, yes/no and category choices, and rank comparisons or unknown ranks. Active filters appear above the table and remain visible if their column is hidden; select one to edit it or use its **×** to remove it. Matching controls in **Filters** replace the corresponding column filter, and **Reset filters** clears both kinds.
@@ -54,7 +54,7 @@ Sources are [WFCD/warframe-items](https://github.com/WFCD/warframe-items) and th
 
 Run `npm run catalog:update` to regenerate the snapshot and images. It validates ingredient names and downloads all new or changed images before replacing the catalog; it never touches browser saves. Tests cover local image integrity, exact variant matching, recipes, Incarnon eligibility, quest rewards, filtering, and preservation of saved fields. Sources can lag game updates or omit details: absent recipes and drop locations are labeled as unrecorded, not free or unobtainable. Modular assembly stats depend on the chosen parts, and the assembled Mote Amp's stats are unavailable in these sources.
 
-Existing saves retain all 14 original fields and historical planning values in browser storage. The UI and CSV exports overlay current catalog facts without rewriting those historical values in the saved JSON. New saved entries receive current catalog facts. Database updates never change ownership, mastery, current rank, keep decisions, upgrades, or notes.
+Existing saves retain all 14 original fields and historical planning values in the account profile, including when copied from browser storage. The UI and CSV exports overlay current catalog facts without rewriting those historical values in the saved JSON. New saved entries receive current catalog facts. Database updates never change ownership, mastery, current rank, keep decisions, upgrades, or notes.
 
 ## Relics
 
@@ -96,7 +96,7 @@ The browser reads the server's cached copy initially and checks for changes once
 - **Filters** offers searchable multiple selections for category, location, mission type, rotation, stage, relic era, refinement, and rarity, plus drop-chance ranges. Different fields combine with AND; selected values within a field combine with OR. Active filter chips remain visible when the panel closes.
 - Groups show counts and short previews; items show the highest individual published chance among their matching entries. **Sort by** switches between name order and drop chance in either direction. Group chance ordering compares each group’s highest known chance, with unknown odds last; rates are never added together. Individual drops emphasize the drop chance and show rotation, stage, refinement, and rarity where available.
 - Results use locally bundled game artwork for rewards, enemies, relics, and mission environments. Item groups show the reward; browsing an item's sources shows the enemy, relic, or mission. Blueprints depict the exact recipe result, relics share their era's render, and some components share the game's generic component art. Environment images represent the named location or mission, not a screenshot of every node. The image label identifies what is pictured. Unknown names and failed images show **Artwork unavailable**; no base or alternate equipment variant is substituted. Reward frame colours follow the publisher's within-table rarity, not the overall drop chance.
-- **Saved views** stores the browse mode, selected group, query, filters, and sorting in `warframe-toolkit.drop-views.v1`. Existing table-era views and links still open their filters in the item browser, and their stored settings are retained. Old page-size settings are accepted but no longer limit the results. Unreadable saved views are preserved. **Copy view link** shares the current settings in the URL and uses the latest automatic update when opened; it includes no inventory or drop-table rows.
+- **Saved views** stores the browse mode, selected group, query, filters, and sorting in the signed-in account. Guests can load existing local views and share links, but must sign in to save a view. Existing table-era views and links still open their filters in the item browser, and their stored settings are retained. Old page-size settings are accepted but no longer limit the results. Unreadable saved views are preserved. **Copy view link** shares the current settings in the URL and uses the latest automatic update when opened; it includes no inventory or drop-table rows.
 - Results form one scrolling list without pagination. Smaller lists appear in full; large lists add more results automatically near the bottom, using the data already loaded. Search and sorting always cover the complete dataset. Images load only as needed, and background updates preserve how much of the list is shown.
 - Open a reward for the published rates, an independent-attempt odds calculator, source links, and buttons to browse the same reward or source. Up/Down and Home/End move between results; **End** makes the final result reachable even in a large list, and Enter/Space opens details. **Export CSV** (**Alt+E**) exports every matching entry in the current group or browse view with all fields, including results not yet shown. Percentages are raw numbers and unknown rates are empty.
 
@@ -108,17 +108,29 @@ The full live page was tested during implementation on 2026-10-11: 43,367 source
 
 `npm run catalog:drop-art` regenerates `src/data/drop-art.json` and the local artwork from the equipment catalog's pinned WFCD/game-export revisions, the live reward names, and curated game scenes in `scripts/drop-art-scenes.mjs`. It keeps artwork separate from live rates, validates image signatures, reuses local equipment images, and records original URLs and SHA-256 fingerprints in `public/images/drops/sources.json`. Browsing only loads local images as needed, with no external image requests. Artwork coverage is partial and does not determine whether a reward is available. See [artwork attribution](public/images/drops/SOURCES.md).
 
-## Storage and exports
+## Accounts, storage, and exports
 
-Equipment, relics, and import history are stored in `localStorage` under `warframe-toolkit.inventory.v1`, with a versioned, validated JSON schema. Older saves without relic data load with an empty relic collection and preserve all equipment fields. Browser clearing, changing origin, or switching devices will not carry inventory over automatically.
+Use your **Warframe username** and choose a **separate password for this toolkit** (15–128 characters). Usernames are compared without case sensitivity and keep their entered capitalization. Accounts are independent of Warframe; this does not verify ownership of a game account or connect to Digital Extremes. There is no email field or password-recovery service.
+
+Guests can browse every section, use screenshot recognition, export CSV, and make temporary edits. Guest inventory changes are held in memory and disappear on reload. Signing in is required to persist equipment, relics, import history, and drop-table views. Signup offers **Save my current inventory and views to this account** when valid data exists; signing in to an existing account loads that account's data without merging the guest inventory. Signing out returns to the guest workspace from before sign-in.
+
+Accounts and their versioned profiles are stored in `.data/accounts.sqlite`, excluded from Git and blocked from Vite file serving. Keep this file private; back it up with the server stopped so SQLite has closed its journal. `ACCOUNTS_DATABASE` can set another private database path (outside public/static directories). A public installation needs HTTPS; set `ACCOUNTS_ORIGIN` to its exact HTTPS origin when using a reverse proxy so origin checks and Secure cookies match that address. Development and preview share the default database when run from this checkout.
+
+Passwords use individually salted scrypt hashes; sessions use random tokens in HttpOnly, SameSite cookies, with only token hashes stored in SQLite. Sessions expire after 30 days. Login attempts are throttled; writes require the app's origin, the current account ID, and the expected save revision. The implementation follows [OWASP's password-storage guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) and [session guidance](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html). Account storage uses Node's built-in SQLite and crypto modules, without an external account provider.
+
+Personal data is no longer written to browser storage. Older `warframe-toolkit.inventory.v1` and `warframe-toolkit.drop-views.v1` values are read for migration and preserved unchanged. Older inventory JSON without relic data loads with an empty relic collection and preserves all equipment fields. Theme and table-column preferences remain local display settings.
 
 **Export CSV** on Weapons or Warframes exports the original equipment spreadsheet columns plus rank and notes; the same action on Relics exports the relic collection. User text is escaped and formula-like values are neutralized for spreadsheet use.
 
-Unparseable existing storage is preserved instead of silently resetting it. The error panel can export the original data for recovery. Cross-tab updates are reflected in other open copies.
+The save status distinguishes saved data, pending changes, and temporary guest edits. Failed saves keep the draft visible and offer retry, download, or explicitly discarding changes to reload the saved version. Signing out waits for a successful save. Conflicting edits from another tab or device are rejected instead of overwriting them. Unreadable local or server data is preserved instead of silently resetting it; the local error panel can download the original inventory for recovery.
 
 ## Code map
 
-- `src/App.tsx`: navigation, persistence, and inventory operations.
+- `src/App.tsx`: navigation, account status, and inventory operations.
+- `server/accounts.ts`: SQLite accounts, password hashing, sessions, protected profile endpoints, and conflict detection.
+- `src/lib/account.ts` and `src/lib/useAccount.ts`: profile validation, legacy save loading, guest workspace, authentication, and serialized autosaving.
+- `src/components/AccountDialog.tsx`: username/password signup, sign-in, migration choice, and sign-out.
+- `tests/browser/accountFixture.ts`: isolated real account API used by browser regression tests.
 - `src/components/`: inventory table, weapon filters and details, equipment editor, import review, relics, command palette.
 - `src/components/ColumnPicker.tsx` and `src/lib/inventoryColumns.ts`: table column selection, default layout, and local display preferences.
 - `src/components/ColumnMenu.tsx`, `src/components/TablePopover.tsx`, and `src/lib/tableView.ts`: column actions, bounded keyboard-accessible popovers, filter matching, and sorting priorities.
