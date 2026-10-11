@@ -1,4 +1,7 @@
 export const DROP_TABLES_URL = 'https://warframe.com/droptables';
+export const DROP_REFRESH_INTERVAL_MS = 60 * 60_000;
+export const DROP_RETRY_INTERVAL_MS = 5 * 60_000;
+export const DROP_CACHE_POLL_MS = 60_000;
 
 export interface DropRow {
   id: string;
@@ -27,6 +30,18 @@ export interface DropDataset {
   sourceUrl: string;
   skippedRows: number;
   reverseIndexRows: number;
+}
+
+/** Validate cached/public data before it can replace the last usable snapshot. */
+export function isDropDataset(value: unknown): value is DropDataset {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as DropDataset;
+  const textFields = ['id', 'section', 'category', 'reward', 'source', 'location', 'mission', 'rotation', 'stage', 'era', 'refinement', 'rarity', 'anchor'] as const;
+  const nonnegative = (number: unknown): number is number => typeof number === 'number' && Number.isFinite(number) && number >= 0;
+  return typeof data.fetchedAt === 'string' && Number.isFinite(Date.parse(data.fetchedAt)) && typeof data.updated === 'string' && data.sourceUrl === DROP_TABLES_URL
+    && Number.isInteger(data.skippedRows) && data.skippedRows >= 0 && Number.isInteger(data.reverseIndexRows) && data.reverseIndexRows >= 0
+    && Array.isArray(data.rows) && data.rows.length > 0 && data.rows.every(row => row && textFields.every(key => typeof row[key] === 'string')
+      && nonnegative(row.tableChance) && (row.chance === null || nonnegative(row.chance) && row.chance <= 100) && (row.sourceChance === null || nonnegative(row.sourceChance)));
 }
 
 export const dropColumns = [
