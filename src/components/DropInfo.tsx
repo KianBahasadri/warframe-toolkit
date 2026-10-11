@@ -16,6 +16,6 @@ export function DropInfo({ data, onClose }: { data: DropDataset | null; onClose:
     <h3>Drop chances</h3>
     <p>Rotations, bounty stages, and relic refinements are separate entries. Chances apply to the listed opportunity; repeated rewards are not added together. A listed source may be vaulted or currently unavailable.</p>
     <h3>Updates</h3>
-    <p>Data updates automatically in the background. Opening this page uses the latest saved results. If an update fails, the previous results stay available while updates retry.</p>
+    <p>Data updates automatically in the background. Opening this page uses the latest saved results.</p>
   </Dialog>;
 }
