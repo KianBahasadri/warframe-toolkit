@@ -80,6 +80,7 @@ test('does not silently substitute a base item for an unrecognized variant', () 
   assert.deepEqual(damaged.map(entry => entry.item.name), ['Proboscis Cernos']);
   assert.equal(damaged[0]?.selected, false);
   assert.deepEqual(match('Unknown Cernos [30]'), []);
+  for (const partialVariant of ['Boltor P', 'Lato V', 'Strun W', 'Arca Titron P']) assert.deepEqual(match(partialVariant), []);
   assert.deepEqual(match('Wisp Pri me [30]').map(entry => entry.item.name), ['Wisp Prime']);
   assert.equal(match('Bo', 53).length, 0);
   assert.equal(match('Bo [30]', 95)[0]?.item.name, 'Bo');

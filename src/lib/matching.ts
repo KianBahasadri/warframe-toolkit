@@ -115,7 +115,10 @@ export function matchOcrLines(lines: OcrLine[], catalog: CatalogItem[], filename
     if (!matches.length) {
       if (key.length >= 5 && key.length <= 40) {
         const modifiers = (parts.join(' ').match(variantWords) || []).sort().join(' ');
-        const ranked = indexed.filter(candidate => Math.abs(candidate.key.length - key.length) <= 3 && modifiers === (candidate.parts.join(' ').match(variantWords) || []).sort().join(' '))
+        const ranked = indexed.filter(candidate => Math.abs(candidate.key.length - key.length) <= 3
+          // Never discard a damaged modifier to suggest the intact base name.
+          && !key.includes(candidate.key)
+          && modifiers === (candidate.parts.join(' ').match(variantWords) || []).sort().join(' '))
           .map(candidate => ({ item: candidate.item, similarity: 1 - distance(key, candidate.key) / Math.max(key.length, candidate.key.length) }))
           .sort((a, b) => b.similarity - a.similarity);
         if (ranked[0]?.similarity >= 0.78 && (!ranked[1] || ranked[0].similarity - ranked[1].similarity >= 0.08)) {
