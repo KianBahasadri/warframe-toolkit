@@ -47,6 +47,11 @@ export function groupDropRows(rows: DropRow[], mode: DropBrowseMode, sorting: Dr
     group.rewards = [...new Set(group.rows.map(row => row.reward))];
     group.locations = [...new Set(group.rows.map(row => row.location).filter(Boolean))];
   }
-  // With an explicit sort, preserve the order of first occurrence in sorted rows.
+  // Overview cards compare their displayed highest chance; unknown odds always go last.
+  if (sorting[0]?.key === 'chance') return result.sort((a, b) => {
+    if (a.bestChance === null || b.bestChance === null) return a.bestChance === b.bestChance ? 0 : a.bestChance === null ? 1 : -1;
+    return (a.bestChance - b.bestChance) * sorting[0].direction;
+  });
+  // Other explicit sorts preserve the order of first occurrence in sorted rows.
   return sorting.length ? result : result.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }));
 }

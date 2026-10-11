@@ -31,6 +31,11 @@ test('relic refinements and repeated rewards stay separate, variants never colla
   assert.deepEqual(variants.map(group => group.title), ['Braton', 'Braton Prime']);
   const sorting = [{ key: 'chance' as const, direction: -1 as const }];
   assert.equal(groupDropRows(sortDropRows(rows, sorting), 'item', sorting).at(-1)!.title, 'Sharrac Teeth');
+  const ascending = [{ key: 'chance' as const, direction: 1 as const }];
+  const ordered = groupDropRows(sortDropRows(rows, ascending), 'item', ascending);
+  assert.equal(ordered.at(-1)!.bestChance, null);
+  const chances = ordered.flatMap(group => group.bestChance === null ? [] : [group.bestChance]);
+  assert.deepEqual(chances, [...chances].sort((a, b) => a - b));
 });
 
 test('browse links roundtrip the selected group and validate malformed settings without rejecting legacy saves', () => {
