@@ -219,20 +219,19 @@ test('reward cards expose conditional rates, calculator, unknown odds, keyboard 
   await expect(buttons).toHaveCount(3); await expect(buttons.first()).toContainText('90.00%');
 });
 
-test('group pagination, complete CSV exports, saved views and links preserve the selected group and settings', async ({ page, context }) => {
+test('all results are available without pagination, and exports, saved views and links preserve the selected group', async ({ page, context }) => {
   await openDrops(page);
-  await expect(page.locator('.drop-group-card')).toHaveCount(24);
-  await page.getByRole('button', { name: 'Next page', exact: true }).click();
-  await expect(page.locator('.drop-group-card')).toHaveCount(24);
-  await select(page, 'Results per page', '12');
-  await expect(page.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('1');
-  await page.getByRole('spinbutton', { name: 'Page', exact: true }).fill('3');
-  await page.getByRole('spinbutton', { name: 'Page', exact: true }).press('Enter');
-  await expect(page.getByRole('spinbutton', { name: 'Page', exact: true })).toHaveValue('3');
+  await expect(page.locator('.drop-group-card')).toHaveCount(new Set(data.rows.map(row => row.reward)).size);
+  await expect(page.getByRole('button', { name: /^(Next|Previous) page$/ })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Results per page', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open Test Reward 65', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Test Reward 65', exact: true })).toBeInViewport();
+  await expect(page.locator('.drop-result-card')).toHaveCount(1);
+  await page.getByRole('button', { name: 'All items', exact: true }).click();
   await browse(page, 'enemy / source');
   await page.getByLabel('Search drop tables', { exact: true }).fill('source:"test source"');
   await page.getByRole('button', { name: 'Open Test Source', exact: true }).click();
-  await expect(page.locator('.drop-result-card')).toHaveCount(12);
+  await expect(page.locator('.drop-result-card')).toHaveCount(65);
   await select(page, 'Sort results', 'Chance: high to low');
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
@@ -245,6 +244,7 @@ test('group pagination, complete CSV exports, saved views and links preserve the
   await page.getByRole('button', { name: 'Save current view', exact: true }).click();
   const stored = JSON.parse((await page.evaluate(() => localStorage.getItem('warframe-toolkit.drop-views.v1')))!);
   expect(stored).toHaveLength(1); expect(stored[0].view.rows).toBeUndefined();
+  expect(stored[0].view.pageSize).toBeUndefined();
   expect(stored[0].view.browse).toEqual({ mode: 'source', group: 'Test Source' });
   await expect(page.getByRole('button', { name: 'Saved views', exact: true })).toBeFocused();
   await browse(page, 'location');
@@ -256,7 +256,7 @@ test('group pagination, complete CSV exports, saved views and links preserve the
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toContain('#droptables?view=');
   await page.goto(link); await expect(page.locator('.drop-result-summary')).toContainText('65 matching entries');
-  await expect(page.locator('.drop-result-card')).toHaveCount(12);
+  await expect(page.locator('.drop-result-card')).toHaveCount(65);
   await expect(page.locator('.drop-result-card').first()).toContainText('Test Reward 65');
   await page.getByRole('button', { name: 'Open search and commands' }).click();
   await expect(page.getByRole('option', { name: 'Export filtered drop tables CSV', exact: true })).toBeVisible();
@@ -319,20 +319,66 @@ test('first-run cache preparation recovers automatically without a fetch or retr
 
 test('legacy shared and saved views still open their results, and navigation shortcuts retain the browser', async ({ page }) => {
   await mockDrops(page);
-  const view = defaultDropView(); view.query = 'source:"heavy gunner"'; view.columns = ['reward', 'chance', 'sourceChance']; view.pageSize = 50;
+  const view = defaultDropView(); view.query = 'source:"test source"'; view.columns = ['reward', 'chance', 'sourceChance']; view.pageSize = 50;
   await page.addInitScript(view => localStorage.setItem('warframe-toolkit.drop-views.v1', JSON.stringify([{ name: 'Old view', view }])), view);
   await page.goto('/' + dropViewHash(view));
   await expect(page.getByRole('link', { name: 'Drop Tables', exact: true })).toHaveAttribute('aria-current', 'page');
-  await expect(page.locator('.drop-group-card')).toHaveCount(2);
+  await expect(page.locator('.drop-group-card')).toHaveCount(65);
   await expect(page.getByRole('button', { name: 'Browse by item', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('heading', { name: 'Drop Tables', exact: true }).click();
   await page.keyboard.press('Alt+1'); await expect(page).toHaveURL(/#weapons$/);
   await page.keyboard.press('Alt+4'); await expect(page.getByRole('region', { name: 'Drop Tables', exact: true })).toBeVisible();
-  await expect(page.locator('.drop-group-card')).toHaveCount(2);
+  await expect(page.locator('.drop-group-card')).toHaveCount(65);
   await page.getByRole('button', { name: 'Saved views', exact: true }).click();
   await page.getByRole('button', { name: 'Old view', exact: true }).click();
-  await expect(page.locator('.drop-group-card')).toHaveCount(2);
+  await expect(page.locator('.drop-group-card')).toHaveCount(65);
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem('warframe-toolkit.drop-views.v1')))!)[0].view.browse).toBeUndefined();
+  expect(JSON.parse((await page.evaluate(() => localStorage.getItem('warframe-toolkit.drop-views.v1')))!)[0].view.pageSize).toBe(50);
+});
+
+test('large lists append while scrolling, search all data, and keep the final result reachable by keyboard', async ({ page }) => {
+  const rows = Array.from({ length: 700 }, (_, index) => ({ ...data.rows[0], id: `scroll-${index}`, reward: `Scroll Reward ${String(index).padStart(4, '0')}`, source: 'Scroll Source', chance: (index + 1) / 10 }));
+  let requests = 0;
+  await page.route('**/api/droptables', route => { requests++; return route.fulfill({ json: { ...data, rows } }); });
+  await page.goto('/#droptables'); await browse(page, 'item');
+  const groups = page.locator('.drop-group-card');
+  await expect(page.locator('.drop-result-summary')).toContainText('700 matching entries');
+  const initialCount = await groups.count();
+  expect(initialCount).toBeGreaterThan(0); expect(initialCount).toBeLessThan(rows.length);
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
+  const csv = await readFile((await (await downloadPromise).path())!, 'utf8');
+  expect(csv.split('\r\n')).toHaveLength(rows.length + 1); expect(csv).toContain('Scroll Reward 0699');
+  await select(page, 'Sort results', 'Chance: high to low');
+  await expect(groups.first()).toContainText('Scroll Reward 0699');
+  await select(page, 'Sort results', 'Name A–Z');
+  const search = page.getByRole('textbox', { name: 'Search drop tables', exact: true });
+  await search.fill('Scroll Reward 0650');
+  await expect(groups).toHaveCount(1); await expect(groups).toContainText('Scroll Reward 0650');
+  await page.getByRole('button', { name: 'Clear drop search', exact: true }).click();
+  await expect(groups).toHaveCount(initialCount);
+  while (await groups.count() < rows.length) {
+    const before = await groups.count();
+    await groups.last().scrollIntoViewIfNeeded();
+    await expect.poll(() => groups.count()).toBeGreaterThan(before);
+  }
+  await expect(groups).toHaveCount(rows.length);
+  await expect(groups.last()).toContainText('Scroll Reward 0699');
+  expect(requests).toBe(1);
+  await browse(page, 'enemy / source');
+  await page.getByRole('button', { name: 'Open Scroll Source', exact: true }).click();
+  const results = page.locator('.drop-result-card');
+  await expect(results).toHaveCount(initialCount);
+  await results.first().focus(); await page.keyboard.press('End');
+  await expect(results).toHaveCount(rows.length); await expect(results.last()).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: 'Scroll Reward 0699', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape'); await expect(results.last()).toBeFocused();
+  await page.keyboard.press('Home'); await expect(results.first()).toBeFocused();
+  await search.fill('Scroll Reward 0650'); await expect(results).toHaveCount(1);
+  await page.getByRole('button', { name: 'Clear drop search', exact: true }).click();
+  await expect(results).toHaveCount(initialCount);
+  expect(requests).toBe(1);
 });
 
 test('card artwork loads locally, follows the selected subject and fails without substituting another item', async ({ page }) => {

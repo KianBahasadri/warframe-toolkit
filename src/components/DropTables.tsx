@@ -1,12 +1,13 @@
-import { useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { Ref } from 'react';
-import { ArrowDownToLine, ArrowLeft, Bookmark, ChevronLeft, ChevronRight, CircleHelp, Filter, Info, Link, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, Bookmark, CircleHelp, Filter, Info, Link, Search, SlidersHorizontal, X } from 'lucide-react';
 import { TablePopover } from './TablePopover';
 import { Select } from './Select';
 import { Dialog } from './Dialog';
 import { DropFacet, DropFilterForm, DropSorts } from './DropTableControls';
 import { DropDetails } from './DropDetails';
 import { DropInfo } from './DropInfo';
+import { DropResults } from './DropResults';
 import { DropGroupCard, DropModePicker, DropRewardCards, dropBrowseOptions } from './DropBrowser';
 import { compileDropQuery, defaultDropView, DROP_TABLES_URL, dropColumns, dropFilterLabel, dropRowsCsv, dropViewHash, filterDropRows, isDropView, moveDropSort, readDropView, setDropSort, sortDropRows } from '../lib/dropTables';
 import type { DropBrowseMode, DropColumnKey, DropFilter, DropRow, DropView } from '../lib/dropTables';
@@ -28,7 +29,6 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   const [filtersOpen, setFiltersOpen] = useState(false), [help, setHelp] = useState(false), [viewsOpen, setViewsOpen] = useState(false);
   const [info, setInfo] = useState(false);
   const [chanceOpen, setChanceOpen] = useState(false);
-  const [page, setPage] = useState(1), [pageInput, setPageInput] = useState('1');
   const [details, setDetails] = useState<DropRow | null>(null);
   const [viewName, setViewName] = useState('');
   const [saved, setSaved] = useState<{ views: SavedView[]; error: string }>(() => {
@@ -40,7 +40,7 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   });
   const searchInput = useRef<HTMLInputElement>(null), viewsButton = useRef<HTMLButtonElement>(null), chanceButton = useRef<HTMLButtonElement>(null);
   const resultsHeading = useRef<HTMLHeadingElement>(null);
-  const changeView = (next: DropView) => { setView(next); setPage(1); };
+  const changeView = (next: DropView) => setView(next);
   useEffect(() => {
     sessionView = view;
     const timer = window.setTimeout(() => history.replaceState(null, '', dropViewHash(view)), 250);
@@ -48,7 +48,7 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   }, [view]);
   useEffect(() => {
     // A plain tab link resumes the session; a shared view link replaces its settings.
-    const onHash = () => { if (location.hash.startsWith('#droptables?')) { setView(readDropView(location.hash)); setPage(1); } };
+    const onHash = () => { if (location.hash.startsWith('#droptables?')) setView(readDropView(location.hash)); };
     window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
@@ -60,6 +60,7 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   const option = dropBrowseOptions.find(option => option.mode === mode);
   const groupKey = view.browse?.group;
   const deferredQuery = useDeferredValue(view.query);
+  const resultsKey = JSON.stringify([mode, groupKey, deferredQuery, view.filters, view.sorting]);
   const query = useMemo(() => compileDropQuery(deferredQuery), [deferredQuery]);
   const filtered = useMemo(() => sortDropRows(filterDropRows(data?.rows ?? [], query, view.filters), view.sorting.length ? view.sorting : [{ key: mode === 'item' ? 'source' : 'reward', direction: 1 }]), [data, query, view.filters, view.sorting, mode]);
   const allGroups = useMemo(() => mode ? groupDropRows(data?.rows ?? [], mode) : [], [data, mode]);
@@ -68,8 +69,6 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   const selectedTitle = groupKey === undefined ? '' : allGroups.find(group => group.key === groupKey)?.title ?? 'Group unavailable';
   const rows = useMemo(() => groupKey !== undefined ? selected?.rows ?? [] : sortDropRows(groups.flatMap(group => group.rows), view.sorting), [groupKey, selected, groups, view.sorting]);
   const total = groupKey === undefined ? groups.length : rows.length;
-  const pages = Math.max(1, Math.ceil(total / view.pageSize)), currentPage = Math.min(page, pages);
-  const offset = (currentPage - 1) * view.pageSize;
   const facets = useMemo(() => Object.fromEntries(facetKeys.map(key => {
     const values = new Map<string, number>();
     for (const row of data?.rows ?? []) { const value = String(row[key] ?? ''); values.set(value, (values.get(value) ?? 0) + 1); }
@@ -77,17 +76,15 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   })), [data]);
   const setFilter = (key: DropColumnKey, filter?: DropFilter) => { const next = { ...view.filters }; if (filter) next[key] = filter; else delete next[key]; changeView({ ...view, filters: next }); };
   const resetFilters = () => changeView({ ...view, query: '', filters: {} });
-  const focusResults = () => requestAnimationFrame(() => resultsHeading.current?.focus({ preventScroll: true }));
+  const focusResults = useCallback(() => requestAnimationFrame(() => { resultsHeading.current?.focus({ preventScroll: true }); resultsHeading.current?.scrollIntoView({ block: 'nearest' }); }), []);
   const chooseMode = (mode: DropBrowseMode) => { changeView({ ...view, browse: { mode } }); setChanceOpen(false); };
-  const openGroup = (group: string) => { changeView({ ...view, browse: { mode: mode!, group } }); focusResults(); };
+  const openGroup = useCallback((group: string) => { setView(current => ({ ...current, browse: { mode: mode!, group } })); focusResults(); }, [mode, focusResults]);
   const exportCsv = () => {
     if (!rows.length || deferredQuery !== view.query) return;
     downloadFile(`warframe-drops-${new Date().toISOString().slice(0, 10)}.csv`, dropRowsCsv(rows, dropColumns.map(column => column.key)), 'text/csv;charset=utf-8');
     setNotice(`Exported all ${rows.length.toLocaleString()} matching entries with all fields.`);
   };
   useImperativeHandle(actionsRef, () => ({ exportCsv }));
-  useEffect(() => setPageInput(String(currentPage)), [currentPage]);
-  const goToPage = (next: number) => { setPage(Math.max(1, Math.min(pages, next))); resultsHeading.current?.scrollIntoView({ block: 'start' }); focusResults(); };
   const saveViews = (next: SavedView[]) => {
     try { localStorage.setItem(viewsKey, JSON.stringify(next)); setSaved({ views: next, error: '' }); return true; }
     catch { setNotice('Could not save the view. Browser storage may be full or unavailable.'); return false; }
@@ -126,11 +123,10 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
         </div>
       </div>
       <div className="drop-results" role="region" aria-label="Drop results" aria-busy={loading || view.query !== deferredQuery}>
-        {!data && loading ? <div className="drop-group-grid" aria-hidden="true">{Array.from({ length: 6 }, (_, index) => <div className="drop-loading-card" key={index}><span /><span /><span /></div>)}</div> : groupKey === undefined ? <div className="drop-group-grid">{groups.slice(offset, offset + view.pageSize).map(group => <DropGroupCard key={group.key} group={group} mode={mode} onSelect={() => openGroup(group.key)} />)}</div> : <DropRewardCards rows={rows.slice(offset, offset + view.pageSize)} mode={mode} onOpen={setDetails} />}
+        {!data && loading ? <div className="drop-group-grid" aria-hidden="true">{Array.from({ length: 6 }, (_, index) => <div className="drop-loading-card" key={index}><span /><span /><span /></div>)}</div> : groupKey === undefined ? <DropResults key={resultsKey} className="drop-group-grid">{groups.map(group => <DropGroupCard key={group.key} group={group} mode={mode} onSelect={openGroup} />)}</DropResults> : <DropRewardCards key={resultsKey} rows={rows} mode={mode} onOpen={setDetails} />}
         {data && !total && <div className="drop-empty"><Search size={28} aria-hidden="true" /><h3>No matching drops</h3><p>{query.error || 'Try another search, clear your filters, or choose a different view.'}</p>{changed && <button type="button" className="button secondary" onClick={resetFilters}>Clear search and filters</button>}</div>}
         {!data && !loading && <div className="drop-empty"><p>Drop tables will appear after a successful automatic update.</p></div>}
       </div>
-      {data && total > 0 && <div className="drop-pagination"><span>{(offset + 1).toLocaleString()}–{Math.min(offset + view.pageSize, total).toLocaleString()} of {total.toLocaleString()} {groupKey === undefined ? option!.noun : 'entries'}</span><label>Per page<Select label="Results per page" value={String(view.pageSize)} options={[...new Set([12, 24, 48, 96, view.pageSize])].sort((a, b) => a - b).map(value => ({ value: String(value), label: String(value) }))} onChange={value => changeView({ ...view, pageSize: Number(value) })} /></label><div className="drop-page-controls"><button type="button" className="icon-button" disabled={currentPage === 1} aria-label="Previous page" onClick={() => goToPage(currentPage - 1)}><ChevronLeft size={17} /></button><form onSubmit={event => { event.preventDefault(); const next = Number(pageInput); if (Number.isInteger(next) && next >= 1 && next <= pages) goToPage(next); else setPageInput(String(currentPage)); }}><label>Page<input type="number" min="1" max={pages} value={pageInput} onChange={event => setPageInput(event.target.value)} onBlur={() => setPageInput(String(currentPage))} /></label><span>of {pages.toLocaleString()}</span><button type="submit" className="sr-only">Go to page</button></form><button type="button" className="icon-button" disabled={currentPage === pages} aria-label="Next page" onClick={() => goToPage(currentPage + 1)}><ChevronRight size={17} /></button></div></div>}
     </div>}
     {info && <DropInfo data={data} onClose={() => setInfo(false)} />}
     {chanceOpen && filtersOpen && <TablePopover anchor={chanceButton.current!} label="Filter Drop chance" onClose={() => setChanceOpen(false)}><div className="column-menu-heading">Drop chance</div><DropFilterForm column={dropColumns.find(column => column.key === 'chance')!} filter={view.filters.chance} onApply={filter => { setFilter('chance', filter); setChanceOpen(false); chanceButton.current?.focus(); }} /></TablePopover>}

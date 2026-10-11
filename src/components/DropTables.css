@@ -67,6 +67,7 @@
 .drop-back { display: flex; align-items: center; gap: 8px; padding: 0; margin: 0 0 14px; border: 0; background: transparent; font-size: 12px; color: var(--muted); }
 .drop-back:hover { color: var(--ink-strong); }
 .drop-group-grid, .drop-reward-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px; align-items: stretch; }
+.drop-results-bottom { grid-column: 1 / -1; height: 1px; }
 .drop-card-heading { display: flex; flex-direction: column; gap: 5px; padding: 5px 7px 12px; min-height: 84px; }
 .drop-card-type { color: var(--drop-tone); font: 9px var(--mono); text-transform: uppercase; letter-spacing: .09em; }
 .drop-group-title, .drop-result-title { font-size: 17px; font-weight: 500; line-height: 1.35; color: var(--ink-strong); overflow-wrap: anywhere; }
@@ -125,15 +126,6 @@
 .drop-mini-button { border: 0; background: transparent; color: var(--muted); width: 28px; height: 32px; display: grid; place-items: center; padding: 0; }
 .drop-mini-button:hover:not(:disabled) { color: var(--ink-strong); }
 .drop-notice { display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: 13px; padding: 8px 12px; margin-bottom: 12px; border-radius: 6px; background: var(--surface-raised); }
-.drop-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; margin-top: 16px; color: var(--muted); font: 12px var(--mono); }
-.drop-pagination > span { margin-right: auto; }
-.drop-pagination label { display: inline-flex; align-items: center; gap: 8px; font: 12px var(--ui); }
-.drop-pagination .select-trigger { font: 12px var(--mono); padding: 7px 10px; }
-.drop-page-controls { display: flex; align-items: center; gap: 2px; }
-.drop-page-controls form { display: flex; gap: 8px; align-items: center; margin: 0 4px; }
-.drop-page-controls input { width: 60px; padding: 7px; font: 12px var(--mono); appearance: textfield; }
-.drop-page-controls input::-webkit-inner-spin-button { appearance: none; }
-.drop-page-controls .icon-button { width: 32px; }
 .drop-views-popover { width: 310px; }
 .drop-saved-views { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .drop-saved-views h3 { padding: 0 10px; font-size: 12px; color: var(--muted); }
@@ -188,7 +180,6 @@
   .drop-sort-label .select-trigger { min-width: 0; }
   .drop-filters { gap: 6px; }.drop-facet > .button { padding: 8px 10px; font-size: 12px; }
   .drop-group-grid, .drop-reward-grid { gap: 14px; }
-  .drop-pagination { gap: 12px; margin-top: 24px; }.drop-page-controls { width: 100%; justify-content: space-between; }.drop-page-controls form { flex: 1; justify-content: center; }.drop-pagination > label { margin-left: auto; }
   .drop-facts { grid-template-columns: 1fr; gap: 12px; }.drop-calculator-fields, .drop-odds { gap: 12px; }.drop-odds output { font-size: 22px; }.drop-milestones { grid-template-columns: 1fr 1fr; }.drop-sort { max-width: 100%; }
 }
 @media (max-width: 380px) {

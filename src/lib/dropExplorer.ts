@@ -1,6 +1,8 @@
 import { dropBrowseModes } from './dropTables.ts';
 import type { DropBrowseMode, DropRow, DropSort } from './dropTables.ts';
 
+const groupCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
 export interface DropGroup {
   key: string;
   title: string;
@@ -53,5 +55,5 @@ export function groupDropRows(rows: DropRow[], mode: DropBrowseMode, sorting: Dr
     return (a.bestChance - b.bestChance) * sorting[0].direction;
   });
   // Other explicit sorts preserve the order of first occurrence in sorted rows.
-  return sorting.length ? result : result.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }));
+  return sorting.length ? result : result.sort((a, b) => groupCollator.compare(a.title, b.title));
 }

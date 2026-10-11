@@ -67,13 +67,15 @@ export type DropFilters = Partial<Record<DropColumnKey, DropFilter>>;
 export const dropBrowseModes = ['mission', 'item', 'location', 'relic', 'bounty', 'source'] as const;
 export type DropBrowseMode = typeof dropBrowseModes[number];
 export interface DropView {
-  query: string; filters: DropFilters; sorting: DropSort[]; columns: DropColumnKey[]; pageSize: number;
+  query: string; filters: DropFilters; sorting: DropSort[]; columns: DropColumnKey[];
+  /** Retained only for old saved views and links; results are no longer paginated. */
+  pageSize?: number;
   /** Optional for compatibility with saved views from the table interface. */
   browse?: { mode: DropBrowseMode; group?: string };
 }
 export const dropPageSizes = [12, 24, 48, 96, 25, 50, 100, 250];
 export const defaultDropColumns: DropColumnKey[] = ['reward', 'source', 'category', 'rotation', 'stage', 'chance'];
-export const defaultDropView = (): DropView => ({ query: '', filters: {}, sorting: [], columns: [...defaultDropColumns], pageSize: 24 });
+export const defaultDropView = (): DropView => ({ query: '', filters: {}, sorting: [], columns: [...defaultDropColumns] });
 export const numericDropColumns = new Set<DropColumnKey>(['chance', 'tableChance', 'sourceChance']);
 const columnKeys = new Set<string>(dropColumns.map(column => column.key));
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
@@ -186,7 +188,7 @@ export function dropViewHash(view: DropView): string {
 export function isDropView(value: unknown): value is DropView {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const view = value as DropView;
-  if (typeof view.query !== 'string' || !dropPageSizes.includes(view.pageSize)) return false;
+  if (typeof view.query !== 'string' || (view.pageSize !== undefined && !dropPageSizes.includes(view.pageSize))) return false;
   if (view.browse !== undefined && (!view.browse || !dropBrowseModes.includes(view.browse.mode) || (view.browse.group !== undefined && typeof view.browse.group !== 'string'))) return false;
   if (!Array.isArray(view.columns) || !view.columns.includes('reward') || view.columns.some(key => !columnKeys.has(key)) || new Set(view.columns).size !== view.columns.length) return false;
   if (!Array.isArray(view.sorting) || view.sorting.some(sort => !sort || !columnKeys.has(sort.key) || ![1, -1].includes(sort.direction)) || new Set(view.sorting.map(sort => sort.key)).size !== view.sorting.length) return false;
