@@ -56,10 +56,10 @@ export function useAccount() {
   useEffect(() => {
     let active = true;
     queueMicrotask(() => { if (active) void request('session').then(result => {
-      if (!active) return;
+      if (!active || !current.current.checking) return;
       if (result.user) update({ ...checkedSession(result), checking: false, error: '', viewsError: '', unreadable: false });
       else update({ checking: false });
-    }).catch(error => { if (active) update({ checking: false, error: current.current.error || message(error) }); }); });
+    }).catch(error => { if (active && current.current.checking) update({ checking: false, error: current.current.error || message(error) }); }); });
     return () => { active = false; };
   }, [update]);
   useEffect(() => {
@@ -93,14 +93,16 @@ export function useAccount() {
   const reloadSaved = async () => {
     try {
       clearTimeout(timer.current); await pending.current;
+      const before = current.current.profile;
       const result = checkedSession(await request('session'));
       if (result.user.id !== current.current.user?.id) throw new Error('Sign in to the same account to load its saved data.');
+      if (before !== current.current.profile) throw new Error('You made new changes while loading. Your current changes have been kept.');
       update({ ...result, dirty: false, error: '', unreadable: false, viewsError: '' });
     } catch (error) { update({ error: message(error) }); }
   };
   return { ...state, authenticate, signOut, retrySave: save, reloadSaved,
     commitInventory: (inventory: Inventory) => commit({ ...current.current.profile, inventory }),
     commitViews: (dropViews: SavedDropView[]) => current.current.user ? commit({ ...current.current.profile, dropViews }) : false,
-    canIncludeCurrent: !state.unreadable && !state.viewsError && Boolean(state.profile.inventory.items.length || state.profile.inventory.relics.length || state.profile.dropViews.length),
+    canIncludeCurrent: !state.unreadable && !state.viewsError && Boolean(state.profile.inventory.items.length || state.profile.inventory.relics.length || state.profile.inventory.imports.length || state.profile.dropViews.length),
   };
 }

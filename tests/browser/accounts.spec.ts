@@ -8,8 +8,8 @@ async function openGuest(page: Page) {
   await page.goto('/');
   await expect(status(page)).toContainText('Browsing without an account.');
 }
-async function register(page: Page, username: string) {
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+async function register(page: Page, username: string, open = true) {
+  if (open) await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Create account', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Create account', exact: true });
   await dialog.getByLabel('Warframe username', { exact: true }).fill(username);
@@ -106,8 +106,7 @@ test.describe('guest accounts', () => {
     await openGuest(page);
     await register(page, 'FirstTenno');
     expect((await account.inventory()).items).toEqual([]);
-    await page.getByRole('button', { name: 'Filters', exact: true }).click();
-    await page.getByLabel('Owned only', { exact: true }).uncheck();
+    await page.getByRole('button', { name: 'Browse all weapons', exact: true }).click();
     await page.getByLabel('Search weapons').fill('Boltor');
     await page.getByLabel('Owned: Boltor', { exact: true }).check();
     await account.profile();
@@ -129,6 +128,31 @@ test.describe('guest accounts', () => {
     await expect(page.getByLabel('View name', { exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Sign in to save view', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Sign in', exact: true })).toBeVisible();
+  });
+
+  test('a delayed initial sign-in check cannot replace a newly created account', async ({ page, context, baseURL, account }) => {
+    const previous = await context.request.post(`${account.url}/api/account/register`, { headers: { Origin: baseURL!, 'X-Toolkit-Request': '1' }, data: { username: 'PreviousTenno', password: testPassword } });
+    expect(previous.status()).toBe(201);
+    let resume!: () => void;
+    const pause = new Promise<void>(resolve => { resume = resolve; });
+    await page.route('**/api/account/session', async route => {
+      const response = await route.fetch({ url: `${account.url}/api/account/session` });
+      await pause;
+      await route.fulfill({ response });
+    });
+    await page.goto('/#droptables');
+    await expect(status(page)).toHaveText('Checking sign-in…');
+    await page.getByRole('button', { name: 'Saved views', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign in to save view', exact: true }).click();
+    await register(page, 'SlowSessionTenno', false);
+    const checked = page.waitForResponse('**/api/account/session');
+    resume(); await checked;
+    await expect(page.getByRole('button', { name: 'Account: SlowSessionTenno', exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Weapons', exact: true }).click();
+    await page.getByRole('button', { name: 'Browse all weapons', exact: true }).click();
+    await page.getByLabel('Search weapons').fill('Boltor');
+    await page.getByLabel('Owned: Boltor', { exact: true }).check();
+    expect((await account.inventory()).items[0]).toMatchObject({ name: 'Boltor', owned: true });
   });
 
   test('account forms fit narrow screens, restore keyboard focus, and work in both themes', async ({ page }) => {
@@ -211,4 +235,33 @@ test('signing in again after a session ends preserves unsaved changes', async ({
   await page.getByRole('dialog').getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await account.inventory()).items.find(item => item.name === 'Boltor')!.mastered).toBe(false);
+});
+
+
+test('edits made while loading a saved version remain in the current draft', async ({ page, account }) => {
+  await page.goto('/');
+  const remote = await account.inventory();
+  remote.items.find(item => item.name === 'Boltor')!.notes = 'Changed elsewhere';
+  await account.setInventory(remote);
+  await page.getByLabel('Mastered: Boltor', { exact: true }).uncheck();
+  await expect(status(page)).toHaveText('Unsaved changes');
+  let resume!: () => void, loaded!: () => void;
+  const paused = new Promise<void>(resolve => { resume = resolve; });
+  const requested = new Promise<void>(resolve => { loaded = resolve; });
+  await page.route('**/api/account/session', async route => {
+    const response = await route.fetch({ url: `${account.url}/api/account/session` });
+    loaded(); await paused;
+    await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Discard changes and reload saved data', exact: true }).click();
+  await requested;
+  await page.getByLabel('Mastered: Anku', { exact: true }).uncheck();
+  resume();
+  await expect(status(page)).toHaveText('Unsaved changes');
+  await expect(page.getByLabel('Mastered: Anku', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Mastered: Boltor', { exact: true })).not.toBeChecked();
+  expect((await account.session()).profile.inventory).toEqual(remote);
+  await page.unroute('**/api/account/session');
+  await page.getByRole('button', { name: 'Discard changes and reload saved data', exact: true }).click();
+  expect(await account.inventory()).toEqual(remote);
 });

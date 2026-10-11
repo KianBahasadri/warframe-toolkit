@@ -59,6 +59,7 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
   const changed = Boolean(search || Object.keys(columnFilters).length || Object.entries(filters).some(([key, value]) => value !== defaults[key as keyof typeof filters]));
   const filterCount = Object.entries(filters).filter(([key, value]) => value !== defaults[key as keyof typeof filters]).length;
   const sorted = sortRows(filtered, sorting);
+  const noOwnedItems = filters.ownedOnly && items.length > 0 && !items.some(item => item.owned);
   const activeId = sorted.some(item => item.id === active) ? active : sorted[0]?.id;
   return <>
     <div className="inventory-toolbar">
@@ -110,7 +111,7 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
           </td>)}
         </tr>)}</tbody>
       </table>
-      {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{items.length ? `No matching ${weapons ? 'weapons' : 'equipment'}` : 'Your collection starts here'}</h3><p>{items.length ? `Change your filters to see more ${weapons ? 'weapons' : 'equipment'}.` : `Add ${weapons ? 'a weapon' : 'an item'} or import an inventory screenshot.`}</p>{items.length > 0 && <button type="button" className="button secondary" onClick={clearFilters}>Reset filters</button>}</div>}
+      {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{noOwnedItems ? `No owned ${weapons ? 'weapons' : 'equipment'} yet` : items.length ? `No matching ${weapons ? 'weapons' : 'equipment'}` : 'No equipment added'}</h3><p>{noOwnedItems ? 'Mark equipment as owned or import an inventory screenshot.' : items.length ? `Change your filters to see more ${weapons ? 'weapons' : 'equipment'}.` : `Add ${weapons ? 'a weapon' : 'an item'} or import an inventory screenshot.`}</p>{items.length > 0 && <button type="button" className="button secondary" onClick={() => { clearFilters(); if (noOwnedItems) setFilters({ ...defaults, ownedOnly: false }); }}>{noOwnedItems ? `Browse all ${weapons ? 'weapons' : 'equipment'}` : 'Reset filters'}</button>}</div>}
     </div>
     {menu && <ColumnMenu key={menu.id} anchor={menu.anchor} point={menu.point} initialView={menu.initialView} column={availableColumns.find(column => column.key === menu.key)!} columns={availableColumns} selected={visibleColumns} items={items} sorting={sorting} filter={columnFilters[menu.key]}
       onVisibility={changeVisibility} onReset={() => changeColumns(defaultColumns)} onSort={direction => setSorting(current => setColumnSort(current, menu.key, direction))} onPriority={index => setSorting(current => moveColumnSort(current, menu.key, index))} onFilter={filter => changeColumnFilter(menu.key, filter)} onClose={() => {
