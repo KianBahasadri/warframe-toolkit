@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Filter, MoreHorizontal, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Filter, Search, SlidersHorizontal, X } from 'lucide-react';
 import { disposition } from '../lib/model';
 import type { Equipment } from '../lib/model';
 import { catalogFields, defaultWeaponFilters, filterEquipment } from '../lib/weaponCatalog';
@@ -89,7 +89,6 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
             onContextMenu={event => { event.preventDefault(); openMenu(column.key, headerButtons.current.get(column.key)!, event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : undefined); }}
             onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { event.preventDefault(); event.stopPropagation(); openMenu(column.key, event.target as HTMLElement); } }}>
             <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" onClick={() => sortBy(column.key)} aria-label={`Sort ${column.title}${sort ? `, priority ${sortIndex + 1}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : ', unsorted'}`} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button>
-              <button type="button" className={`column-menu-trigger ${columnFilters[column.key] ? 'has-filter' : ''}`} aria-label={`${column.title} column options`} title={`${column.title} column options`} aria-haspopup="menu" aria-expanded={menu?.key === column.key} onClick={event => openMenu(column.key, event.currentTarget)}>{columnFilters[column.key] ? <Filter size={14} aria-hidden="true" /> : <MoreHorizontal size={14} aria-hidden="true" />}</button>
             </div></th>;
         })}</tr></thead>
         <tbody>{sorted.map((item, index) => <tr key={item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, select, a, label') && !window.getSelection()?.toString()) onEdit(item); }}>

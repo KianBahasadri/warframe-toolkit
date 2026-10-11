@@ -156,17 +156,13 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .inventory-table td { height: 64px; padding: 4px 12px; border-bottom: 1px solid var(--table-rule); vertical-align: middle; }
 .inventory-table tbody tr:hover, .inventory-table tbody tr:focus-within { background: var(--surface); }
 .column-header { display: flex; align-items: center; gap: 4px; }
-.column-menu-trigger { position: relative; display: grid; place-items: center; flex-shrink: 0; width: 20px; height: 28px; margin-left: auto; padding: 0; border: 0; border-radius: 4px; color: var(--muted); background: transparent; }
-.column-menu-trigger::after { content: ''; position: absolute; inset: -8px -12px; }
-.column-menu-trigger:hover, .column-menu-trigger:focus-visible, .column-menu-trigger.has-filter { color: var(--ink-strong); background: var(--surface-raised); }
 .inventory-table .sort-button { position: relative; min-height: 28px; padding-right: 32px; }
 .inventory-table .sort-indicator { position: absolute; right: 0; width: 28px; gap: 4px; font-variant-numeric: tabular-nums; }
 .inventory-table .check-cell { padding-left: 8px; padding-right: 8px; }
 .inventory-table .check-cell .column-header { justify-content: center; }
-.inventory-table .check-cell .column-menu-trigger { margin-left: 0; }
 .inventory-table .table-checkbox { min-width: 40px; height: 40px; }
 .inventory-table .number-cell { text-align: right; font-variant-numeric: tabular-nums; }
-.inventory-table td.number-cell { padding-right: 36px; font-family: var(--mono); font-size: 14px; }
+.inventory-table td.number-cell { font-family: var(--mono); font-size: 14px; }
 .inventory-table .number-cell .column-header { justify-content: flex-end; }
 .inventory-table .number-cell .sort-button { padding-right: 0; padding-left: 32px; }
 .inventory-table .number-cell .sort-indicator { right: auto; left: 0; }
@@ -307,7 +303,7 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 @media (max-width: 700px) { .heading-actions { width: 100%; } }
 @media (max-width: 600px) { .collection-nav { width: 100%; }.collection-nav ul { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 4px; }.collection-nav li { min-width: 0; }.collection-nav a { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 1fr; justify-items: center; text-align: center; gap: 4px; height: 100%; padding: 10px 8px; font-size: 12px; }.collection-nav .nav-icon { display: none; }.collection-nav a > span { overflow-wrap: normal; }.topbar { padding: 12px; min-height: 68px; gap: 8px; }.topbar-right { margin-left: auto; }main { padding: 32px 16px 24px; }h1 { font-size: 32px; }.heading-actions { flex-wrap: wrap; }.heading-actions .button { font-size: 12px; padding: 10px 12px; }.inventory-search { flex-basis: 100%; width: 100%; margin: 0; }.inventory-toolbar .select-trigger { flex: 1; min-width: 100px; }.section-heading { flex-wrap: wrap; }.section-heading > .button { font-size: 12px; }.dialog-inner { padding: 20px 16px; }.checkbox-grid { gap: 16px 12px; }.check-row { align-items: flex-start; }.check-row input { margin-top: 2px; }.check-row small { font-size: 10px; }.dialog-footer { gap: 8px; }.dialog-footer .button { font-size: 12px; padding: 9px 12px; }.dialog-footer .push-right { width: 100%; justify-content: flex-start; }.shortcut-list > div { flex-wrap: wrap; gap: 8px; }.command-option { gap: 12px; }.key-group kbd { font-size: 9px; padding: 2px 4px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }button:active:not(:disabled) { transform: none; } }
-@media (pointer: coarse) { .column-menu-action { min-height: 44px; }.column-menu-trigger { min-height: 44px; } }
+@media (pointer: coarse) { .column-menu-action { min-height: 44px; } }
 @media (max-width: 1000px) { .weapon-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 600px) {
   .inventory-section .inventory-search { width: 100%; margin: 0; }
