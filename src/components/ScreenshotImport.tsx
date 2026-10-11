@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CircleHelp } from 'lucide-react';
 import { catalog } from '../data/catalog';
 import { createEquipment } from '../lib/model';
@@ -16,6 +16,7 @@ interface Batch { source: ScreenshotSource | null; scans: Scan[]; pending: File[
 
 export function ScreenshotImport({ onImport, onInventory }: { onImport: (observations: Equipment[], files: string[]) => { added: number; updated: number } | null; onInventory: () => void }) {
   const [source, setSource] = useState<ScreenshotSource>('inventory');
+  const [pasteTarget, setPasteTarget] = useState<ScreenshotSource>('inventory');
   const [help, setHelp] = useState<ScreenshotSource | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
   const [detections, setDetections] = useState<Detection[]>([]);
@@ -26,12 +27,34 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   const [dragging, setDragging] = useState<ScreenshotSource | null>(null);
   const [completed, setCompleted] = useState<{ added: number; updated: number } | null>(null);
   const inputs = useRef<Record<ScreenshotSource, HTMLInputElement | null>>({ inventory: null, arsenal: null });
+  const sourcePanels = useRef<Record<ScreenshotSource, HTMLElement | null>>({ inventory: null, arsenal: null });
   const pasteSource = useRef<ScreenshotSource>('inventory');
   const controller = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
   const batch = useRef<Batch>({ source: null, scans: [], pending: [], completed: false });
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); batch.current.pending = []; batch.current.scans.forEach(scan => URL.revokeObjectURL(scan.url)); }; }, []);
+  const choosePasteSource = useCallback((value: ScreenshotSource) => {
+    if (batch.current.source || batch.current.completed || document.querySelector('dialog[open]')) return;
+    pasteSource.current = value;
+    setPasteTarget(value);
+  }, []);
+  useEffect(() => {
+    const followPointer = (event: PointerEvent) => {
+      if (event.pointerType === 'touch' || batch.current.source || document.querySelector('dialog[open]')) return;
+      const inventory = sourcePanels.current.inventory?.getBoundingClientRect();
+      const arsenal = sourcePanels.current.arsenal?.getBoundingClientRect();
+      if (!inventory || !arsenal) return;
+      // Use the gap between panels so blank page space selects the nearest side,
+      // or the nearest stacked section on narrow screens.
+      const beforeDivider = arsenal.left >= inventory.right
+        ? event.clientX < (inventory.right + arsenal.left) / 2
+        : event.clientY < (inventory.bottom + arsenal.top) / 2;
+      choosePasteSource(beforeDivider ? 'inventory' : 'arsenal');
+    };
+    document.addEventListener('pointermove', followPointer);
+    return () => document.removeEventListener('pointermove', followPointer);
+  }, [choosePasteSource]);
 
   const processFiles = async (files: File[], screenshotSource: ScreenshotSource) => {
     if (!files.length || batch.current.completed || controller.current?.signal.aborted || (batch.current.source && batch.current.source !== screenshotSource)) return;
@@ -44,6 +67,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     batch.current.scans = [...batch.current.scans, ...next];
     batch.current.pending.push(...files);
     pasteSource.current = screenshotSource;
+    setPasteTarget(screenshotSource);
     setScans(batch.current.scans); setError(''); setStatus('');
     if (busyRef.current) return;
     setBusy(true); busyRef.current = true; setProgress(0); setStatus('');
@@ -95,6 +119,8 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   }, []);
   const update = (id: string, patch: Partial<Detection>) => setDetections(current => current.map(detection => detection.id === id ? reviewDetection(detection, patch) : detection));
   const selected = detections.filter(detection => detection.selected);
+  const hasBatch = scans.length > 0 || !!completed;
+  const visibleSources = importSources.filter(entry => !hasBatch || entry.value === source);
   const clear = () => {
     batch.current.scans.forEach(scan => URL.revokeObjectURL(scan.url));
     batch.current = { source: null, scans: [], pending: [], completed: false };
@@ -108,7 +134,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   };
   return <section className="import-section" aria-labelledby="import-title">
     <div className="section-heading"><h1 id="import-title">Import screenshots</h1></div>
-    <div className="import-sources">{importSources.map(({ value, label }) => <section key={value} className="import-source" aria-labelledby={`${value}-import-title`} onFocusCapture={() => { pasteSource.current = value; }} onPointerDownCapture={() => { pasteSource.current = value; }}>
+    <div className={`import-sources${hasBatch ? ' has-batch' : ''}`}>{visibleSources.map(({ value, label }) => <section key={value} ref={node => { sourcePanels.current[value] = node; }} className={`import-source${!hasBatch && pasteTarget === value ? ' is-paste-target' : ''}`} aria-labelledby={`${value}-import-title`} aria-description={!hasBatch && pasteTarget === value ? 'Selected for screenshot paste' : undefined} onFocusCapture={() => choosePasteSource(value)} onPointerDownCapture={() => choosePasteSource(value)}>
       <div className="section-heading import-source-heading">
         <h2 id={`${value}-import-title`}>{label}</h2>
         <div className="import-actions">
@@ -116,11 +142,11 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
           {source === value && (busy ? <button type="button" className="button secondary" onClick={() => controller.current?.abort()}>Cancel reading</button> : (scans.length > 0 || status || error) && <button type="button" className="button secondary" onClick={clear}>{completed ? 'Import more' : 'Clear'}</button>)}
         </div>
       </div>
-    <input ref={node => { inputs.current[value] = node; }} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label={`Choose ${label.toLowerCase()} screenshots`} tabIndex={-1} disabled={!!completed || (scans.length > 0 && source !== value)} onChange={event => { void processFiles([...event.target.files || []], value); event.target.value = ''; }} />
+    <input ref={node => { inputs.current[value] = node; }} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label={`Choose ${label.toLowerCase()} screenshots`} tabIndex={-1} disabled={!!completed} onChange={event => { void processFiles([...event.target.files || []], value); event.target.value = ''; }} />
     {source === value && error && <p className="callout danger" role="alert">{error}</p>}
-    {(!completed || source !== value) && <button type="button" className={`drop-zone ${scans.length && source === value ? 'drop-zone-compact' : ''} ${dragging === value ? 'dragging' : ''}`} disabled={!!completed || (scans.length > 0 && source !== value)} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); if (!completed && (!scans.length || source === value)) setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
+    {!completed && <button type="button" className={`drop-zone ${scans.length ? 'drop-zone-compact' : ''} ${dragging === value ? 'dragging' : ''}`} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); choosePasteSource(value); setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
       <span>{scans.length && source === value ? 'Add screenshots' : 'Drop, paste, or choose screenshots'}</span>
-      <small>{completed ? 'Select Import more to start another batch' : scans.length && source !== value ? 'Finish or clear the current batch first' : scans.length ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
+      <small>{scans.length ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
     </button>}
     {source === value && <>
     {busy && <div className="import-progress"><span role="status">Reading screenshots… {Math.round(progress * 100)}%</span><progress value={progress} max={1} aria-label="Screenshot reading progress" /></div>}

@@ -720,6 +720,83 @@ test('screenshot instructions show the local example and fit desktop and mobile'
   await expect(page.getByText('Screenshot preview', { exact: true })).toHaveCount(0);
 });
 
+test('pointer highlights the paste destination and a batch hides the other source', async ({ page, context, browserName }) => {
+  await page.goto('/#import');
+  const screenshot = await equipmentScreenshot(page, 'paste.png', ['BOLTOR [30]']);
+  const base64 = screenshot.buffer.toString('base64');
+  if (browserName === 'chromium') {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.evaluate(async data => {
+      const image = new Blob([Uint8Array.from(atob(data), character => character.charCodeAt(0))], { type: 'image/png' });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': image })]);
+    }, base64);
+  }
+  const pasteImage = async () => {
+    if (browserName === 'chromium') await page.keyboard.press('Control+v');
+    else await page.evaluate(data => {
+      // Firefox does not expose clipboard-write permission to Playwright.
+      const clipboard = new DataTransfer();
+      clipboard.items.add(new File([Uint8Array.from(atob(data), character => character.charCodeAt(0))], 'paste.png', { type: 'image/png' }));
+      const paste = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, 'clipboardData', { value: clipboard });
+      document.activeElement!.dispatchEvent(paste);
+    }, base64);
+  };
+  const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
+  const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
+  const inventoryUpload = inventory.getByRole('button', { name: /^Drop, paste, or choose screenshots/ });
+  const arsenalUpload = arsenal.getByRole('button', { name: /^Drop, paste, or choose screenshots/ });
+  await inventoryUpload.focus();
+  await expect(inventory).toHaveAccessibleDescription('Selected for screenshot paste');
+  // Moving through blank page space changes the destination without a click,
+  // even when a control in the other section still has keyboard focus.
+  await page.mouse.move(1200, 650);
+  await expect(arsenal).toHaveAccessibleDescription('Selected for screenshot paste');
+  await expect(inventoryUpload).toBeFocused();
+  await expect(page.locator('.is-paste-target')).toHaveCount(1);
+  const initialWidth = (await arsenal.boundingBox())!.width;
+  await page.screenshot({ path: 'test-results/import-paste-target-desktop.png', fullPage: true });
+  await pasteImage();
+  await expect(inventory).toHaveCount(0);
+  await expect(arsenal.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(1);
+  expect((await arsenal.boundingBox())!.width).toBeGreaterThan(initialWidth * 1.8);
+  await waitForScreenshotReview(page);
+  await expect(arsenal.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
+  // Once a batch starts, moving to the other side keeps pastes in that batch.
+  await page.mouse.move(40, 650);
+  await pasteImage();
+  await expect(arsenal.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(2);
+  await expect(inventory).toHaveCount(0);
+  await waitForScreenshotReview(page);
+  await page.getByRole('button', { name: 'Import 1 item', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'View inventory' })).toBeVisible();
+  await expect(inventory).toHaveCount(0);
+  await page.getByRole('button', { name: 'Import more', exact: true }).click();
+  await expect(inventory).toBeVisible();
+  await expect(arsenal).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 720 });
+  await inventory.hover({ position: { x: 12, y: 12 } });
+  await expect(inventory).toHaveAccessibleDescription('Selected for screenshot paste');
+  await arsenal.hover({ position: { x: 12, y: 12 } });
+  await expect(arsenal).toHaveAccessibleDescription('Selected for screenshot paste');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/import-paste-target-mobile.png', fullPage: true });
+  await inventoryUpload.focus();
+  await expect(inventory).toHaveAccessibleDescription('Selected for screenshot paste');
+  await arsenalUpload.focus();
+  await expect(arsenal).toHaveAccessibleDescription('Selected for screenshot paste');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.mouse.move(40, 650);
+  await expect(inventory).toHaveAccessibleDescription('Selected for screenshot paste');
+  await pasteImage();
+  await expect(arsenal).toHaveCount(0);
+  await waitForScreenshotReview(page);
+  await expect(inventory.getByLabel('Owned: Boltor', { exact: true })).toBeChecked();
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await expect(inventory).toBeVisible();
+  await expect(arsenal).toBeVisible();
+});
+
 for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every name and rank: ${fixture.file}`, async ({ page }) => {
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
@@ -730,8 +807,7 @@ for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
   const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
   await expect(inventory.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
-  await expect(arsenal.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false })).toBeDisabled();
-  await expect(arsenal.getByRole('heading', { name: 'Review matches' })).toHaveCount(0);
+  await expect(arsenal).toHaveCount(0);
   const names = await inventory.locator('.review-table [role="combobox"]').allTextContents();
   expect(names.sort()).toEqual(Object.keys(fixture.weapons).sort());
   for (const [name, rank] of Object.entries(fixture.weapons)) {
@@ -740,7 +816,7 @@ for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every
     await expect(inventory.getByLabel(`Rank: ${name}`, { exact: true })).toHaveValue(String(rank));
     await expect(inventory.getByLabel(`Mastered: ${name}`, { exact: true })).toBeChecked({ checked: rank === 30 });
   }
-  await arsenal.getByRole('button', { name: 'Arsenal instructions' }).click();
+  await inventory.getByRole('button', { name: 'Inventory instructions' }).click();
   await page.keyboard.press('Escape');
   await expect(inventory.getByRole('button', { name: `Import ${names.length} items`, exact: true })).toBeEnabled();
   expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
