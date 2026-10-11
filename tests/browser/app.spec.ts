@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import inventoryScreenshots from '../fixtures/inventory-screenshots.json' with { type: 'json' };
+import type { Inventory } from '../../src/lib/model';
+import { createEquipment } from '../../src/lib/model';
 
 async function chooseOption(page: Page, label: string, option: string) {
   await page.getByRole('combobox', { name: label, exact: true }).click();
@@ -58,7 +61,7 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
   await expect(page.getByLabel('Import Braton Prime', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Import Wisp Prime', { exact: true })).toBeChecked();
-  await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Mastered: Boltor', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Import Lex Prime', { exact: true })).toHaveCount(0);
   await expect(page.locator('select')).toHaveCount(0);
@@ -74,6 +77,19 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await page.keyboard.press('Enter');
   await expect(page.getByLabel('Import Braton Vandal', { exact: true })).toBeChecked();
   await chooseOption(page, 'Matched name for BRATON PRIME RANK 30', 'Braton Prime');
+  await page.getByLabel('Rank: Braton Prime', { exact: true }).fill('0');
+  await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).not.toBeChecked();
+  await page.getByLabel('Rank: Braton Prime', { exact: true }).fill('30');
+  await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).toBeChecked();
+  await chooseOption(page, 'Matched name for BRATON PRIME RANK 30', 'Paracesis');
+  await expect(page.getByLabel('Mastered: Paracesis', { exact: true })).not.toBeChecked();
+  await page.getByLabel('Rank: Paracesis', { exact: true }).fill('40');
+  await expect(page.getByLabel('Mastered: Paracesis', { exact: true })).toBeChecked();
+  await page.getByLabel('Mastered: Paracesis', { exact: true }).uncheck();
+  await page.getByLabel('Rank: Paracesis', { exact: true }).fill('30');
+  await chooseOption(page, 'Matched name for BRATON PRIME RANK 30', 'Braton Prime');
+  await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).not.toBeChecked();
+  await page.getByLabel('Mastered: Braton Prime', { exact: true }).check();
   expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(savedBeforeReview);
   await page.getByRole('button', { name: 'Deselect all' }).click();
   await expect(page.getByRole('button', { name: 'Import 0 items' })).toBeDisabled();
@@ -418,31 +434,70 @@ test('screenshot instructions show the local example and fit desktop and mobile'
   await expect(page.getByText('Screenshot preview', { exact: true })).toHaveCount(0);
 });
 
-test('the real Inventory example reaches review without changing saved data', async ({ page }) => {
+for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every name and rank: ${fixture.file}`, async ({ page }) => {
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
   await page.goto('/#import');
   await expect(page.getByRole('heading', { name: 'Import screenshots', exact: true })).toBeVisible();
   const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
-  await page.getByLabel('Choose inventory screenshots').setInputFiles('public/images/import/inventory-weapons.png');
+  await page.getByLabel('Choose inventory screenshots').setInputFiles(fixture.file);
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
   const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
   await expect(inventory.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
-  await expect(inventory.getByLabel('Import Braton Prime', { exact: true })).toBeChecked();
-  await expect(inventory.getByLabel('Import Braton', { exact: true })).toHaveCount(0);
-  await expect(inventory.getByLabel('Owned: Tonkor', { exact: true })).toBeChecked();
-  await expect(inventory.getByLabel('Mastered: Tonkor', { exact: true })).not.toBeChecked();
   await expect(arsenal.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false })).toBeDisabled();
   await expect(arsenal.getByRole('heading', { name: 'Review matches' })).toHaveCount(0);
-  const visibleNames = ['Tonkor', 'Boltor', 'Braton Prime', 'Dera', 'Dread', 'Ignis Wraith', 'Nataruk', 'Phantasma', 'Proboscis Cernos', 'Rubico', 'Strun', 'Tigris', 'Vectis Prime', 'Anku', 'Arca Titron', 'Broken Scepter', 'Broken War'];
   const names = await inventory.locator('.review-table [role="combobox"]').allTextContents();
-  expect(names.length).toBeGreaterThan(0);
-  expect(names.every(name => visibleNames.includes(name))).toBe(true);
+  expect(names.sort()).toEqual(Object.keys(fixture.weapons).sort());
+  for (const [name, rank] of Object.entries(fixture.weapons)) {
+    await expect(inventory.getByLabel(`Import ${name}`, { exact: true })).toBeChecked();
+    await expect(inventory.getByLabel(`Owned: ${name}`, { exact: true })).toBeChecked();
+    await expect(inventory.getByLabel(`Rank: ${name}`, { exact: true })).toHaveValue(String(rank));
+    await expect(inventory.getByLabel(`Mastered: ${name}`, { exact: true })).toBeChecked({ checked: rank === 30 });
+  }
   await arsenal.getByRole('button', { name: 'Arsenal instructions' }).click();
   await page.keyboard.press('Escape');
-  await expect(inventory.getByLabel('Owned: Tonkor', { exact: true })).toBeChecked();
+  await expect(inventory.getByRole('button', { name: `Import ${names.length} items`, exact: true })).toBeEnabled();
   expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
   expect(externalRequests).toEqual([]);
+});
+
+test('real screenshot batches merge duplicates and preserve planning, prior mastery, and absent equipment', async ({ page }) => {
+  test.setTimeout(180000);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  const original: Inventory = await page.evaluate(vasto => {
+    const key = 'warframe-toolkit.inventory.v1';
+    const data = JSON.parse(localStorage.getItem(key)!);
+    data.items.push(vasto);
+    localStorage.setItem(key, JSON.stringify(data));
+    return data;
+  }, createEquipment({ name: 'Vasto', slot: 'Secondary', variant: 'Base' }, { mastered: true, rank: 30, notes: 'Keep my crafting plan', dontKeep: true, override: 'Keep', upgraded: 'Yes' }));
+  await page.reload();
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  // Repeating the first image also exercises overlapping captures in one batch.
+  await page.getByLabel('Choose inventory screenshots').setInputFiles([...inventoryScreenshots.map(fixture => fixture.file), inventoryScreenshots[0].file]);
+  await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 120000 });
+  const expected = Object.assign({}, ...inventoryScreenshots.map(fixture => fixture.weapons)) as Record<string, number>;
+  const names = await page.locator('.review-table [role="combobox"]').allTextContents();
+  expect(names.sort()).toEqual(Object.keys(expected).sort());
+  await expect(page.getByLabel('Rank: Vasto', { exact: true })).toHaveValue('0');
+  await expect(page.getByLabel('Mastered: Vasto', { exact: true })).not.toBeChecked();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!))).toEqual(original);
+  await page.getByRole('button', { name: 'Import 37 items', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'View inventory' })).toBeVisible();
+  await page.reload();
+  const saved: Inventory = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!));
+  expect(saved.items.length).toBe(new Set([...original.items.map(item => item.name), ...Object.keys(expected)]).size);
+  for (const [name, rank] of Object.entries(expected)) {
+    expect(saved.items.filter(item => item.name === name)).toHaveLength(1);
+    expect(saved.items.find(item => item.name === name)).toMatchObject({ rank, owned: true, mastered: true });
+  }
+  for (const before of original.items) {
+    const after = saved.items.find(item => item.id === before.id)!;
+    if (before.name in expected) expect(after).toEqual({ ...before, owned: true, mastered: true, rank: expected[before.name], source: after.source, updatedAt: after.updatedAt });
+    else expect(after).toEqual(before);
+  }
+  expect(saved.imports).toHaveLength(original.imports.length + 1);
 });
 
 test('canceling OCR releases the importer and paste uses the focused source', async ({ page }) => {

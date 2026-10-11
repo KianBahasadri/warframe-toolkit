@@ -72,9 +72,11 @@ Finish or clear the current batch before starting another source. Help dialogs n
 
 The reader uses [Tesseract.js](https://github.com/naptha/tesseract.js) entirely in the browser with a bundled English model. It matches names against the 805 bundled equipment names in the weapon database. `npm run catalog:update` refreshes that snapshot and its licenses; it never modifies your saved inventory.
 
-Recognition is a starting point for review. Tests cover synthetic equipment screenshots and the supplied real Inventory/Sell screenshot. That example still misses some fully visible names, and bracket-only rank labels such as `[30]` are not read as ranks. Real Arsenal screenshots and more Inventory layouts still need testing. The reader does not recognize checkmark icons, equipment pictures, or arbitrary custom weapon names. Prime and other variants are matched separately. Blueprint/component lines are excluded; uncertain fuzzy matches are not selected automatically.
+Recognition is a starting point for review. Browser tests cover synthetic screenshots and both supplied 1920 × 1200 Inventory/Sell screenshots: all 37 readable names, exact variants, and ranks (36 at rank 30, Vasto at rank 0). They also cover repeated images, the review step, and saving without losing planning fields or prior mastery. The original images and manually checked expectations are documented in `tests/fixtures/README.md`. Real Arsenal screenshots, other resolutions, themes, and Inventory layouts still need testing. The reader does not recognize checkmark icons, equipment pictures, or arbitrary custom weapon names. Prime and other variants are matched separately. Blueprint/component lines are excluded; uncertain fuzzy matches are not selected automatically.
 
-Inventory matches initially count as owned; Arsenal matches require ownership review. Rank and explicit “Mastered” text are read only when they appear on the same line as one matched item. Rank 30, “MAX,” or a nearby mastery icon does not imply full mastery. No absence in a screenshot clears prior ownership or mastery.
+Inventory matches initially count as owned; Arsenal matches require ownership review. Rank labels such as `[30]`, `[0]`, `RANK 30`, and `UNRANKED` are read alongside a single matched item. A wrapped Inventory rank must sit directly below one uniquely aligned name; bare digits also require neighboring bracketed card labels in the same row. Ambiguous associations are left blank. Two grayscale contrast passes improve recognition over textured backgrounds without relying on fixed card coordinates or theme colors.
+
+Reaching the catalog's maximum rank checks **Mastered**: normally 30, or 40 for weapons such as Paracesis, Kuva, Tenet, and Coda weapons. Modular equipment and Amps need separate mastery review because the label does not establish gilding; non-masterable entries are not marked mastered from rank. Explicit same-line “Mastered” text is also read. “MAX” or a nearby icon alone is insufficient. Correcting a name or rank recalculates automatic mastery unless you have set the checkbox yourself. No absence or lower rank in a screenshot clears prior ownership or mastery.
 
 Repeated names merge into existing entries. Imports preserve keep preferences, crafting notes, Incarnon flags, upgrade status, and all other planning fields. A new observed rank may decrease after Forma. Screenshot files are kept only in the current import view, not in persistent storage. Import history stores filenames and counts.
 
@@ -96,7 +98,7 @@ Unparseable existing storage is preserved instead of silently resetting it. The 
 - `src/assets/warframe/`: bundled in-game tab icons; original asset links and attribution are in [SOURCES.md](src/assets/warframe/SOURCES.md).
 - `src/lib/model.ts`: equipment schema and conservative import merging.
 - `src/lib/relics.ts`: relic schema, name normalization, and validation.
-- `src/lib/matching.ts`: exact/fuzzy name matching and same-line observations.
+- `src/lib/matching.ts`: full-label exact/fuzzy matching, rank association, and reviewable mastery observations.
 - `src/lib/ocr.ts`: local OCR worker lifecycle and image preparation.
 - `src/lib/storage.ts`: saved inventory validation and spreadsheet export.
 - `src/data/reference.ts`: manually transcribed reference rows.

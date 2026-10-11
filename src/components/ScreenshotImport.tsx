@@ -3,7 +3,7 @@ import { CircleHelp } from 'lucide-react';
 import { catalog } from '../data/catalog';
 import { createEquipment } from '../lib/model';
 import type { Equipment } from '../lib/model';
-import { matchOcrLines } from '../lib/matching';
+import { matchOcrLines, reviewDetection } from '../lib/matching';
 import type { Detection, ScreenshotSource } from '../lib/matching';
 import { Select } from './Select';
 import { ScreenshotHelp } from './ScreenshotHelp';
@@ -59,7 +59,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
             const previous = byId.get(detection.item.id);
             if (!previous) byId.set(detection.item.id, detection);
             else byId.set(detection.item.id, {
-              ...(detection.confidence > previous.confidence ? detection : previous),
+              ...((detection.exact && !previous.exact) || (detection.exact === previous.exact && detection.confidence > previous.confidence) ? detection : previous),
               mastered: previous.mastered || detection.mastered, owned: previous.owned || detection.owned,
               rank: detection.rank ?? previous.rank,
             });
@@ -88,7 +88,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     document.addEventListener('paste', paste);
     return () => document.removeEventListener('paste', paste);
   }, []);
-  const update = (id: string, patch: Partial<Detection>) => setDetections(current => current.map(detection => detection.id === id ? { ...detection, ...patch } : detection));
+  const update = (id: string, patch: Partial<Detection>) => setDetections(current => current.map(detection => detection.id === id ? reviewDetection(detection, patch) : detection));
   const selected = detections.filter(detection => detection.selected);
   const currentScan = scans[preview];
   const clear = () => {
@@ -130,7 +130,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
       </div></div>
       <div className="table-scroll" role="region" aria-label="Screenshot matches" tabIndex={0}><table className="review-table">
         <caption className="sr-only">Review names, ownership, mastery, and rank before importing selected rows. Existing ownership and mastery are preserved.</caption>
-        <thead><tr><th scope="col">Import</th><th scope="col">Equipment</th><th scope="col" title="Imports preserve existing ownership.">Owned</th><th scope="col" title="Imports preserve existing mastery. Rank alone does not establish mastery.">Mastered</th><th scope="col">Rank</th></tr></thead>
+        <thead><tr><th scope="col">Import</th><th scope="col">Equipment</th><th scope="col" title="Imports preserve existing ownership.">Owned</th><th scope="col" title="Checked at the catalog's maximum rank: usually 30, or 40 for applicable weapons. Modular weapons and Amps need mastery review. Existing mastery is preserved.">Mastered</th><th scope="col">Rank</th></tr></thead>
         <tbody>{detections.map(detection => <tr key={detection.id}>
           <td><label className="table-checkbox"><input type="checkbox" checked={detection.selected} aria-label={`Import ${detection.item.name}`} onChange={event => update(detection.id, { selected: event.target.checked })} /></label></td>
           <td className="match-cell"><Select value={detection.item.id} label={`Matched name for ${detection.rawText}`} onChange={value => { const entry = catalog.find(item => item.id === value); if (entry) update(detection.id, { item: entry, exact: false }); }} options={equipmentOptions} /><small>Read: {detection.rawText}</small>{(!detection.exact || detection.confidence < 65) && <span className="badge caution-badge">Check match</span>}</td>

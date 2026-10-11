@@ -1,7 +1,7 @@
 import { normalizeName } from './model.ts';
 import type { CatalogItem } from './model.ts';
 
-export interface OcrLine { text: string; confidence: number; bbox?: { x0: number; y0: number; x1: number; y1: number } }
+export interface OcrLine { text: string; confidence: number; pass?: number; bbox?: { x0: number; y0: number; x1: number; y1: number } }
 export interface Detection {
   id: string;
   item: CatalogItem;
@@ -11,6 +11,7 @@ export interface Detection {
   selected: boolean;
   owned: boolean;
   mastered: boolean;
+  masterySource: 'rank' | 'text' | 'review' | null;
   rank: number | null;
   filename: string;
 }
@@ -27,39 +28,94 @@ function distance(a: string, b: string): number {
 }
 
 function tokens(text: string): string[] {
-  return text.toLowerCase().replace(/mk\s*[1il]\s*-?\s*/g, 'mk1 ').replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  return text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\bmk\s*[1il]\s*-?\s*/g, 'mk1 ').replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
 }
 
 const component = /\b(blueprints?|chassis|neuroptics|systems|receiver|barrel|stock|handle|blade|ornament|grip|link)\b/i;
-const hasVariant = /\b(prime|umbra|wraith|vandal|prisma|kuva|tenet|dex|coda|mk1)\b/i;
+const variantWords = /\b(prime|umbra|wraith|vandal|prisma|kuva|tenet|dex|coda|mk1|sancti|secura|synoid|rakta|vaykor|telos|mara)\b/gi;
+const rankAnnotation = /\[\s*\d+\s*\]|\brank\s*[:\-]?\s*\d+\b|\bunranked\b/gi;
+const statusAnnotation = /\b(?:(?:not\s+|un)?mastered|(?:not\s+|un)?owned|max(?:\s+rank)?|equip|purchase)\b/gi;
+
+function readRank(text: string): number | null {
+  const values = [...text.matchAll(rankAnnotation)].map(match => /unranked/i.test(match[0]) ? 0 : Number(match[0].match(/\d+/)![0]));
+  return values.length && values.every(value => value === values[0]) && values[0] <= 40 ? values[0] : null;
+}
+
+export function rankEstablishesMastery(item: CatalogItem, rank: number | null): boolean {
+  // Modular equipment needs gilding, which an inventory label cannot establish.
+  return item.masterable === true && !item.modular && item.slot !== 'Amp' && rank !== null && rank === item.maxRank;
+}
+
+export function reviewDetection(detection: Detection, patch: Partial<Detection>): Detection {
+  const next = { ...detection, ...patch };
+  if (patch.mastered !== undefined) next.masterySource = 'review';
+  else if ((patch.item || patch.rank !== undefined) && detection.masterySource !== 'review') {
+    const explicit = !patch.item && detection.masterySource === 'text';
+    next.mastered = explicit || rankEstablishesMastery(next.item, next.rank);
+    next.masterySource = explicit ? 'text' : next.mastered ? 'rank' : null;
+  }
+  return next;
+}
+
+function wrappedRanks(lines: OcrLine[], source: ScreenshotSource): Map<OcrLine, OcrLine> {
+  const paired = new Map<OcrLine, OcrLine[]>();
+  if (source !== 'inventory') return new Map();
+  for (const number of lines) {
+    if (!number.bbox || number.confidence < 80 || !/^(?:\[\s*\d{1,2}\s*\]|\d{1,2})$/.test(number.text.trim())) continue;
+    const rank = Number(number.text.replace(/\D/g, ''));
+    if (rank > 40) continue;
+    const box = number.bbox;
+    const height = box.y1 - box.y0;
+    // Bare digits only count inside a row of other bracketed inventory labels.
+    // A price or currency elsewhere on screen is not an equipment rank.
+    if (!number.text.includes('[') && lines.filter(line => line.pass === number.pass && line.bbox && /\[\s*\d{1,2}\s*\]/.test(line.text) && Math.abs((line.bbox.y0 + line.bbox.y1) / 2 - (box.y0 + box.y1) / 2) < height).length < 2) continue;
+    const names = lines.filter(line => {
+      if (!line.bbox || line.pass !== number.pass || !/[a-z]/i.test(line.text) || line.text.match(rankAnnotation)) return false;
+      const name = line.bbox;
+      const nameHeight = name.y1 - name.y0;
+      const width = name.x1 - name.x0;
+      const gap = box.y0 - name.y1;
+      return gap >= 0 && gap <= nameHeight * 0.65 && height >= nameHeight * 0.35 && height <= nameHeight * 1.3
+        && box.x0 >= name.x0 && box.x1 <= name.x1 && box.x1 - box.x0 <= width * 0.6
+        && Math.abs((box.x0 + box.x1) / 2 - (name.x0 + name.x1) / 2) <= width * 0.2;
+    });
+    if (names.length === 1) paired.set(names[0], [...paired.get(names[0]) || [], number]);
+  }
+  return new Map([...paired].filter(([, numbers]) => numbers.length === 1).map(([name, numbers]) => [name, numbers[0]]));
+}
 
 export function matchOcrLines(lines: OcrLine[], catalog: CatalogItem[], filename: string, source: ScreenshotSource): Detection[] {
   const indexed = catalog.map(item => ({ item, parts: tokens(item.name), key: normalizeName(item.name) })).sort((a, b) => b.parts.length - a.parts.length || b.key.length - a.key.length);
   const found = new Map<string, Detection>();
+  const wrapped = wrappedRanks(lines, source);
   for (const line of lines) {
     if (component.test(line.text)) continue;
-    const parts = tokens(line.text);
+    const clean = line.text.replace(rankAnnotation, '').replace(statusAnnotation, '').trim();
+    const parts = tokens(clean);
     if (!parts.length) continue;
+    const key = parts.join('');
+    // Tiny, uncertain fragments often come from icons rather than weapon names.
+    if (key.length <= 2 && line.confidence < 65 && readRank(line.text) === null) continue;
     const occupied = new Set<number>();
     const matches: { item: CatalogItem; exact: boolean; score: number }[] = [];
-    for (const candidate of indexed) {
+    const whole = indexed.find(candidate => candidate.key === key);
+    if (whole) matches.push({ item: whole.item, exact: true, score: line.confidence });
+    else for (const candidate of indexed) {
       for (let start = 0; start <= parts.length - candidate.parts.length; start++) {
         if (candidate.parts.every((token, i) => parts[start + i] === token && !occupied.has(start + i))) {
-          // A known variant next to a base name must not become a base item.
-          const next = parts[start + candidate.parts.length] || '';
-          const previous = parts[start - 1] || '';
-          if (candidate.item.variant === 'Base' && (hasVariant.test(next) || hasVariant.test(previous))) continue;
           matches.push({ item: candidate.item, exact: true, score: line.confidence });
           candidate.parts.forEach((_, i) => occupied.add(start + i));
           break;
         }
       }
     }
+    // Every word must belong to a name. A damaged modifier such as "Probotcis"
+    // must never leave behind an apparently exact base weapon ("Cernos").
+    if (!whole && occupied.size !== parts.length) matches.length = 0;
     if (!matches.length) {
-      const clean = line.text.replace(/\b(?:rank\s*\d{1,2}|mastered|unranked|max(?:\s+rank)?|owned|equip)\b/gi, '').trim();
-      const key = normalizeName(clean);
       if (key.length >= 5 && key.length <= 40) {
-        const ranked = indexed.filter(candidate => Math.abs(candidate.key.length - key.length) <= 3 && Boolean(hasVariant.test(clean)) === Boolean(hasVariant.test(candidate.item.name)))
+        const modifiers = (parts.join(' ').match(variantWords) || []).sort().join(' ');
+        const ranked = indexed.filter(candidate => Math.abs(candidate.key.length - key.length) <= 3 && modifiers === (candidate.parts.join(' ').match(variantWords) || []).sort().join(' '))
           .map(candidate => ({ item: candidate.item, similarity: 1 - distance(key, candidate.key) / Math.max(key.length, candidate.key.length) }))
           .sort((a, b) => b.similarity - a.similarity);
         if (ranked[0]?.similarity >= 0.78 && (!ranked[1] || ranked[0].similarity - ranked[1].similarity >= 0.08)) {
@@ -67,18 +123,18 @@ export function matchOcrLines(lines: OcrLine[], catalog: CatalogItem[], filename
         }
       }
     }
-    const rankText = line.text.match(/\brank\s*[:\-]?\s*(\d{1,2})\b/i);
-    const rankValue = rankText ? Number(rankText[1]) : /\bunranked\b/i.test(line.text) ? 0 : null;
-    // Use only text on the item's own line. Nearby cards and UI labels cannot
-    // reliably establish which item a rank or mastery marker belongs to.
-    const rank = matches.length === 1 && rankValue !== null && rankValue <= 40 ? rankValue : null;
-    const mastered = matches.length === 1 && /\bmastered\b/i.test(line.text) && !/\b(?:not|un)\s*mastered\b/i.test(line.text);
+    const continuation = wrapped.get(line);
+    const rankValue = continuation ? Number(continuation.text.replace(/\D/g, '')) : readRank(line.text);
+    const rank = matches.length === 1 && rankValue !== null && rankValue <= (matches[0].item.maxRank ?? 40) ? rankValue : null;
+    const explicitMastery = matches.length === 1 && /\bmastered\b/i.test(line.text) && !/\b(?:not|un)\s*mastered\b/i.test(line.text);
     for (const match of matches) {
       const owned = source === 'inventory' && !/\b(?:not owned|unowned|purchase)\b/i.test(line.text);
+      const mastered = explicitMastery || rankEstablishesMastery(match.item, rank);
       const detection: Detection = {
-        id: crypto.randomUUID(), item: match.item, rawText: line.text, filename,
+        id: crypto.randomUUID(), item: match.item, rawText: continuation ? `${line.text}\n${continuation.text}` : line.text, filename,
         confidence: Math.round(match.score), exact: match.exact,
         selected: match.exact && match.score >= 65, owned, mastered, rank,
+        masterySource: explicitMastery ? 'text' : mastered ? 'rank' : null,
       };
       const prior = found.get(match.item.id);
       if (!prior || (match.exact && !prior.exact) || (match.exact === prior.exact && match.score > prior.confidence)) found.set(match.item.id, detection);

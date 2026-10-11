@@ -1,0 +1,49 @@
+[
+  {
+    "file": "public/images/import/inventory-weapons.png",
+    "weapons": {
+      "Tonkor": 30,
+      "Boltor": 30,
+      "Braton Prime": 30,
+      "Dera": 30,
+      "Dread": 30,
+      "Ignis Wraith": 30,
+      "Nataruk": 30,
+      "Phantasma": 30,
+      "Proboscis Cernos": 30,
+      "Rubico": 30,
+      "Strun": 30,
+      "Tigris": 30,
+      "Vectis Prime": 30,
+      "Anku": 30,
+      "Arca Titron": 30,
+      "Broken Scepter": 30,
+      "Broken War": 30
+    }
+  },
+  {
+    "file": "tests/fixtures/inventory-weapons-bottom.png",
+    "weapons": {
+      "Kunai": 30,
+      "Lex Prime": 30,
+      "Magistar": 30,
+      "Orthos Prime": 30,
+      "Ripkas": 30,
+      "Rumblejack": 30,
+      "Sarpa": 30,
+      "Twin Basolk": 30,
+      "Twin Grakatas": 30,
+      "Twin Vipers": 30,
+      "Vasto": 0,
+      "Venka": 30,
+      "Xoris": 30,
+      "Zakti": 30,
+      "Atomos": 30,
+      "Gammacor": 30,
+      "Lato Vandal": 30,
+      "MK1-Furax": 30,
+      "Grimoire": 30,
+      "Skiajati": 30
+    }
+  }
+]
