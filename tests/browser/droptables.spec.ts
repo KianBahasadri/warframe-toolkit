@@ -3,10 +3,11 @@ import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { parseDropTables } from '../../src/lib/dropTableParser';
-import { defaultDropView, DROP_CACHE_POLL_MS, dropViewHash } from '../../src/lib/dropTables';
+import { defaultDropView, DROP_CACHE_POLL_MS, DROP_TABLES_URL, dropViewHash } from '../../src/lib/dropTables';
 import artwork from '../../src/data/drop-art.json' with { type: 'json' };
 
 test.setTimeout(30_000);
+test.use({ timezoneId: 'America/New_York' });
 
 const fixture = readFileSync(new URL('../fixtures/drop-tables.html', import.meta.url), 'utf8');
 const extra = `<h3 id="extraRewards">Extra Rewards:</h3><table><tr><th>Test Source</th></tr>${Array.from({ length: 65 }, (_, i) => `<tr><td>Test Reward ${i + 1}</td><td>Common (${i + 1}.00%)</td></tr>`).join('')}</table>`;
@@ -15,8 +16,14 @@ async function mockDrops(page: Page) { await page.route('**/api/droptables', rou
 async function browse(page: Page, label: string) { await page.getByRole('button', { name: `Browse by ${label}`, exact: true }).click(); }
 async function openDrops(page: Page, mode = 'item') {
   await mockDrops(page); await page.goto('/#droptables');
-  await expect(page.locator('.drop-provenance time')).toHaveAttribute('datetime', data.fetchedAt);
+  await expect(page.getByRole('region', { name: 'Drop Tables', exact: true })).toHaveAttribute('aria-busy', 'false');
   await browse(page, mode);
+}
+async function expectFetchedTime(page: Page, fetchedAt: string) {
+  await page.getByRole('button', { name: 'About Drop Tables', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'About Drop Tables', exact: true });
+  await expect(dialog.locator('time')).toHaveAttribute('datetime', fetchedAt);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 }
 async function select(page: Page, label: string, value: string) {
   await page.getByRole('combobox', { name: label, exact: true }).click();
@@ -37,10 +44,7 @@ test('uses cached data, updates automatically, keeps the successful fetch time a
   const inventory = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   expect(requests).toBe(0);
   await page.getByRole('link', { name: 'Drop Tables', exact: true }).click();
-  const fetchedTime = page.locator('.drop-provenance time');
-  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
-  await expect(page.locator('.drop-provenance')).toContainText('Last fetched:');
-  await expect(fetchedTime).toContainText('2026');
+  await expectFetchedTime(page, fetchedAt);
   await expect(page.getByRole('button', { name: /^(Refresh|Retry|Try again)$/ })).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Browse drop tables by' }).getByRole('button')).toHaveCount(6);
   await expect(page.getByRole('table')).toHaveCount(0);
@@ -54,34 +58,57 @@ test('uses cached data, updates automatically, keeps the successful fetch time a
   await dialog.getByRole('spinbutton', { name: 'Attempts', exact: true }).fill('77');
   fail = true; await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
   await expect(page.getByRole('alert')).toContainText('Showing the last successful fetch');
-  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
   await expect(dialog.getByRole('spinbutton', { name: 'Attempts', exact: true })).toHaveValue('77');
   fail = false; sourceError = 'Official page unavailable'; await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
   await expect(page.getByRole('alert')).toContainText(sourceError);
-  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
+  await expect(page.getByRole('alert')).toContainText('EST');
   sourceError = ''; fetchedAt = '2026-01-02T13:00:00.000Z'; await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
   await expect(page.getByRole('alert')).toHaveCount(0);
-  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
   await expect(dialog.getByRole('spinbutton', { name: 'Attempts', exact: true })).toHaveValue('77');
   expect(requests).toBe(4);
   await page.keyboard.press('Escape');
+  await expectFetchedTime(page, fetchedAt);
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
   await page.getByRole('link', { name: 'Drop Tables', exact: true }).click();
   expect(requests).toBe(4);
   await expect(page.locator('.drop-result-card')).toHaveCount(4);
   await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
   await expect.poll(() => requests).toBe(5);
-  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
+  await expectFetchedTime(page, fetchedAt);
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.getByRole('button', { name: 'Open search and commands' }).click();
   await expect(page.getByRole('option', { name: 'Refresh drop tables', exact: true })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Alt+r'); expect(requests).toBe(5);
   await page.reload();
-  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
+  await expectFetchedTime(page, fetchedAt);
   expect(requests).toBe(6);
   expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(inventory);
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => /drop/.test(key)))).toEqual([]);
+});
+
+test('title info opens a keyboard-accessible guide with source dates and a timezone, including on narrow screens', async ({ page }) => {
+  await mockDrops(page); await page.goto('/#droptables');
+  await expect(page.getByRole('region', { name: 'Drop Tables', exact: true })).toHaveAttribute('aria-busy', 'false');
+  const info = page.getByRole('button', { name: 'About Drop Tables', exact: true });
+  await info.focus(); await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'About Drop Tables', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('link', { name: 'Warframe PC drops' })).toHaveAttribute('href', DROP_TABLES_URL);
+  await expect(dialog.locator('.drop-info-facts')).toContainText(data.updated);
+  await expect(dialog.locator('time')).toHaveAttribute('datetime', data.fetchedAt);
+  await expect(dialog.locator('time')).toContainText('2026');
+  await expect(dialog.locator('time')).toContainText('EST');
+  await expect(dialog.getByRole('heading', { name: 'Browsing', exact: true })).toBeVisible();
+  await expect(dialog).toContainText('repeated rewards are not added together');
+  await expect(dialog).toContainText('Opening this page uses the latest saved results');
+  await page.setViewportSize({ width: 320, height: 800 });
+  const bounds = await dialog.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0); await expect(info).toBeFocused();
+  await expect(page.locator('.drop-heading')).not.toContainText('Last fetched');
 });
 
 test('mission, item, location, relic, bounty and source cards drill into exact entries and navigate back', async ({ page }) => {
@@ -242,7 +269,7 @@ test('load failure, malformed saved views, narrow screens and inert source marku
   await page.addInitScript(() => localStorage.setItem('warframe-toolkit.drop-views.v1', '{broken'));
   await page.goto('/#droptables');
   await expect(page.getByRole('alert')).toContainText('Upstream timeout');
-  await expect(page.getByRole('button', { name: 'Browse by item', exact: true })).toContainText('Unavailable');
+  await expect(page.getByRole('region', { name: 'Drop Tables', exact: true })).toHaveAttribute('aria-busy', 'false');
   await browse(page, 'item');
   await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toBeDisabled();
   await mockDrops(page); await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
@@ -278,12 +305,14 @@ test('first-run cache preparation recovers automatically without a fetch or retr
   let ready = false;
   await page.route('**/api/droptables', route => ready ? route.fulfill({ json: data }) : route.fulfill({ status: 503, json: { refreshing: true, error: 'Waiting for the first automatic update.' } }));
   await page.goto('/#droptables');
-  await expect(page.locator('.drop-provenance')).toContainText('Last fetched: Not yet');
+  await page.getByRole('button', { name: 'About Drop Tables', exact: true }).click();
+  await expect(page.getByRole('dialog').locator('.drop-info-facts')).toContainText('Last fetchedNot yet');
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await browse(page, 'mission type');
   await expect(page.locator('.drop-results')).toHaveAttribute('aria-busy', 'true');
   ready = true; await page.clock.fastForward(6000);
-  await expect(page.locator('.drop-provenance time')).toHaveAttribute('datetime', data.fetchedAt);
+  await expectFetchedTime(page, data.fetchedAt);
   await expect(page.locator('.drop-group-card')).toHaveCount(2);
   await expect(page.getByRole('button', { name: /^(Refresh|Retry|Try again)$/ })).toHaveCount(0);
 });

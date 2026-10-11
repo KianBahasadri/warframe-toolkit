@@ -85,7 +85,7 @@ Repeated names merge into existing entries. Imports preserve keep preferences, c
 
 ## Live drop tables
 
-**Drop Tables** uses a local copy of [Warframe's official PC drop tables](https://warframe.com/droptables), updated automatically **every hour while the server is running**. Opening or reloading the page does not trigger an upstream fetch, and there is no Refresh button or refresh shortcut. **Last fetched** shows the date and time of the last successful upstream retrieval, separately from the publisher's update date. Failed updates keep the previous data and timestamp, show an error, and retry automatically after five minutes.
+**Drop Tables** uses a local copy of [Warframe's official PC drop tables](https://warframe.com/droptables), updated automatically **every hour while the server is running**. Opening or reloading the page does not trigger an upstream fetch, and there is no Refresh button or refresh shortcut. The **info button beside the title** opens a browsing guide with the official source, publisher's update date, and **Last fetched** date and time, including the browser's local timezone. Last fetched records the last successful upstream retrieval. Failed updates keep the previous data and timestamp, show an error, and retry automatically after five minutes.
 
 The server saves successful data atomically to `.cache/drop-tables.json`, which is excluded from Git. On startup it immediately serves a valid saved copy and schedules the next update using its fetch time; a missing or overdue copy starts a background update independently of page requests. Malformed cache files are preserved under an `.invalid-*` name before recovery. No drop-rate snapshot is bundled with the app, and no external proxy service is used. The updater follows only the official redirect chain, imposes a timeout and download limit, and parses text without executing upstream HTML. Closing the server cancels its updater.
 
@@ -123,6 +123,7 @@ Unparseable existing storage is preserved instead of silently resetting it. The 
 - `src/components/ColumnMenu.tsx`, `src/components/TablePopover.tsx`, and `src/lib/tableView.ts`: column actions, bounded keyboard-accessible popovers, filter matching, and sorting priorities.
 - `src/components/Select.tsx`: shared custom dropdowns with keyboard navigation, type-to-select, and viewport positioning; no native select popup or experimental picker CSS.
 - `src/components/DropTables.tsx`, `DropBrowser.tsx`, `DropTableControls.tsx`, and `DropDetails.tsx`: live drop browsing, mode choices, group/reward cards, filters, saved/shared views, and odds calculator.
+- `src/components/DropInfo.tsx`: drop-table guide and source details, including the last successful fetch time and timezone.
 - `src/lib/dropExplorer.ts`: grouping and counts for the six browse modes, without merging entries or combining rates.
 - `src/lib/dropArtwork.ts` and `src/components/DropArtwork.tsx`: exact artwork lookup by browse context, published rarity colours, and missing-image handling.
 - `src/lib/dropTables.ts`: drop schema, query grammar, filtering, sorting, view validation, odds calculations, and CSV export.

@@ -1,15 +1,16 @@
 import { useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { Ref } from 'react';
-import { ArrowDownToLine, ArrowLeft, Bookmark, ChevronLeft, ChevronRight, CircleHelp, ExternalLink, Filter, Link, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, Bookmark, ChevronLeft, ChevronRight, CircleHelp, Filter, Info, Link, Search, SlidersHorizontal, X } from 'lucide-react';
 import { TablePopover } from './TablePopover';
 import { Select } from './Select';
 import { Dialog } from './Dialog';
 import { DropFacet, DropFilterForm, DropSorts } from './DropTableControls';
 import { DropDetails } from './DropDetails';
+import { DropInfo } from './DropInfo';
 import { DropGroupCard, DropModePicker, DropRewardCards, dropBrowseOptions } from './DropBrowser';
 import { compileDropQuery, defaultDropView, DROP_TABLES_URL, dropColumns, dropFilterLabel, dropRowsCsv, dropViewHash, filterDropRows, isDropView, moveDropSort, readDropView, setDropSort, sortDropRows } from '../lib/dropTables';
 import type { DropBrowseMode, DropColumnKey, DropFilter, DropRow, DropView } from '../lib/dropTables';
-import { dropBrowseCounts, groupDropRows } from '../lib/dropExplorer';
+import { groupDropRows } from '../lib/dropExplorer';
 import { useDropData } from '../lib/useDropData';
 import { downloadFile } from '../lib/storage';
 import './DropTables.css';
@@ -25,6 +26,7 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   const [notice, setNotice] = useState('');
   const [view, setView] = useState(() => location.hash.includes('?') ? readDropView(location.hash) : sessionView);
   const [filtersOpen, setFiltersOpen] = useState(false), [help, setHelp] = useState(false), [viewsOpen, setViewsOpen] = useState(false);
+  const [info, setInfo] = useState(false);
   const [chanceOpen, setChanceOpen] = useState(false);
   const [page, setPage] = useState(1), [pageInput, setPageInput] = useState('1');
   const [details, setDetails] = useState<DropRow | null>(null);
@@ -60,7 +62,6 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   const deferredQuery = useDeferredValue(view.query);
   const query = useMemo(() => compileDropQuery(deferredQuery), [deferredQuery]);
   const filtered = useMemo(() => sortDropRows(filterDropRows(data?.rows ?? [], query, view.filters), view.sorting.length ? view.sorting : [{ key: mode === 'item' ? 'source' : 'reward', direction: 1 }]), [data, query, view.filters, view.sorting, mode]);
-  const counts = useMemo(() => data ? dropBrowseCounts(data.rows) : null, [data]);
   const allGroups = useMemo(() => mode ? groupDropRows(data?.rows ?? [], mode) : [], [data, mode]);
   const groups = useMemo(() => mode ? groupDropRows(filtered, mode, view.sorting) : [], [filtered, mode, view.sorting]);
   const selected = groupKey === undefined ? undefined : groups.find(group => group.key === groupKey);
@@ -98,13 +99,13 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
     setDetails(null); focusResults();
   };
 
-  return <section className="drop-tables" aria-label="Drop Tables">
-    <div className="drop-heading"><div><h1>Drop Tables</h1><div className="drop-provenance"><a href={DROP_TABLES_URL} target="_blank" rel="noreferrer">Warframe PC drops <ExternalLink size={12} /></a>{data && <span>Published {data.updated || 'date unavailable'}</span>}<span>Last fetched: {data ? <time dateTime={data.fetchedAt} title={new Date(data.fetchedAt).toLocaleString()}>{new Date(data.fetchedAt).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time> : 'Not yet'}</span><span>Updates automatically every hour</span></div></div>
+  return <section className="drop-tables" aria-label="Drop Tables" aria-busy={loading}>
+    <div className="drop-heading"><div className="drop-title"><h1>Drop Tables</h1><button type="button" className="icon-button" aria-label="About Drop Tables" title="About Drop Tables" aria-haspopup="dialog" onClick={() => setInfo(true)}><Info size={18} /></button></div>
       <div className="drop-heading-actions"><button type="button" ref={viewsButton} className="button secondary" aria-expanded={viewsOpen} onClick={() => setViewsOpen(!viewsOpen)}><Bookmark size={15} />Saved views</button></div>
     </div>
-    {error && <div className="callout danger" role="alert">{error}{data && <p>Showing the last successful fetch from {new Date(data.fetchedAt).toLocaleString()}.</p>}<p>Updates will retry automatically.</p></div>}
+    {error && <div className="callout danger" role="alert">{error}{data && <p>Showing the last successful fetch from {new Date(data.fetchedAt).toLocaleString([], { timeZoneName: 'short' })}.</p>}<p>Updates will retry automatically.</p></div>}
     {data && data.skippedRows > 0 && <p className="callout caution" role="status">{data.skippedRows.toLocaleString()} entries could not be parsed. These results are incomplete; consult the official table.</p>}
-    <DropModePicker mode={mode} counts={counts} loading={loading} onSelect={chooseMode} />
+    <DropModePicker mode={mode} onSelect={chooseMode} />
     {notice && <div className="drop-notice" role="status"><span>{notice}</span><button type="button" className="icon-button" aria-label="Dismiss drop table notification" onClick={() => setNotice('')}><X size={14} /></button></div>}
     {mode && <div className="drop-workspace">
       <div className="drop-toolbar">
@@ -131,6 +132,7 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
       </div>
       {data && total > 0 && <div className="drop-pagination"><span>{(offset + 1).toLocaleString()}–{Math.min(offset + view.pageSize, total).toLocaleString()} of {total.toLocaleString()} {groupKey === undefined ? option!.noun : 'entries'}</span><label>Per page<Select label="Results per page" value={String(view.pageSize)} options={[...new Set([12, 24, 48, 96, view.pageSize])].sort((a, b) => a - b).map(value => ({ value: String(value), label: String(value) }))} onChange={value => changeView({ ...view, pageSize: Number(value) })} /></label><div className="drop-page-controls"><button type="button" className="icon-button" disabled={currentPage === 1} aria-label="Previous page" onClick={() => goToPage(currentPage - 1)}><ChevronLeft size={17} /></button><form onSubmit={event => { event.preventDefault(); const next = Number(pageInput); if (Number.isInteger(next) && next >= 1 && next <= pages) goToPage(next); else setPageInput(String(currentPage)); }}><label>Page<input type="number" min="1" max={pages} value={pageInput} onChange={event => setPageInput(event.target.value)} onBlur={() => setPageInput(String(currentPage))} /></label><span>of {pages.toLocaleString()}</span><button type="submit" className="sr-only">Go to page</button></form><button type="button" className="icon-button" disabled={currentPage === pages} aria-label="Next page" onClick={() => goToPage(currentPage + 1)}><ChevronRight size={17} /></button></div></div>}
     </div>}
+    {info && <DropInfo data={data} onClose={() => setInfo(false)} />}
     {chanceOpen && filtersOpen && <TablePopover anchor={chanceButton.current!} label="Filter Drop chance" onClose={() => setChanceOpen(false)}><div className="column-menu-heading">Drop chance</div><DropFilterForm column={dropColumns.find(column => column.key === 'chance')!} filter={view.filters.chance} onApply={filter => { setFilter('chance', filter); setChanceOpen(false); chanceButton.current?.focus(); }} /></TablePopover>}
     {details && <DropDetails row={details} onClose={() => setDetails(null)} onFindReward={() => browseRelated('item', details.reward)} onFindSource={() => browseRelated('source', details.source)} />}
     {viewsOpen && <TablePopover anchor={viewsButton.current!} label="Drop table views" className="drop-views-popover" onClose={() => setViewsOpen(false)}><div className="column-menu-heading">Saved views</div><div className="column-menu-content">

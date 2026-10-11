@@ -1,9 +1,16 @@
 .drop-tables { min-width: 0; }
 .drop-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 32px; }
-.drop-heading h1 { font-size: 28px; margin: 0 0 8px; }
+.drop-heading h1 { font-size: 28px; margin: 0; }
+.drop-title { display: flex; align-items: center; gap: 8px; }
 .drop-heading-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.drop-provenance { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); }
-.drop-provenance a { display: inline-flex; align-items: center; gap: 6px; }
+.drop-info { width: min(580px, calc(100vw - 32px)); }
+.drop-info p { font-size: 13px; color: var(--muted); line-height: 1.7; }
+.drop-info p:last-child { margin-bottom: 0; }
+.drop-info-facts { display: grid; gap: 12px; padding: 18px 0; margin: 0 0 24px; border-block: 1px solid var(--line); }
+.drop-info-facts > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; }
+.drop-info-facts dt { font-size: 12px; color: var(--muted); }
+.drop-info-facts dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.drop-info-facts a { display: inline-flex; align-items: center; gap: 6px; }
 .drop-browse-picker { margin-bottom: 32px; }
 .drop-browse-picker h2 { margin: 0 0 14px; font-size: 13px; color: var(--muted); font-weight: 500; }
 .drop-mode-options { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
@@ -24,22 +31,21 @@
 .drop-artwork.is-missing { background: repeating-linear-gradient(135deg, transparent, transparent 12px, color-mix(in srgb, var(--line) 25%, transparent) 12px, color-mix(in srgb, var(--line) 25%, transparent) 13px), var(--surface); }
 .drop-artwork-missing { max-width: 80%; padding: 7px 10px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 11px; text-align: center; }
 .drop-mode-button > .drop-artwork { aspect-ratio: .9; }
-.drop-mode-copy { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 16px 8px 10px; flex: 1; }
+.drop-mode-copy { display: flex; flex-direction: column; gap: 7px; min-width: 0; width: 100%; padding: 14px 8px 10px; }
+.drop-mode-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .drop-mode-copy strong { font-size: 18px; color: var(--ink-strong); font-weight: 500; line-height: 1.3; }
 .drop-mode-description { font-size: 12px; color: var(--muted); line-height: 1.6; }
-.drop-mode-copy small { font: 10px var(--mono); color: var(--drop-tone); margin-top: auto; padding-top: 18px; padding-right: 20px; }
-.drop-mode-indicator { position: absolute; bottom: 19px; right: 18px; display: flex; color: var(--muted); }
+.drop-mode-indicator { display: flex; flex-shrink: 0; color: var(--muted); }
 .drop-mode-button:hover .drop-mode-indicator, .drop-mode-button[aria-pressed="true"] .drop-mode-indicator { color: var(--drop-tone); }
 .is-compact .drop-mode-options { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 .is-compact .drop-mode-button { flex-direction: row; align-items: center; padding: 8px; gap: 10px; border-radius: 8px; box-shadow: none; }
 .is-compact .drop-mode-button::before { display: none; }
-.is-compact .drop-artwork { width: 42px; height: 48px; aspect-ratio: auto; }
+.is-compact .drop-artwork { width: 36px; height: 40px; aspect-ratio: auto; }
 .is-compact .drop-artwork img { padding: 0; }
 .is-compact .drop-mode-copy { padding: 0; gap: 5px; }
 .is-compact .drop-mode-copy strong { font-size: 13px; }
-.is-compact .drop-mode-copy small { margin-top: 0; padding: 0; font-size: 9px; color: var(--muted); }
 .is-compact .drop-mode-description { display: none; }
-.is-compact .drop-mode-indicator { bottom: 3px; right: 3px; padding: 2px; background: var(--surface); border-radius: 50%; color: var(--drop-tone); }
+.is-compact .drop-mode-indicator { color: var(--drop-tone); }
 .is-compact .drop-mode-indicator svg { width: 12px; height: 12px; }
 .is-compact .drop-mode-button:not([aria-pressed="true"]) .drop-mode-indicator { display: none; }
 .drop-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
@@ -172,12 +178,9 @@
   .drop-mode-button { padding: 8px; }
   .drop-mode-copy { padding: 12px 6px 10px; }
   .drop-mode-copy strong { font-size: 16px; }
-  .drop-mode-copy small { font-size: 9px; }
   .drop-mode-description { font-size: 11px; }
-  .drop-mode-indicator { right: 14px; bottom: 16px; }
   .is-compact .drop-mode-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .is-compact .drop-mode-copy strong { font-size: 12px; }
-  .is-compact .drop-mode-copy small { font-size: 9px; }
   .drop-search-label { flex-basis: 100%; }
   .drop-results-heading { flex-wrap: wrap; margin-top: 22px; }
   .drop-results-actions { width: 100%; gap: 6px; }
@@ -189,8 +192,6 @@
   .drop-facts { grid-template-columns: 1fr; gap: 12px; }.drop-calculator-fields, .drop-odds { gap: 12px; }.drop-odds output { font-size: 22px; }.drop-milestones { grid-template-columns: 1fr 1fr; }.drop-sort { max-width: 100%; }
 }
 @media (max-width: 380px) {
-  .drop-mode-indicator { display: none; }
-  .drop-mode-copy small { padding-right: 0; }
   .is-compact .drop-mode-button { gap: 6px; }
   .is-compact .drop-artwork { width: 28px; height: 40px; }
 }
