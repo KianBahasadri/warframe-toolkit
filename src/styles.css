@@ -269,9 +269,13 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .import-preview { margin: 16px 0; }
 .import-preview summary { width: fit-content; cursor: pointer; font-size: 13px; color: var(--muted); padding: 8px 0; }
 .import-preview summary:hover { color: var(--ink); }
-.preview-picker { width: min(100%, 400px); margin: 8px 0; }
-.image-preview { background: var(--surface); border-radius: var(--radius-sm); display: grid; place-items: center; height: clamp(180px, 30vh, 360px); overflow: hidden; }
-.image-preview img { width: 100%; height: 100%; object-fit: contain; min-height: 0; }
+.screenshot-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; list-style: none; margin: 8px 0 0; padding: 0; }
+.screenshot-gallery li { min-width: 0; }
+.screenshot-gallery figure { margin: 0; }
+.screenshot-gallery figcaption { margin-top: 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.image-preview { background: var(--surface); border-radius: var(--radius-sm); display: block; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; cursor: zoom-in; }
+.image-preview:hover { background: var(--surface-raised); }
+.image-preview img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .review-section { margin-top: 24px; }
 .review-section h3 { margin: 0; font-size: 16px; }
 .review-table { min-width: 650px; }

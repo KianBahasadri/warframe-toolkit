@@ -379,9 +379,9 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await page.getByRole('button', { name: 'Deselect all' }).click();
   await expect(page.getByRole('button', { name: 'Import 0 items' })).toBeDisabled();
   await page.getByRole('button', { name: 'Select all' }).click();
-  await page.getByText('Screenshot preview', { exact: true }).click();
   await expect(page.getByRole('img', { name: 'Import source: inventory-test.png' })).toBeVisible();
   await page.getByText('Screenshot preview', { exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Import source: inventory-test.png' })).toBeHidden();
   await page.screenshot({ path: 'test-results/import-review.png', fullPage: true });
   await page.getByRole('button', { name: 'Import 3 items' }).click();
   await expect(page.getByText('1 added · 2 updated').first()).toBeVisible();
@@ -769,6 +769,7 @@ test('real screenshot batches merge duplicates and preserve planning, prior mast
   // Queue an overlapping image while the second one is still being read.
   await expect(page.getByRole('button', { name: /^Add screenshots/ })).toBeEnabled();
   await page.getByLabel('Choose inventory screenshots').setInputFiles(inventoryScreenshots[0].file);
+  await expect(page.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(3);
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import 17 items', exact: true })).toBeDisabled();
   await waitForScreenshotReview(page);
@@ -778,6 +779,25 @@ test('real screenshot batches merge duplicates and preserve planning, prior mast
   await expect(page.getByLabel('Rank: Vasto', { exact: true })).toHaveValue('0');
   await expect(page.getByLabel('Mastered: Vasto', { exact: true })).not.toBeChecked();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!))).toEqual(original);
+  const gallery = page.getByRole('list', { name: 'Screenshot previews' });
+  await expect(gallery.locator('figcaption')).toHaveText(['1. inventory-weapons.png', '2. inventory-weapons-bottom.png', '3. inventory-weapons.png']);
+  const desktopImages = await gallery.getByRole('img').evaluateAll(images => images.map(image => {
+    const { x, y, width } = image.getBoundingClientRect();
+    return { x, y, width };
+  }));
+  expect(desktopImages[0].y).toBe(desktopImages[1].y);
+  expect(desktopImages[1].x).toBeGreaterThan(desktopImages[0].x + desktopImages[0].width);
+  await page.locator('.import-preview').screenshot({ path: 'test-results/import-gallery-desktop.png' });
+  await page.setViewportSize({ width: 320, height: 720 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  for (const image of await gallery.getByRole('img').all()) {
+    await expect(image).toBeVisible();
+    const bounds = await image.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  }
+  await page.locator('.import-preview').screenshot({ path: 'test-results/import-gallery-mobile.png' });
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole('button', { name: 'Import 37 items', exact: true }).click();
   await expect(page.getByRole('button', { name: 'View inventory' })).toBeVisible();
   await page.reload();
@@ -828,6 +848,14 @@ test('background reading keeps the list editable while paste and drop add screen
   await expect(page.getByRole('button', { name: 'Cancel reading' })).toBeVisible();
   await append('drop');
   await expect(add).toContainText('3/10 images');
+  const gallery = page.getByRole('list', { name: 'Screenshot previews' });
+  await expect(gallery.getByRole('img')).toHaveCount(3);
+  await expect(gallery.locator('figcaption')).toHaveText(['1. first.png', '2. paste.png', '3. drop.png']);
+  for (const filename of ['first.png', 'paste.png', 'drop.png']) {
+    const image = gallery.getByRole('img', { name: `Import source: ${filename}`, exact: true });
+    await expect(image).toBeVisible();
+    await expect(image).toHaveJSProperty('naturalWidth', 1200);
+  }
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible();
   await expect(page.getByRole('progressbar', { name: 'Screenshot reading progress' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import 3 items', exact: true })).toBeDisabled();
@@ -856,10 +884,15 @@ test('background reading keeps the list editable while paste and drop add screen
   await expect(page.getByLabel('Mastered: Vasto', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Rank: Vasto', { exact: true })).toHaveValue('0');
   await expect(page.getByLabel('Import Paris', { exact: true })).toBeChecked();
-  await page.getByText('Screenshot preview', { exact: true }).click();
-  await expect(page.getByRole('img', { name: 'Import source: first.png', exact: true })).toHaveJSProperty('naturalWidth', 1200);
-  await chooseOption(page, 'Preview screenshot', '3. drop.png');
-  await expect(page.getByRole('img', { name: 'Import source: drop.png', exact: true })).toHaveJSProperty('naturalWidth', 1200);
+  await expect(gallery.getByRole('img')).toHaveCount(3);
+  const fullSize = gallery.getByRole('link', { name: 'Open screenshot 3: drop.png at full size (opens in a new tab)', exact: true });
+  await fullSize.focus();
+  const opened = page.waitForEvent('popup');
+  await page.keyboard.press('Enter');
+  const fullSizePage = await opened;
+  await expect(fullSizePage.getByRole('img')).toHaveJSProperty('naturalWidth', 1200);
+  expect(fullSizePage.url()).toBe(await fullSize.getAttribute('href'));
+  await fullSizePage.close();
   await page.getByLabel('Choose inventory screenshots').setInputFiles(Array.from({ length: 8 }, (_, index) => ({ ...later, name: `extra-${index}.png` })));
   await expect(page.getByRole('alert')).toContainText('Up to 10 screenshots per batch');
   await expect(add).toContainText('3/10 images');
@@ -874,6 +907,7 @@ test('background reading keeps the list editable while paste and drop add screen
   expect(saved.imports[0].files).toEqual(['first.png', 'paste.png', 'drop.png']);
   await page.getByRole('button', { name: 'Import more', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Review matches' })).toHaveCount(0);
+  await expect(gallery).toHaveCount(0);
   await expect(page.getByLabel('Choose arsenal screenshots')).toBeEnabled();
 });
 
@@ -889,11 +923,15 @@ test('canceling or failing an added screenshot keeps earlier matches and allows 
   await page.getByRole('button', { name: 'Cancel reading' }).click();
   await expect(page.getByText('Reading canceled.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Add screenshots/ })).toContainText('1/10 images');
+  const gallery = page.getByRole('list', { name: 'Screenshot previews' });
+  await expect(gallery.getByRole('img')).toHaveCount(1);
+  await expect(gallery.getByRole('img', { name: 'Import source: first.png', exact: true })).toBeVisible();
   await expect(page.getByLabel('Rank: Boltor', { exact: true })).toHaveValue('12');
   await expect(page.locator('.review-table tbody tr')).toHaveCount(1);
   await page.getByLabel('Choose arsenal screenshots').setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Add screenshots/ })).toContainText('1/10 images');
+  await expect(gallery.getByRole('img')).toHaveCount(1);
   await expect(page.getByLabel('Rank: Boltor', { exact: true })).toHaveValue('12');
   await page.getByLabel('Choose arsenal screenshots').setInputFiles(next);
   await waitForScreenshotReview(page);
@@ -901,6 +939,7 @@ test('canceling or failing an added screenshot keeps earlier matches and allows 
   await expect(page.getByLabel('Owned: Vasto', { exact: true })).not.toBeChecked();
   await expect(page.getByLabel('Rank: Boltor', { exact: true })).toHaveValue('12');
   await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(gallery.getByRole('img')).toHaveCount(2);
 });
 
 test('canceling OCR releases the importer and paste uses the focused source', async ({ page }) => {

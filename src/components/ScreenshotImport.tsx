@@ -23,7 +23,6 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
-  const [preview, setPreview] = useState(0);
   const [dragging, setDragging] = useState<ScreenshotSource | null>(null);
   const [completed, setCompleted] = useState<{ added: number; updated: number } | null>(null);
   const inputs = useRef<Record<ScreenshotSource, HTMLInputElement | null>>({ inventory: null, arsenal: null });
@@ -80,7 +79,6 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
       busyRef.current = false;
       if (active.current) {
         setScans(batch.current.scans);
-        setPreview(current => Math.max(0, Math.min(current, batch.current.scans.length - 1)));
         setBusy(false);
       }
     }
@@ -97,11 +95,10 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   }, []);
   const update = (id: string, patch: Partial<Detection>) => setDetections(current => current.map(detection => detection.id === id ? reviewDetection(detection, patch) : detection));
   const selected = detections.filter(detection => detection.selected);
-  const currentScan = scans[preview];
   const clear = () => {
     batch.current.scans.forEach(scan => URL.revokeObjectURL(scan.url));
     batch.current = { source: null, scans: [], pending: [], completed: false };
-    setScans([]); setDetections([]); setCompleted(null); setError(''); setStatus(''); setProgress(0); setPreview(0);
+    setScans([]); setDetections([]); setCompleted(null); setError(''); setStatus(''); setProgress(0);
   };
   const save = () => {
     if (busyRef.current || batch.current.completed || !selected.length) return;
@@ -127,9 +124,13 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     </button>}
     {source === value && <>
     {busy && <div className="import-progress"><span role="status">Reading screenshots… {Math.round(progress * 100)}%</span><progress value={progress} max={1} aria-label="Screenshot reading progress" /></div>}
-    {!!scans.length && !completed && <details className="import-preview"><summary>Screenshot preview</summary>
-      {scans.length > 1 && <Select className="preview-picker" label="Preview screenshot" value={String(preview)} onChange={value => setPreview(Number(value))} options={scans.map((scan, index) => ({ value: String(index), label: `${index + 1}. ${scan.file.name}` }))} />}
-      <div className="image-preview"><img src={currentScan.url} alt={`Import source: ${currentScan.file.name}`} /></div>
+    {!!scans.length && !completed && <details className="import-preview" open><summary>Screenshot preview</summary>
+      <ul className="screenshot-gallery" aria-label="Screenshot previews">{scans.map((scan, index) => <li key={scan.url}>
+        <figure>
+          <a className="image-preview" href={scan.url} target="_blank" rel="noreferrer" aria-label={`Open screenshot ${index + 1}: ${scan.file.name} at full size (opens in a new tab)`} title="Open full size in a new tab"><img src={scan.url} alt={`Import source: ${scan.file.name}`} /></a>
+          <figcaption>{index + 1}. {scan.file.name}</figcaption>
+        </figure>
+      </li>)}</ul>
     </details>}
     {!busy && !completed && status && <p className="import-status" role="status">{status}</p>}
     {!!scans.length && !completed && (detections.length ? <section className="review-section" aria-labelledby="review-title">
