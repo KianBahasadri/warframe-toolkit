@@ -1,6 +1,6 @@
 # Arsenal · Warframe Toolkit
 
-A local browser app for tracking Warframe equipment using the fields from your spreadsheet, plus relic quantities. Built with React, TypeScript, and Vite. No account, backend, paid service, or API key is required.
+A local browser app for tracking Warframe equipment using the fields from your spreadsheet, relic quantities, and searching the official live drop tables. Built with React, TypeScript, and Vite. No account, paid service, or API key is required. Inventory, relics, and screenshot recognition work offline; the Drop Tables tab needs an internet connection.
 
 ## Run
 
@@ -16,11 +16,11 @@ Open **http://127.0.0.1:5173**. Keep using the same hostname and port: browser s
 ```sh
 npm run build       # Production files in dist/
 npm run preview     # Preview the production build on port 4173
-npm test            # Catalog, filtering, matching, merging, storage and CSV tests
+npm test            # Catalog, drop-table parsing, filtering, OCR matching, storage and CSV tests
 npm run test:browser
 ```
 
-Browser tests use an installed Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` for another location. The production build can be served from the root of any static host. OCR assets are copied locally during `npm install` and included in `dist/`; screenshots never leave the browser. HTTPS or localhost is required for browser APIs such as `crypto.randomUUID`.
+Browser tests use an installed Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` for another location. Both `npm run dev` and `npm run preview` provide the live `/api/droptables` endpoint automatically. The official website does not allow direct cross-origin browser requests, so this fixed-source endpoint retrieves and parses its public HTML on the local server. Static hosting alone supports the inventory, relics, and OCR features; deployed Drop Tables also needs the same-origin endpoint from `server/dropTables.ts`. OCR assets are copied locally during `npm install` and included in `dist/`; screenshots never leave the browser. HTTPS or localhost is required for browser APIs such as `crypto.randomUUID`.
 
 To run the same browser checks in Firefox, install its Playwright build with `npx playwright install firefox`, then run `WARFRAME_TEST_BROWSER=firefox npm run test:browser`.
 
@@ -30,7 +30,7 @@ The initial inventory transcribes **35 visible weapon rows** from the supplied r
 
 All 14 spreadsheet fields are stored: Owned, Weapon Name, Don't Keep, Crafting Ingredient, Crafting Target, Variant, Incarnon, Quest Weapon, Upgraded, Mastered, Meta / Powerful, Slot, Has Prime Variant, and Override. Rank, notes, source, and modification time are also retained. The same fields support Warframes, primary/secondary/melee weapons, Archguns, Archmelee, companion and exalted weapons, Kitguns, and Amps.
 
-**Alt+1**, **Alt+2**, and **Alt+3** switch to Weapons, Warframes, and Relics, matching the tab order. **Alt+I** opens screenshot import. Shortcuts are paused while editing a field or using a dialog.
+**Alt+1**, **Alt+2**, **Alt+3**, and **Alt+4** switch to Weapons, Warframes, Relics, and Drop Tables, matching the tab order. **Alt+I** opens screenshot import. Shortcuts are paused while editing a field or using a dialog.
 
 - Ownership and mastery checkboxes save immediately and remain independent of rank. Select a name for **Weapon details** or **My inventory**.
 - Weapons starts with **Owned only** checked under **Filters**. Uncheck it to browse the entire catalog, including unowned weapons. Browsing never adds catalog entries to your save. Checking ownership or saving an inventory edit adds only that weapon.
@@ -83,6 +83,22 @@ Reaching the catalog's maximum rank checks **Mastered**: normally 30, or 40 for 
 
 Repeated names merge into existing entries. Imports preserve keep preferences, crafting notes, Incarnon flags, upgrade status, and all other planning fields. A new observed rank may decrease after Forma. Screenshot files are kept only in the current import view, not in persistent storage. Import history stores filenames and counts.
 
+## Live drop tables
+
+**Drop Tables** fetches [Warframe's official PC drop tables](https://warframe.com/droptables) when opened and on **Refresh** (**Alt+R**). There is no bundled drop-table snapshot, persistent response cache, or external proxy service. The server follows the official redirect chain, imposes a timeout and download limit, parses text without executing upstream HTML, and compresses the response. Concurrent requests share one retrieval. The browser keeps the most recent successful response only in memory so a failed refresh can retain it with a visible error and fetch timestamp. The publisher's update date and the retrieval time are shown separately. Other app features remain usable if the endpoint is offline.
+
+- Search across rewards, sources, locations, rotations, and other text fields. Quoted phrases, exclusions, and field queries combine: `"nova prime" -refinement:intact chance:>=10`, `mission:survival rotation:c`, or `source:"heavy gunner" within:>30`. **Search help** lists all fields and numeric operators.
+- **Filters** offers searchable multiple selections for category, location, mission type, rotation, stage, relic era, refinement, and rarity, plus drop-chance ranges. Different fields combine with AND; selected values within a field combine with OR. Active filter chips remain visible when the panel closes.
+- Left-click, right-click, or press **Shift+F10** on any column header to sort, change sort priority, filter, or add/remove columns. Sort indicators show direction and priority; the sort strip can reverse, promote, or remove each sort. Hidden columns can retain their visible sort/filter chips. **Columns** restores the default layout.
+- **Views** provides mission, relic, bounty, and enemy/container presets. Named views save only query, filters, sorting, columns, and page size in `warframe-toolkit.drop-views.v1`. Unreadable saved views are preserved. **Copy view link** shares those settings in the URL and retrieves fresh data when opened; it includes no inventory or drop-table rows.
+- Open a reward row for the published rates, an independent-attempt odds calculator, source links, and searches for the same reward or source. Arrow keys move between rows; Enter/Space opens details. Page sizes range from 25 to 250. **Export CSV** (**Alt+E**) exports every matching row, not just the page, in the current sort order with the visible columns. Percentages are raw numbers and unknown rates are empty.
+
+The parser preserves mission rotations, bounty stages, relic refinements, and enemy/container table roll rates. Enemy reverse indexes repeat source indexes and are excluded when the corresponding source index exists; identical entries within a table remain separate. Drop chance is the within-table percentage multiplied by the source table's roll rate when separately specified. Rates above 100% indicate multiple rolls; their overall chance and calculator are left unavailable rather than assuming independence or a roll count. Unknown chances sort last in either direction. The official rarity label refers to the within-table rate.
+
+Published PC tables may omit rewards or lag hotfixes, and a listed relic or source may be vaulted or inaccessible. Refresh retrieves the published document, not the game's current bounty/event rotation. The calculator assumes independent opportunities at the displayed source, rotation, and stage, with no squad, booster, or pity modifiers. Repeated entries are not automatically combined.
+
+The full live page was tested during implementation on 2026-10-11: 43,367 source-index entries across 17 categories, no skipped reward rows, and 10,005 repeated reverse-index rows excluded. Counts will change with the upstream page. Automated tests use a small synthetic HTML fixture and mocked HTTP responses; no official dataset is checked into the repository.
+
 ## Storage and exports
 
 Equipment, relics, and import history are stored in `localStorage` under `warframe-toolkit.inventory.v1`, with a versioned, validated JSON schema. Older saves without relic data load with an empty relic collection and preserve all equipment fields. Browser clearing, changing origin, or switching devices will not carry inventory over automatically.
@@ -98,6 +114,10 @@ Unparseable existing storage is preserved instead of silently resetting it. The 
 - `src/components/ColumnPicker.tsx` and `src/lib/inventoryColumns.ts`: table column selection, default layout, and local display preferences.
 - `src/components/ColumnMenu.tsx`, `src/components/TablePopover.tsx`, and `src/lib/tableView.ts`: column actions, bounded keyboard-accessible popovers, filter matching, and sorting priorities.
 - `src/components/Select.tsx`: shared custom dropdowns with keyboard navigation, type-to-select, and viewport positioning; no native select popup or experimental picker CSS.
+- `src/components/DropTables.tsx`, `DropTableControls.tsx`, and `DropDetails.tsx`: live drop browsing, filters, table menus, saved/shared views, and odds calculator.
+- `src/lib/dropTables.ts`: drop schema, query grammar, filtering, sorting, view validation, odds calculations, and CSV export.
+- `src/lib/dropTableParser.ts`: streaming HTML parser for official reward hierarchies and conditional rates; used only on the server and in tests.
+- `server/dropTables.ts` and `vite.config.ts`: fixed-source live fetch endpoint shared by development and production preview, with bounded downloads and concurrent-request sharing.
 - `src/components/ScreenshotHelp.tsx`: source-specific screenshot instructions and local Inventory/Codex examples.
 - `src/components/ScreenshotGallery.tsx`: screenshot modal with previous/next controls and keyboard navigation.
 - `src/lib/weaponCatalog.ts`: catalog/inventory projection, combined filters, and safe catalog-entry ownership updates.

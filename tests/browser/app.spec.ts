@@ -5,6 +5,7 @@ import inventoryScreenshots from '../fixtures/inventory-screenshots.json' with {
 import codexScreenshot from '../fixtures/codex-screenshot.json' with { type: 'json' };
 import type { Inventory } from '../../src/lib/model';
 import { createEquipment } from '../../src/lib/model';
+import { parseDropTables } from '../../src/lib/dropTableParser';
 
 async function chooseOption(page: Page, label: string, option: string) {
   await page.getByRole('combobox', { name: label, exact: true }).click();
@@ -646,13 +647,15 @@ test('old backups links open weapons without changing saved data and CSV still e
 });
 
 test('Alt number shortcuts follow the top tabs and stay inactive while editing', async ({ page }) => {
+  const drops = parseDropTables(await readFile(new URL('../fixtures/drop-tables.html', import.meta.url), 'utf8'));
+  await page.route('**/api/droptables', route => route.fulfill({ json: drops }));
   await page.goto('/#import');
   const navigation = page.getByRole('navigation', { name: 'Main navigation' });
-  const tabs = ['Weapons', 'Warframes', 'Relics'];
+  const tabs = ['Weapons', 'Warframes', 'Relics', 'Drop Tables'];
   await expect(navigation.getByRole('link')).toHaveText(tabs);
   for (const [index, name] of tabs.entries()) {
     await page.keyboard.press(`Alt+${index + 1}`);
-    await expect(page).toHaveURL(new RegExp(`#${name.toLowerCase()}$`));
+    await expect(page).toHaveURL(new RegExp(`#${name.toLowerCase().replaceAll(' ', '')}(?:\\?|$)`));
     await expect(navigation.getByRole('link', { name, exact: true })).toHaveAttribute('aria-current', 'page');
   }
   await page.keyboard.press('Alt+1');

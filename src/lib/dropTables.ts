@@ -74,7 +74,7 @@ export function compileDropQuery(query: string): { matches: (row: DropRow) => bo
   if ((query.match(/"/g) ?? []).length % 2) return { matches: () => false, error: 'Close the quoted phrase to search.' };
   for (const match of query.matchAll(/(-?)(?:([a-z]+):)?("[^"]*"|[^\s]+)/gi)) {
     const [, negation, field, raw] = match;
-    const key = field ? aliases[field.toLowerCase()] : undefined;
+    const key = field && Object.hasOwn(aliases, field.toLowerCase()) ? aliases[field.toLowerCase()] : undefined;
     if (field && !key) return { matches: () => false, error: `Unknown search field “${field}”. Open Search help for supported fields.` };
     const value = raw.replace(/^"|"$/g, '').toLocaleLowerCase();
     let test: (row: DropRow) => boolean;
@@ -159,6 +159,24 @@ export function dropRowsCsv(rows: DropRow[], columns: DropColumnKey[]): string {
 export function dropViewHash(view: DropView): string {
   return `#droptables?view=${encodeURIComponent(JSON.stringify(view))}`;
 }
+
+/** Saved settings must be valid before editing them, so damaged preferences are never overwritten. */
+export function isDropView(value: unknown): value is DropView {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const view = value as DropView;
+  if (typeof view.query !== 'string' || ![25, 50, 100, 250].includes(view.pageSize)) return false;
+  if (!Array.isArray(view.columns) || !view.columns.includes('reward') || view.columns.some(key => !columnKeys.has(key)) || new Set(view.columns).size !== view.columns.length) return false;
+  if (!Array.isArray(view.sorting) || view.sorting.some(sort => !sort || !columnKeys.has(sort.key) || ![1, -1].includes(sort.direction)) || new Set(view.sorting.map(sort => sort.key)).size !== view.sorting.length) return false;
+  if (!view.filters || typeof view.filters !== 'object' || Array.isArray(view.filters)) return false;
+  return Object.entries(view.filters).every(([key, filter]) => {
+    if (!columnKeys.has(key) || !filter || typeof filter !== 'object') return false;
+    if (filter.kind === 'values') return Array.isArray(filter.values) && filter.values.every(value => typeof value === 'string');
+    if (filter.kind === 'text') return typeof filter.value === 'string' && ['contains', 'equals', 'excludes'].includes(filter.operator);
+    if (filter.kind === 'range') return numericDropColumns.has(key as DropColumnKey) && [filter.min, filter.max].every(value => typeof value === 'string' && (value === '' || /^\d+(\.\d+)?$/.test(value))) && (filter.unknown === undefined || typeof filter.unknown === 'boolean');
+    return false;
+  });
+}
+
 export function readDropView(hash: string): DropView {
   const fallback = defaultDropView();
   try {
@@ -175,7 +193,7 @@ export function readDropView(hash: string): DropView {
     if (value.filters && typeof value.filters === 'object') for (const [key, raw] of Object.entries(value.filters)) {
       if (!columnKeys.has(key) || !raw || typeof raw !== 'object') continue;
       const filter = raw as DropFilter;
-      if (filter.kind === 'values' && Array.isArray(filter.values) && filter.values.length && filter.values.every(value => typeof value === 'string')) fallback.filters[key as DropColumnKey] = { kind: 'values', values: filter.values.slice(0, 100) };
+      if (filter.kind === 'values' && Array.isArray(filter.values) && filter.values.every(value => typeof value === 'string')) fallback.filters[key as DropColumnKey] = { kind: 'values', values: filter.values.slice(0, 100) };
       if (filter.kind === 'text' && typeof filter.value === 'string' && ['contains', 'equals', 'excludes'].includes(filter.operator)) fallback.filters[key as DropColumnKey] = { kind: 'text', operator: filter.operator, value: filter.value.slice(0, 500) };
       if (filter.kind === 'range' && numericDropColumns.has(key as DropColumnKey) && [filter.min, filter.max].every(value => typeof value === 'string' && (value === '' || /^\d+(\.\d+)?$/.test(value)))) fallback.filters[key as DropColumnKey] = { kind: 'range', min: filter.min, max: filter.max, unknown: filter.unknown === true };
     }

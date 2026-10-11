@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseDropTables } from '../src/lib/dropTableParser.ts';
-import { attemptsForChance, compileDropQuery, defaultDropView, dropRowsCsv, dropViewHash, filterDropRows, formatChance, moveDropSort, readDropView, setDropSort, sortDropRows, successChance } from '../src/lib/dropTables.ts';
+import { attemptsForChance, compileDropQuery, defaultDropView, dropRowsCsv, dropViewHash, filterDropRows, formatChance, isDropView, moveDropSort, readDropView, setDropSort, sortDropRows, successChance } from '../src/lib/dropTables.ts';
 import { fetchLiveDropTables } from '../server/dropTables.ts';
 
 const html = readFileSync(new URL('./fixtures/drop-tables.html', import.meta.url), 'utf8');
@@ -53,7 +53,7 @@ test('field search, phrases, exclusions, numeric comparisons and combined filter
   assert.equal(search('mission:survival rotation:c reward:forma')[0].chance, 90);
   assert.equal(search('source:"heavy gunner" chance:<2 within:>30')[0].reward, 'Pressure Point');
   assert.equal(search('roll:>100')[0].reward, 'Sharrac Teeth');
-  assert.ok(compileDropQuery('chance:nope').error); assert.ok(compileDropQuery('wrong:value').error); assert.ok(compileDropQuery('"unfinished').error);
+  assert.ok(compileDropQuery('chance:nope').error); assert.ok(compileDropQuery('wrong:value').error); assert.ok(compileDropQuery('constructor:value').error); assert.ok(compileDropQuery('"unfinished').error);
   assert.equal(filterDropRows(rows, compileDropQuery('forma'), { rotation: { kind: 'values', values: ['A'] }, chance: { kind: 'range', min: '21', max: '50' } })[0].location, 'Earth');
   assert.equal(filterDropRows(rows, compileDropQuery(''), { chance: { kind: 'range', min: '', max: '', unknown: true } })[0].reward, 'Sharrac Teeth');
   assert.equal(filterDropRows(rows, compileDropQuery(''), { reward: { kind: 'text', value: 'Forma Blueprint', operator: 'equals' } }).length, 3);
@@ -84,6 +84,15 @@ test('odds calculator handles zero, certainty, tiny probabilities and rounds att
   assert.equal(attemptsForChance(10, 90), 22); assert.equal(attemptsForChance(0, 90), null); assert.equal(attemptsForChance(10, 100), null); assert.equal(attemptsForChance(100, 100), 1);
   const required = attemptsForChance(.0001, 99)!; assert.ok(successChance(.0001, required) >= 99); assert.ok(successChance(.0001, required - 1) < 99);
   assert.equal(formatChance(.000001), '<0.0001%'); assert.equal(formatChance(0), '0.00%');
+});
+
+test('malformed saved view objects are rejected instead of being silently repaired', () => {
+  const view = defaultDropView();
+  assert.ok(isDropView(view));
+  for (const value of [null, [], {}, { ...view, query: 10 }, { ...view, columns: ['chance'] }, { ...view, sorting: [{ key: 'unknown', direction: 1 }] }, { ...view, filters: { chance: { kind: 'range', min: 'NaN', max: '' } } }, { ...view, filters: { reward: { kind: 'text', value: 'x', operator: 'typo' } } }]) assert.equal(isDropView(value), false);
+  view.filters.category = { kind: 'values', values: [] };
+  assert.ok(isDropView(view));
+  assert.deepEqual(readDropView(dropViewHash(view)), view);
 });
 
 test('CSV exports selected columns and raw percentages, quotes text, and blocks spreadsheet formulas', () => {
