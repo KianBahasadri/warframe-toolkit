@@ -35,7 +35,7 @@ export function parseDropTables(html: string, fetchedAt = new Date().toISOString
     const rowSource = inverse ? values[0] : source;
     const rollRate = inverse ? percent(values[1]) : sourceChance;
     if (!reward || !rowSource || (/By(?:Avatar|Drop)$/.test(section) && rollRate === null)) { skippedRows++; return; }
-    const mission = section === 'missionRewards' ? /^(.*?)\/(.*?)\s*\((.+)\)$/.exec(rowSource) : null;
+    const mission = section === 'missionRewards' ? /^(.*?)\/(.*?)\s*\(([^()]*)\)$/.exec(rowSource) : null;
     const relic = section === 'relicRewards' ? /^(Lith|Meso|Neo|Axi|Requiem)\s+.*?\s*\(([^)]+)\)$/.exec(rowSource) : null;
     rows.push({
       id: `${section}-${rows.length}`, section, category, reward, source: rowSource,

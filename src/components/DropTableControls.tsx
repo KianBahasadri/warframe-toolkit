@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Columns3, EyeOff, Filter, Search, X } from 'lucide-react';
-import { ColumnOptions } from './ColumnPicker';
+import { useRef, useState } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Search, X } from 'lucide-react';
 import { TablePopover } from './TablePopover';
 import { Select } from './Select';
-import { defaultDropColumns, dropColumns, numericDropColumns } from '../lib/dropTables';
-import type { DropColumn, DropColumnKey, DropFilter, DropSort, DropView } from '../lib/dropTables';
+import { dropColumns, numericDropColumns } from '../lib/dropTables';
+import type { DropColumn, DropColumnKey, DropFilter, DropSort } from '../lib/dropTables';
 
 export function DropFacet({ column, options, filter, onChange }: { column: DropColumn; options: { value: string; count: number }[]; filter?: DropFilter; onChange: (filter?: DropFilter) => void }) {
   const [open, setOpen] = useState(false), [search, setSearch] = useState('');
@@ -42,39 +41,6 @@ export function DropFilterForm({ column, filter, onApply }: { column: DropColumn
     </>}
     <div className="column-filter-actions"><button type="button" className="button quiet" disabled={!filter} onClick={() => onApply()}>Clear filter</button><button type="submit" className="button primary" disabled={invalid && !unknown}>Apply filter</button></div>
   </form>;
-}
-
-export function DropColumnMenu({ column, anchor, point, initialFilter, view, onView, onFilter, onSort, onPriority, onVisibility, onClose }: {
-  column: DropColumn; anchor: HTMLElement; point?: { x: number; y: number }; initialFilter?: boolean; view: DropView;
-  onView: (view: DropView) => void; onFilter: (filter?: DropFilter) => void; onSort: (direction: 1 | -1 | 0) => void; onPriority: (index: number) => void;
-  onVisibility: (key: DropColumnKey, visible: boolean) => void; onClose: () => void;
-}) {
-  const [panel, setPanel] = useState<'actions' | 'columns' | 'filter' | 'priority'>(initialFilter ? 'filter' : 'actions');
-  const content = useRef<HTMLDivElement>(null);
-  const index = view.sorting.findIndex(sort => sort.key === column.key), direction = view.sorting[index]?.direction;
-  const filter = view.filters[column.key];
-  const finish = (action: () => void) => { action(); onClose(); if (anchor.isConnected) anchor.focus({ preventScroll: true }); };
-  useEffect(() => { content.current?.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)')?.focus({ preventScroll: true }); }, [panel]);
-  return <TablePopover anchor={anchor} point={point} role={panel === 'actions' || panel === 'priority' ? 'menu' : 'group'} label={panel === 'columns' ? 'Table columns' : panel === 'filter' ? `Filter ${column.title}` : `Column actions for ${column.title}`} className="column-context" onClose={onClose}>
-    <div className="column-menu-heading">{panel !== 'actions' && <button type="button" className="icon-button" aria-label="Back to column actions" onClick={() => setPanel('actions')}><ArrowLeft size={16} /></button>}<span>{panel === 'columns' ? 'Columns' : panel === 'filter' ? `Filter ${column.title}` : panel === 'priority' ? 'Sort priority' : column.title}</span></div>
-    <div ref={content} className="column-menu-content">
-      {panel === 'actions' && <>
-        <button type="button" role="menuitemradio" aria-checked={direction === 1} className="column-menu-action" onClick={() => finish(() => onSort(1))}><ArrowUp size={16} />Sort ascending</button>
-        <button type="button" role="menuitemradio" aria-checked={direction === -1} className="column-menu-action" onClick={() => finish(() => onSort(-1))}><ArrowDown size={16} />Sort descending</button>
-        <button type="button" role="menuitem" className="column-menu-action" disabled={!direction} onClick={() => finish(() => onSort(0))}><X size={16} />Remove sort</button>
-        <button type="button" role="menuitem" className="column-menu-action" disabled={index < 0 || view.sorting.length < 2} onClick={() => setPanel('priority')}><ArrowUp size={16} />Sort priority{index >= 0 && <span className="menu-value">{index + 1} of {view.sorting.length}</span>}</button>
-        <div role="separator" className="column-menu-divider" />
-        <button type="button" role="menuitem" className="column-menu-action" onClick={() => setPanel('filter')}><Filter size={16} />{filter ? 'Edit filter' : 'Set filter'}</button>
-        {filter && <button type="button" role="menuitem" className="column-menu-action" onClick={() => finish(() => onFilter())}><X size={16} />Clear filter</button>}
-        <div role="separator" className="column-menu-divider" />
-        <button type="button" role="menuitem" className="column-menu-action" disabled={column.required} onClick={() => finish(() => onVisibility(column.key, false))}><EyeOff size={16} />Hide column</button>
-        <button type="button" role="menuitem" className="column-menu-action" onClick={() => setPanel('columns')}><Columns3 size={16} />Add or remove columns</button>
-      </>}
-      {panel === 'filter' && <DropFilterForm column={column} filter={filter} onApply={filter => finish(() => onFilter(filter))} />}
-      {panel === 'columns' && <ColumnOptions options={dropColumns} selected={view.columns} onChange={onVisibility} onReset={() => onView({ ...view, columns: [...defaultDropColumns] })} />}
-      {panel === 'priority' && view.sorting.map((sort, position) => <button type="button" key={sort.key} role="menuitemradio" aria-checked={index === position} className="column-menu-action" onClick={() => finish(() => onPriority(position))}><span className="menu-priority">{position + 1}</span>{dropColumns.find(column => column.key === sort.key)!.title}</button>)}
-    </div>
-  </TablePopover>;
 }
 
 export function DropSorts({ sorting, onSort, onPriority, onClear }: { sorting: DropSort[]; onSort: (key: DropColumnKey, direction: 1 | -1 | 0) => void; onPriority: (key: DropColumnKey, index: number) => void; onClear: () => void }) {

@@ -76,7 +76,7 @@ test('view links validate settings and roundtrip filters, hidden sorts and colum
   assert.deepEqual(readDropView(dropViewHash(view)), view);
   assert.deepEqual(readDropView('#droptables?view=%7Bbroken'), defaultDropView());
   const unsafe = readDropView('#droptables?view=' + encodeURIComponent(JSON.stringify({ columns: ['oops', 'chance', 'chance'], sorting: [{ key: 'reward', direction: 7 }], pageSize: 100000, filters: { chance: { kind: 'range', min: 'NaN', max: '' } } })));
-  assert.deepEqual(unsafe.columns, ['reward', 'chance']); assert.equal(unsafe.pageSize, 50); assert.deepEqual(unsafe.filters, {}); assert.deepEqual(unsafe.sorting, []);
+  assert.deepEqual(unsafe.columns, ['reward', 'chance']); assert.equal(unsafe.pageSize, 24); assert.deepEqual(unsafe.filters, {}); assert.deepEqual(unsafe.sorting, []);
 });
 
 test('odds calculator handles zero, certainty, tiny probabilities and rounds attempts upward', () => {

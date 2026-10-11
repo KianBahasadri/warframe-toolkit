@@ -49,9 +49,16 @@ export type DropColumn = { key: DropColumnKey; title: string; required?: boolean
 export type DropSort = { key: DropColumnKey; direction: 1 | -1 };
 export type DropFilter = { kind: 'values'; values: string[] } | { kind: 'text'; value: string; operator: 'contains' | 'equals' | 'excludes' } | { kind: 'range'; min: string; max: string; unknown?: boolean };
 export type DropFilters = Partial<Record<DropColumnKey, DropFilter>>;
-export interface DropView { query: string; filters: DropFilters; sorting: DropSort[]; columns: DropColumnKey[]; pageSize: number }
+export const dropBrowseModes = ['mission', 'item', 'location', 'relic', 'bounty', 'source'] as const;
+export type DropBrowseMode = typeof dropBrowseModes[number];
+export interface DropView {
+  query: string; filters: DropFilters; sorting: DropSort[]; columns: DropColumnKey[]; pageSize: number;
+  /** Optional for compatibility with saved views from the table interface. */
+  browse?: { mode: DropBrowseMode; group?: string };
+}
+export const dropPageSizes = [12, 24, 48, 96, 25, 50, 100, 250];
 export const defaultDropColumns: DropColumnKey[] = ['reward', 'source', 'category', 'rotation', 'stage', 'chance'];
-export const defaultDropView = (): DropView => ({ query: '', filters: {}, sorting: [], columns: [...defaultDropColumns], pageSize: 50 });
+export const defaultDropView = (): DropView => ({ query: '', filters: {}, sorting: [], columns: [...defaultDropColumns], pageSize: 24 });
 export const numericDropColumns = new Set<DropColumnKey>(['chance', 'tableChance', 'sourceChance']);
 const columnKeys = new Set<string>(dropColumns.map(column => column.key));
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
@@ -164,7 +171,8 @@ export function dropViewHash(view: DropView): string {
 export function isDropView(value: unknown): value is DropView {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const view = value as DropView;
-  if (typeof view.query !== 'string' || ![25, 50, 100, 250].includes(view.pageSize)) return false;
+  if (typeof view.query !== 'string' || !dropPageSizes.includes(view.pageSize)) return false;
+  if (view.browse !== undefined && (!view.browse || !dropBrowseModes.includes(view.browse.mode) || (view.browse.group !== undefined && typeof view.browse.group !== 'string'))) return false;
   if (!Array.isArray(view.columns) || !view.columns.includes('reward') || view.columns.some(key => !columnKeys.has(key)) || new Set(view.columns).size !== view.columns.length) return false;
   if (!Array.isArray(view.sorting) || view.sorting.some(sort => !sort || !columnKeys.has(sort.key) || ![1, -1].includes(sort.direction)) || new Set(view.sorting.map(sort => sort.key)).size !== view.sorting.length) return false;
   if (!view.filters || typeof view.filters !== 'object' || Array.isArray(view.filters)) return false;
@@ -185,7 +193,11 @@ export function readDropView(hash: string): DropView {
     const value = JSON.parse(encoded) as Record<string, unknown>;
     if (!value || typeof value !== 'object') return fallback;
     if (typeof value.query === 'string') fallback.query = value.query.slice(0, 2000);
-    if ([25, 50, 100, 250].includes(Number(value.pageSize))) fallback.pageSize = Number(value.pageSize);
+    if (dropPageSizes.includes(Number(value.pageSize))) fallback.pageSize = Number(value.pageSize);
+    if (value.browse && typeof value.browse === 'object') {
+      const browse = value.browse as DropView['browse'];
+      if (browse && dropBrowseModes.includes(browse.mode)) fallback.browse = { mode: browse.mode, ...(typeof browse.group === 'string' && browse.group.length <= 2000 ? { group: browse.group } : {}) };
+    }
     if (Array.isArray(value.columns)) fallback.columns = [...new Set(['reward', ...value.columns.filter(key => typeof key === 'string' && columnKeys.has(key))])] as DropColumnKey[];
     if (Array.isArray(value.sorting)) for (const sort of value.sorting) {
       if (sort && columnKeys.has(sort.key) && [1, -1].includes(sort.direction) && !fallback.sorting.some(item => item.key === sort.key)) fallback.sorting.push({ key: sort.key, direction: sort.direction });
