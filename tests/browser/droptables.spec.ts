@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { parseDropTables } from '../../src/lib/dropTableParser';
 import { defaultDropView, dropViewHash } from '../../src/lib/dropTables';
+import artwork from '../../src/data/drop-art.json' with { type: 'json' };
 
 test.setTimeout(30_000);
 
@@ -256,4 +257,33 @@ test('legacy shared and saved views still open their results, and navigation sho
   await page.getByRole('button', { name: 'Old view', exact: true }).click();
   await expect(page.locator('.drop-group-card')).toHaveCount(2);
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem('warframe-toolkit.drop-views.v1')))!)[0].view.browse).toBeUndefined();
+});
+
+test('card artwork loads locally, follows the selected subject and fails without substituting another item', async ({ page }) => {
+  const externalImages: string[] = [];
+  page.on('request', request => { if (request.resourceType() === 'image' && !request.url().startsWith('http://127.0.0.1:5173/')) externalImages.push(request.url()); });
+  await mockDrops(page);
+  await page.route(`**${artwork.items['pressure point'].src}`, route => route.abort());
+  await page.goto('/#droptables');
+  await expect(page.locator('.drop-mode-button img')).toHaveCount(6);
+  await expect.poll(() => page.locator('.drop-mode-button img').evaluateAll(images => images.every(image => (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
+  await browse(page, 'item');
+  const search = page.getByLabel('Search drop tables', { exact: true });
+  await search.fill('nova prime');
+  const nova = page.getByRole('button', { name: 'Open Nova Prime Systems Blueprint', exact: true });
+  await expect(nova.getByRole('img', { name: 'Nova Prime Systems', exact: true })).toBeVisible();
+  await search.fill('forma blueprint');
+  await page.getByRole('button', { name: 'Open Forma Blueprint', exact: true }).click();
+  const survivalCard = page.locator('.drop-result-card').filter({ hasText: 'Mercury/Apollodorus (Survival)' }).first();
+  await expect(survivalCard.getByRole('img', { name: 'Survival', exact: true })).toBeVisible();
+  await expect(survivalCard).toContainText('Forma Blueprint');
+  await page.setViewportSize({ width: 320, height: 800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await browse(page, 'item'); await search.fill('pressure point');
+  const pressure = page.getByRole('button', { name: 'Open Pressure Point', exact: true });
+  await expect(pressure).toContainText('Artwork unavailable');
+  await expect(pressure.locator('img')).toHaveCount(0);
+  await pressure.click(); await page.locator('.drop-result-card').click();
+  await expect(page.getByRole('dialog', { name: 'Pressure Point', exact: true })).toBeVisible();
+  expect(externalImages).toEqual([]);
 });
