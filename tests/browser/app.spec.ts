@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import inventoryScreenshots from '../fixtures/inventory-screenshots.json' with { type: 'json' };
+import codexScreenshot from '../fixtures/codex-screenshot.json' with { type: 'json' };
 import type { Inventory } from '../../src/lib/model';
 import { createEquipment } from '../../src/lib/model';
 
@@ -687,14 +688,14 @@ test('Alt number shortcuts follow the top tabs and stay inactive while editing',
 test('screenshot instructions show the local example and fit desktop and mobile', async ({ page }) => {
   await page.goto('/#import');
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
-  const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
+  const codex = page.getByRole('region', { name: 'Codex', exact: true });
   await expect(inventory).toBeVisible();
-  await expect(arsenal).toBeVisible();
+  await expect(codex).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Import screenshots', exact: true })).toHaveCount(0);
-  for (const section of [inventory, arsenal]) {
-    const example = section.getByRole('img', { name: 'Example Warframe Inventory screen showing weapon cards and ranks' });
+  for (const [section, source] of [[inventory, 'inventory'], [codex, 'codex']] as const) {
+    const example = section.getByRole('img', { name: /Example Warframe/ });
     await expect(example).toBeVisible();
-    await expect(example).toHaveAttribute('src', '/images/import/inventory-weapons.png');
+    await expect(example).toHaveAttribute('src', `/images/import/${source}-weapons.png`);
     await expect(example).toHaveJSProperty('naturalWidth', 1920);
   }
   const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
@@ -715,11 +716,14 @@ test('screenshot instructions show the local example and fit desktop and mobile'
   await page.keyboard.press('Escape');
   await expect(instructions).toBeFocused();
 
-  await arsenal.getByRole('button', { name: 'Arsenal instructions' }).click();
-  await expect(page.getByRole('dialog', { name: 'Arsenal screenshots', exact: true })).toContainText('Owned starts unchecked');
+  await codex.getByRole('button', { name: 'Codex instructions' }).click();
+  const codexGuide = page.getByRole('dialog', { name: 'Codex screenshots', exact: true });
+  await expect(codexGuide).toContainText('Owned starts unchecked');
+  await expect(codexGuide.getByRole('img', { name: /Warframe Codex weapon grid/ })).toHaveJSProperty('naturalWidth', 1920);
+  await expect(codexGuide.getByRole('link', { name: 'Open full-size example' })).toHaveAttribute('href', '/images/import/codex-weapons.png');
   await page.mouse.click(1, 1);
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(arsenal.getByRole('button', { name: 'Arsenal instructions' })).toBeFocused();
+  await expect(codex.getByRole('button', { name: 'Codex instructions' })).toBeFocused();
   await page.getByRole('button', { name: 'Switch to light theme' }).click();
   await page.setViewportSize({ width: 320, height: 720 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -757,36 +761,36 @@ test('pointer highlights the paste destination and a batch hides the other sourc
     }, base64);
   };
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
-  const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
+  const codex = page.getByRole('region', { name: 'Codex', exact: true });
   const inventoryUpload = inventory.getByRole('button', { name: /^Drop, paste, or choose screenshots/ });
-  const arsenalUpload = arsenal.getByRole('button', { name: /^Drop, paste, or choose screenshots/ });
+  const codexUpload = codex.getByRole('button', { name: /^Drop, paste, or choose screenshots/ });
   await inventoryUpload.focus();
   await expect(inventory).toHaveAccessibleDescription('Selected for screenshot paste');
   // Moving through blank page space changes the destination without a click,
   // even when a control in the other section still has keyboard focus.
   await page.mouse.move(1200, 650);
-  await expect(arsenal).toHaveAccessibleDescription('Selected for screenshot paste');
+  await expect(codex).toHaveAccessibleDescription('Selected for screenshot paste');
   await expect(inventoryUpload).toBeFocused();
   await expect(page.locator('.is-paste-target')).toHaveCount(1);
   await expect.poll(async () => (await inventory.boundingBox())!.x).toBeLessThan(-40);
   const stage = page.locator('.import-sources');
-  expect((await arsenal.boundingBox())!.height).toBe((await stage.boundingBox())!.height);
-  expect(await arsenal.evaluate(panel => getComputedStyle(panel).borderTopWidth)).toBe('0px');
-  expect(await arsenalUpload.evaluate(button => getComputedStyle(button).borderTopWidth)).toBe('0px');
+  expect((await codex.boundingBox())!.height).toBe((await stage.boundingBox())!.height);
+  expect(await codex.evaluate(panel => getComputedStyle(panel).borderTopWidth)).toBe('0px');
+  expect(await codexUpload.evaluate(button => getComputedStyle(button).borderTopWidth)).toBe('0px');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/import-paste-target-desktop.png', fullPage: true });
   await pasteImage();
   await expect(inventory).toHaveCount(0);
-  await expect(arsenal.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(1);
+  await expect(codex.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(1);
   await expect(page.locator('.import-source.is-exiting')).toHaveCount(0);
   await expect(page.locator('.import-source-example')).toHaveCount(0);
-  expect((await arsenal.boundingBox())!.width).toBe((await stage.boundingBox())!.width);
+  expect((await codex.boundingBox())!.width).toBe((await stage.boundingBox())!.width);
   await waitForScreenshotReview(page);
-  await expect(arsenal.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
+  await expect(codex.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
   // Once a batch starts, moving to the other side keeps pastes in that batch.
   await page.mouse.move(40, 650);
   await pasteImage();
-  await expect(arsenal.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(2);
+  await expect(codex.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(2);
   await expect(inventory).toHaveCount(0);
   await waitForScreenshotReview(page);
   await page.getByRole('button', { name: 'Import 1 item', exact: true }).click();
@@ -794,29 +798,98 @@ test('pointer highlights the paste destination and a batch hides the other sourc
   await expect(inventory).toHaveCount(0);
   await page.getByRole('button', { name: 'Import more', exact: true }).click();
   await expect(inventory).toBeVisible();
-  await expect(arsenal).toBeVisible();
+  await expect(codex).toBeVisible();
   await page.setViewportSize({ width: 320, height: 720 });
   await inventory.hover({ position: { x: 80, y: 12 } });
   await expect(inventory).toHaveAccessibleDescription('Selected for screenshot paste');
-  await arsenal.hover({ position: { x: 80, y: 12 } });
-  await expect(arsenal).toHaveAccessibleDescription('Selected for screenshot paste');
+  await codex.hover({ position: { x: 80, y: 12 } });
+  await expect(codex).toHaveAccessibleDescription('Selected for screenshot paste');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/import-paste-target-mobile.png', fullPage: true });
   await inventoryUpload.focus();
   await expect(inventory).toHaveAccessibleDescription('Selected for screenshot paste');
-  await arsenalUpload.focus();
-  await expect(arsenal).toHaveAccessibleDescription('Selected for screenshot paste');
+  await codexUpload.focus();
+  await expect(codex).toHaveAccessibleDescription('Selected for screenshot paste');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.mouse.move(40, 650);
   await expect(inventory).toHaveAccessibleDescription('Selected for screenshot paste');
   await pasteImage();
-  await expect(arsenal).toHaveCount(0);
+  await expect(codex).toHaveCount(0);
   await waitForScreenshotReview(page);
   await expect(inventory.getByLabel('Owned: Boltor', { exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await expect(inventory).toBeVisible();
-  await expect(arsenal).toBeVisible();
+  await expect(codex).toBeVisible();
+});
+
+test('real Codex OCR reads exact variants and mastery, preserving ownership, ranks, and review edits', async ({ page }) => {
+  const externalRequests: string[] = [];
+  page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
+  await page.goto('/#import');
+  await expect(page.getByRole('region', { name: 'Codex', exact: true })).toBeVisible();
+  const original: Inventory = await page.evaluate(() => {
+    const key = 'warframe-toolkit.inventory.v1';
+    const inventory = JSON.parse(localStorage.getItem(key)!);
+    Object.assign(inventory.items.find((item: { name: string }) => item.name === 'Boltor'), { owned: true, mastered: false, rank: 7, notes: 'Keep this Forma plan', dontKeep: true, override: 'Keep' });
+    localStorage.setItem(key, JSON.stringify(inventory));
+    return inventory;
+  });
+  await page.reload();
+  await page.getByLabel('Choose codex screenshots').setInputFiles(codexScreenshot.file);
+  await waitForScreenshotReview(page);
+  const names = await page.locator('.review-table [role="combobox"]').allTextContents();
+  expect(names.sort()).toEqual(Object.keys(codexScreenshot.weapons).sort());
+  await expect(page.getByRole('region', { name: 'Inventory', exact: true })).toHaveCount(0);
+  for (const [name, mastered] of Object.entries(codexScreenshot.weapons)) {
+    await expect(page.getByLabel(`Import ${name}`, { exact: true })).toBeChecked();
+    await expect(page.getByLabel(`Mastered: ${name}`, { exact: true })).toBeChecked({ checked: mastered });
+    await expect(page.getByLabel(`Owned: ${name}`, { exact: true })).not.toBeChecked();
+    await expect(page.getByLabel(`Rank: ${name}`, { exact: true })).toHaveValue('');
+  }
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!))).toEqual(original);
+  await page.getByLabel('Mastered: Afuris', { exact: true }).uncheck();
+  await page.getByLabel('Choose codex screenshots').setInputFiles(codexScreenshot.file);
+  await waitForScreenshotReview(page);
+  await expect(page.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(2);
+  await expect(page.getByLabel('Mastered: Afuris', { exact: true })).not.toBeChecked();
+  await page.getByRole('button', { name: 'Import 32 items', exact: true }).click();
+  const saved: Inventory = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!));
+  const boltor = saved.items.find(item => item.name === 'Boltor')!;
+  expect(boltor).toMatchObject({ owned: true, mastered: true, rank: 7, notes: 'Keep this Forma plan', dontKeep: true, override: 'Keep' });
+  for (const old of original.items) {
+    const next = saved.items.find(item => item.id === old.id)!;
+    expect(next).toEqual(Object.hasOwn(codexScreenshot.weapons, old.name)
+      ? { ...old, mastered: true, source: next.source, updatedAt: next.updatedAt } : old);
+  }
+  for (const name of names.filter(name => !original.items.some(item => item.name === name))) {
+    expect(saved.items.find(item => item.name === name)).toMatchObject({ owned: false, rank: null, mastered: name !== 'Afuris' });
+  }
+  expect(externalRequests).toEqual([]);
+});
+
+test('resized Codex images keep badges tied to cards and reject missing badges and green blocks', async ({ page }) => {
+  await page.goto('/#import');
+  const changed = await page.evaluate(async () => {
+    const bitmap = await createImageBitmap(await (await fetch('/images/import/codex-weapons.png')).blob());
+    const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
+    const context = canvas.getContext('2d')!; context.drawImage(bitmap, 0, 0); bitmap.close();
+    // Obscure Afuris's laurel and replace Akbolto's with a plain mint square.
+    context.fillStyle = '#202427'; context.fillRect(236, 200, 42, 44);
+    context.fillStyle = '#88e8c8'; context.fillRect(447, 200, 42, 44);
+    const resized = document.createElement('canvas'); resized.width = 1500; resized.height = 960;
+    const target = resized.getContext('2d')!; target.fillStyle = '#101418'; target.fillRect(0, 0, 1500, 960);
+    target.drawImage(canvas, 30, 30, 1440, 900);
+    return resized.toDataURL('image/png').split(',')[1];
+  });
+  await page.getByLabel('Choose codex screenshots').setInputFiles({ name: 'codex-resized.png', mimeType: 'image/png', buffer: Buffer.from(changed, 'base64') });
+  await waitForScreenshotReview(page);
+  expect((await page.locator('.review-table [role="combobox"]').allTextContents()).sort()).toEqual(Object.keys(codexScreenshot.weapons).sort());
+  for (const name of Object.keys(codexScreenshot.weapons)) {
+    await expect(page.getByLabel(`Mastered: ${name}`, { exact: true })).toBeChecked({ checked: !['Afuris', 'Akbolto'].includes(name) });
+    await expect(page.getByLabel(`Rank: ${name}`, { exact: true })).toHaveValue('');
+    await expect(page.getByLabel(`Owned: ${name}`, { exact: true })).not.toBeChecked();
+  }
 });
 
 for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every name and rank: ${fixture.file}`, async ({ page }) => {
@@ -827,9 +900,9 @@ for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every
   const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   await page.getByLabel('Choose inventory screenshots').setInputFiles(fixture.file);
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
-  const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
+  const codex = page.getByRole('region', { name: 'Codex', exact: true });
   await expect(inventory.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
-  await expect(arsenal).toHaveCount(0);
+  await expect(codex).toHaveCount(0);
   const names = await inventory.locator('.review-table [role="combobox"]').allTextContents();
   expect(names.sort()).toEqual(Object.keys(fixture.weapons).sort());
   for (const [name, rank] of Object.entries(fixture.weapons)) {
@@ -1034,18 +1107,18 @@ test('background reading keeps the list editable while paste and drop add screen
   await page.getByRole('button', { name: 'Import more', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Review matches' })).toHaveCount(0);
   await expect(gallery).toHaveCount(0);
-  await expect(page.getByLabel('Choose arsenal screenshots')).toBeEnabled();
+  await expect(page.getByLabel('Choose codex screenshots')).toBeEnabled();
 });
 
 test('canceling or failing an added screenshot keeps earlier matches and allows another upload', async ({ page }) => {
   await page.goto('/#import');
   const first = await equipmentScreenshot(page, 'first.png', ['BOLTOR [30]']);
   const next = await equipmentScreenshot(page, 'next.png', ['VASTO [0]']);
-  await page.getByLabel('Choose arsenal screenshots').setInputFiles(first);
+  await page.getByLabel('Choose codex screenshots').setInputFiles(first);
   await waitForScreenshotReview(page);
   await page.getByLabel('Rank: Boltor', { exact: true }).fill('12');
-  await page.getByLabel('Choose arsenal screenshots').setInputFiles(inventoryScreenshots[0].file);
-  await page.getByLabel('Choose arsenal screenshots').setInputFiles(inventoryScreenshots[1].file);
+  await page.getByLabel('Choose codex screenshots').setInputFiles(inventoryScreenshots[0].file);
+  await page.getByLabel('Choose codex screenshots').setInputFiles(inventoryScreenshots[1].file);
   await page.getByRole('button', { name: 'Cancel reading' }).click();
   await expect(page.getByText('Reading canceled.', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Add screenshots/ })).toContainText('1/10 images');
@@ -1054,12 +1127,12 @@ test('canceling or failing an added screenshot keeps earlier matches and allows 
   await expect(gallery.getByRole('img', { name: 'Import source: first.png', exact: true })).toBeVisible();
   await expect(page.getByLabel('Rank: Boltor', { exact: true })).toHaveValue('12');
   await expect(page.locator('.review-table tbody tr')).toHaveCount(1);
-  await page.getByLabel('Choose arsenal screenshots').setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
+  await page.getByLabel('Choose codex screenshots').setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Add screenshots/ })).toContainText('1/10 images');
   await expect(gallery.getByRole('img')).toHaveCount(1);
   await expect(page.getByLabel('Rank: Boltor', { exact: true })).toHaveValue('12');
-  await page.getByLabel('Choose arsenal screenshots').setInputFiles(next);
+  await page.getByLabel('Choose codex screenshots').setInputFiles(next);
   await waitForScreenshotReview(page);
   await expect(page.getByLabel('Rank: Vasto', { exact: true })).toHaveValue('0');
   await expect(page.getByLabel('Owned: Vasto', { exact: true })).not.toBeChecked();
@@ -1086,15 +1159,15 @@ test('canceling OCR releases the importer and paste uses the focused source', as
     Object.defineProperty(paste, 'clipboardData', { value: clipboard });
     document.activeElement!.dispatchEvent(paste);
   }, dataUrl);
-  await page.getByRole('button', { name: 'Arsenal instructions' }).click();
+  await page.getByRole('button', { name: 'Codex instructions' }).click();
   await pasteImage();
   await expect(page.getByRole('list', { name: 'Screenshot previews' })).toHaveCount(0);
   await page.keyboard.press('Escape');
-  const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
-  await arsenal.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false }).focus();
+  const codex = page.getByRole('region', { name: 'Codex', exact: true });
+  await codex.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false }).focus();
   await pasteImage();
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
-  await expect(arsenal.getByLabel('Owned: Braton Prime', { exact: true })).not.toBeChecked();
+  await expect(codex.getByLabel('Owned: Braton Prime', { exact: true })).not.toBeChecked();
 });
 
 test('unreadable saved data is preserved and failed saves remain visible', async ({ page }) => {

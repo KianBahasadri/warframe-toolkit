@@ -1,7 +1,7 @@
 import { normalizeName } from './model.ts';
 import type { CatalogItem } from './model.ts';
 
-export interface OcrLine { text: string; confidence: number; pass?: number; bbox?: { x0: number; y0: number; x1: number; y1: number } }
+export interface OcrLine { text: string; confidence: number; pass?: number; masteryBadge?: boolean; bbox?: { x0: number; y0: number; x1: number; y1: number } }
 export interface Detection {
   id: string;
   item: CatalogItem;
@@ -13,11 +13,11 @@ export interface Detection {
   selected: boolean;
   owned: boolean;
   mastered: boolean;
-  masterySource: 'rank' | 'text' | 'review' | null;
+  masterySource: 'rank' | 'text' | 'badge' | 'review' | null;
   rank: number | null;
   filename: string;
 }
-export type ScreenshotSource = 'inventory' | 'arsenal';
+export type ScreenshotSource = 'inventory' | 'codex';
 
 function distance(a: string, b: string): number {
   let row = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -52,9 +52,9 @@ export function reviewDetection(detection: Detection, patch: Partial<Detection>)
   const next = { ...detection, ...patch, reviewed: true };
   if (patch.mastered !== undefined) next.masterySource = 'review';
   else if ((patch.item || patch.rank !== undefined) && detection.masterySource !== 'review') {
-    const explicit = !patch.item && detection.masterySource === 'text';
+    const explicit = !patch.item && (detection.masterySource === 'text' || detection.masterySource === 'badge');
     next.mastered = explicit || rankEstablishesMastery(next.item, next.rank);
-    next.masterySource = explicit ? 'text' : next.mastered ? 'rank' : null;
+    next.masterySource = explicit ? detection.masterySource : next.mastered ? 'rank' : null;
   }
   return next;
 }
@@ -72,7 +72,8 @@ export function appendDetections(current: Detection[], incoming: Detection[]): D
     result[index] = {
       ...best, id: previous.id,
       mastered: previous.mastered || detection.mastered, owned: previous.owned || detection.owned,
-      masterySource: previous.masterySource === 'text' || detection.masterySource === 'text' ? 'text' : previous.masterySource ?? detection.masterySource,
+      masterySource: previous.masterySource === 'badge' || detection.masterySource === 'badge' ? 'badge'
+        : previous.masterySource === 'text' || detection.masterySource === 'text' ? 'text' : previous.masterySource ?? detection.masterySource,
       rank: detection.rank ?? previous.rank,
     };
   }
@@ -154,13 +155,14 @@ export function matchOcrLines(lines: OcrLine[], catalog: CatalogItem[], filename
     const explicitMastery = matches.length === 1 && /\bmastered\b/i.test(line.text) && !/\b(?:not|un)\s*mastered\b/i.test(line.text);
     for (const match of matches) {
       const owned = source === 'inventory' && !/\b(?:not owned|unowned|purchase)\b/i.test(line.text);
-      const mastered = explicitMastery || rankEstablishesMastery(match.item, rank);
+      const badgeMastery = source === 'codex' && matches.length === 1 && line.masteryBadge === true && match.item.masterable === true;
+      const mastered = badgeMastery || explicitMastery || rankEstablishesMastery(match.item, rank);
       const detection: Detection = {
         id: crypto.randomUUID(), item: match.item, rawText: continuation ? `${line.text}\n${continuation.text}` : line.text, filename,
         recognizedItemId: match.item.id, reviewed: false,
         confidence: Math.round(match.score), exact: match.exact,
         selected: match.exact && match.score >= 65, owned, mastered, rank,
-        masterySource: explicitMastery ? 'text' : mastered ? 'rank' : null,
+        masterySource: badgeMastery ? 'badge' : explicitMastery ? 'text' : mastered ? 'rank' : null,
       };
       const prior = found.get(match.item.id);
       if (!prior || (match.exact && !prior.exact) || (match.exact === prior.exact && match.score > prior.confidence)) found.set(match.item.id, detection);

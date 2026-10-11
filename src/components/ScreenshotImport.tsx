@@ -10,7 +10,7 @@ import { ScreenshotHelp } from './ScreenshotHelp';
 import { ScreenshotGallery } from './ScreenshotGallery';
 
 const equipmentOptions = catalog.map(item => ({ value: item.id, label: item.name }));
-const importSources = [{ value: 'inventory', label: 'Inventory' }, { value: 'arsenal', label: 'Arsenal' }] as const;
+const importSources = [{ value: 'inventory', label: 'Inventory' }, { value: 'codex', label: 'Codex' }] as const;
 
 interface Scan { file: File; url: string; read: boolean }
 interface Batch { source: ScreenshotSource | null; scans: Scan[]; pending: File[]; completed: boolean }
@@ -29,7 +29,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState<ScreenshotSource | null>(null);
   const [completed, setCompleted] = useState<{ added: number; updated: number } | null>(null);
-  const inputs = useRef<Record<ScreenshotSource, HTMLInputElement | null>>({ inventory: null, arsenal: null });
+  const inputs = useRef<Record<ScreenshotSource, HTMLInputElement | null>>({ inventory: null, codex: null });
   const sourceStage = useRef<HTMLDivElement | null>(null);
   const pasteSource = useRef<ScreenshotSource>('inventory');
   const controller = useRef<AbortController | null>(null);
@@ -58,7 +58,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
       const beforeDivider = window.matchMedia('(max-width: 900px)').matches
         ? event.clientY < stage.top + stage.height / 2
         : event.clientX < stage.left + stage.width / 2;
-      choosePasteSource(beforeDivider ? 'inventory' : 'arsenal');
+      choosePasteSource(beforeDivider ? 'inventory' : 'codex');
     };
     document.addEventListener('pointermove', followPointer);
     return () => document.removeEventListener('pointermove', followPointer);
@@ -71,7 +71,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))) { setError('Use PNG, JPG, or WebP screenshots.'); return; }
     if (files.some(file => file.size > 20 * 1024 * 1024)) { setError('Each screenshot must be smaller than 20 MB.'); return; }
     const next = files.map(file => ({ file, url: URL.createObjectURL(file), read: false }));
-    if (!batch.current.source) setDeparting(screenshotSource === 'inventory' ? 'arsenal' : 'inventory');
+    if (!batch.current.source) setDeparting(screenshotSource === 'inventory' ? 'codex' : 'inventory');
     batch.current.source = screenshotSource;
     batch.current.scans = [...batch.current.scans, ...next];
     batch.current.pending.push(...files);
@@ -94,7 +94,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
           setScans(batch.current.scans);
           const matched = matchOcrLines(result.lines, catalog, file.name, screenshotSource);
           setDetections(current => appendDetections(current, matched));
-        }, abort.signal);
+        }, abort.signal, screenshotSource);
       }
       if (active.current) setProgress(1);
     } catch (problem) {
@@ -155,7 +155,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     <input ref={node => { inputs.current[value] = node; }} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label={`Choose ${label.toLowerCase()} screenshots`} tabIndex={-1} disabled={!!completed} onChange={event => { void processFiles([...event.target.files || []], value); event.target.value = ''; }} />
     {source === value && error && <p className="callout danger" role="alert">{error}</p>}
     {!completed && <button type="button" className={`drop-zone ${scans.length && source === value ? 'drop-zone-compact' : ''} ${dragging === value ? 'dragging' : ''}`} aria-labelledby={`${value}-upload-label ${value}-upload-limits`} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); choosePasteSource(value); setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
-      {(!hasBatch || departing === value) && <img className="import-source-example" src="/images/import/inventory-weapons.png" width={1920} height={1200} alt="Example Warframe Inventory screen showing weapon cards and ranks" draggable={false} />}
+      {(!hasBatch || departing === value) && <img className="import-source-example" src={`/images/import/${value}-weapons.png`} width={1920} height={1200} alt={value === 'inventory' ? 'Example Warframe Inventory screen showing weapon cards and ranks' : 'Example Warframe Codex screen showing weapon cards and mastery badges'} draggable={false} />}
       <span id={`${value}-upload-label`}>{scans.length && source === value ? 'Add screenshots' : 'Drop, paste, or choose screenshots'}</span>
       <small id={`${value}-upload-limits`}>{scans.length && source === value ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
     </button>}
@@ -177,7 +177,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
       </div></div>
       <div className="table-scroll" role="region" aria-label="Screenshot matches" tabIndex={0}><table className="review-table">
         <caption className="sr-only">Review names, ownership, mastery, and rank before importing selected rows. Existing ownership and mastery are preserved.</caption>
-        <thead><tr><th scope="col">Import</th><th scope="col">Equipment</th><th scope="col" title="Imports preserve existing ownership.">Owned</th><th scope="col" title="Checked at the catalog's maximum rank: usually 30, or 40 for applicable weapons. Modular weapons and Amps need mastery review. Existing mastery is preserved.">Mastered</th><th scope="col">Rank</th></tr></thead>
+        <thead><tr><th scope="col">Import</th><th scope="col">Equipment</th><th scope="col" title="Imports preserve existing ownership.">Owned</th><th scope="col" title="Checked from a recognized Codex mastery badge or the catalog's maximum rank. Modular equipment needs review unless a badge was recognized. Existing mastery is preserved.">Mastered</th><th scope="col">Rank</th></tr></thead>
         <tbody>{detections.map(detection => <tr key={detection.id}>
           <td><label className="table-checkbox"><input type="checkbox" checked={detection.selected} aria-label={`Import ${detection.item.name}`} onChange={event => update(detection.id, { selected: event.target.checked })} /></label></td>
           <td className="match-cell"><Select value={detection.item.id} label={`Matched name for ${detection.rawText}`} onChange={value => { const entry = catalog.find(item => item.id === value); if (entry) update(detection.id, { item: entry, exact: false }); }} options={equipmentOptions} /><small>Read: {detection.rawText}</small>{(!detection.exact || detection.confidence < 65) && <span className="badge caution-badge">Check match</span>}</td>

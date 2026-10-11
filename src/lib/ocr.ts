@@ -1,13 +1,53 @@
 import { createWorker, OEM, PSM } from 'tesseract.js';
 import type { Worker } from 'tesseract.js';
-import type { OcrLine } from './matching';
+import type { OcrLine, ScreenshotSource } from './matching';
+import { findCodexLabels, hasCodexMasteryBadge } from './codex';
+import type { CodexLabel } from './codex';
 
 export interface OcrResult { text: string; lines: OcrLine[] }
 
-export async function recognizeScreenshots(files: File[], onProgress: (message: string, progress: number) => void, onResult: (file: File, result: OcrResult) => void, signal: AbortSignal): Promise<void> {
+async function recognizeCodex(worker: Worker, canvas: HTMLCanvasElement, original: ImageData, labels: CodexLabel[], interrupted: Promise<never>): Promise<OcrResult> {
+  // A single column of isolated labels stops the game artwork and card borders
+  // from joining names. Keep the mapping back to each original card for badges.
+  const padding = 20;
+  const stride = Math.max(...labels.map(label => label.height)) + padding;
+  const sheet = document.createElement('canvas');
+  sheet.width = Math.max(...labels.map(label => label.width)) + padding * 2;
+  sheet.height = labels.length * stride + padding;
+  const context = sheet.getContext('2d', { willReadFrequently: true });
+  if (!context) throw new Error('Your browser could not prepare the Codex labels.');
+  try {
+    context.fillStyle = '#fff'; context.fillRect(0, 0, sheet.width, sheet.height);
+    labels.forEach((label, index) => {
+      const inset = Math.max(1, Math.round(label.height * 0.04));
+      context.drawImage(canvas, label.x + inset, label.y + inset, label.width - inset * 2, label.height - inset * 2,
+        padding + inset, padding + index * stride + inset, label.width - inset * 2, label.height - inset * 2);
+    });
+    const pixels = context.getImageData(0, 0, sheet.width, sheet.height);
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      const light = pixels.data[i] * 0.2126 + pixels.data[i + 1] * 0.7152 + pixels.data[i + 2] * 0.0722;
+      pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = light < 150 ? 0 : 255;
+    }
+    context.putImageData(pixels, 0, 0);
+    await Promise.race([worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK }), interrupted]);
+    const result = await Promise.race([worker.recognize(sheet, {}, { text: true, blocks: true }), interrupted]);
+    const recognized = result.data.blocks?.flatMap(block => block.paragraphs.flatMap(paragraph => paragraph.lines)) || [];
+    const lines = labels.flatMap((label, index): OcrLine[] => {
+      const top = padding + index * stride;
+      const own = recognized.filter(line => line.bbox.y0 >= top && line.bbox.y1 <= top + label.height);
+      if (!own.length) return [];
+      return [{ text: own.map(line => line.text.trim()).join(' '), confidence: Math.min(...own.map(line => line.confidence)),
+        bbox: { x0: label.x, y0: label.y, x1: label.x + label.width, y1: label.y + label.height },
+        masteryBadge: hasCodexMasteryBadge(original, label) }];
+    });
+    return { text: lines.map(line => line.text).join('\n'), lines };
+  } finally { sheet.width = 0; sheet.height = 0; }
+}
+
+export async function recognizeScreenshots(files: File[], onProgress: (message: string, progress: number) => void, onResult: (file: File, result: OcrResult) => void, signal: AbortSignal, source: ScreenshotSource = 'inventory'): Promise<void> {
   let fileIndex = 0;
   let pass = 0;
-  const passes = 2;
+  let passes = 2;
   let worker: Worker | undefined;
   let stopped = false;
   let rejectStop: (reason: Error) => void = () => {};
@@ -28,7 +68,7 @@ export async function recognizeScreenshots(files: File[], onProgress: (message: 
   });
   try {
     const ready = await Promise.race([loading, interrupted]);
-    await Promise.race([ready.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, preserve_interword_spaces: '1' }), interrupted]);
+    await Promise.race([ready.setParameters({ preserve_interword_spaces: '1' }), interrupted]);
     for (fileIndex = 0; fileIndex < files.length; fileIndex++) {
       if (signal.aborted) throw new DOMException('Import canceled', 'AbortError');
       const file = files[fileIndex];
@@ -42,6 +82,15 @@ export async function recognizeScreenshots(files: File[], onProgress: (message: 
       context.drawImage(bitmap, 0, 0, canvas.width, canvas.height); bitmap.close();
       try {
         const original = context.getImageData(0, 0, canvas.width, canvas.height);
+        const labels = source === 'codex' ? findCodexLabels(original) : [];
+        if (labels.length) {
+          pass = 0; passes = 1;
+          const result = await recognizeCodex(ready, canvas, original, labels, interrupted);
+          if (!signal.aborted) onResult(file, result);
+          continue;
+        }
+        passes = 2;
+        await Promise.race([ready.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT }), interrupted]);
         const prepared = context.createImageData(canvas.width, canvas.height);
         const lines: OcrLine[] = [];
         const texts: string[] = [];

@@ -6,7 +6,7 @@ import type { OcrLine } from '../src/lib/matching.ts';
 import type { CatalogItem } from '../src/lib/model.ts';
 
 const catalog: CatalogItem[] = JSON.parse(readFileSync(new URL('../src/data/catalog.json', import.meta.url), 'utf8')).items;
-const match = (text: string, confidence = 95, source: 'inventory' | 'arsenal' = 'inventory') => matchOcrLines(text.split('\n').map(text => ({ text, confidence })), catalog, 'inventory.png', source);
+const match = (text: string, confidence = 95, source: 'inventory' | 'codex' = 'inventory') => matchOcrLines(text.split('\n').map(text => ({ text, confidence })), catalog, 'inventory.png', source);
 
 test('matches distinct variants without also adding the base equipment', () => {
   assert.deepEqual(match('BRATON PRIME\nMK1-PARIS\nLATO VANDAL').map(result => result.item.name), ['Braton Prime', 'MK1-Paris', 'Lato Vandal']);
@@ -52,10 +52,30 @@ test('gilding-dependent and non-masterable equipment need separate mastery evide
 test('does not import blueprints or equipment parts as complete owned items', () => {
   assert.deepEqual(match('BRATON PRIME BLUEPRINT\nWISP PRIME CHASSIS\nLEX PRIME RECEIVER'), []);
 });
-test('Arsenal recognition leaves ownership for user review', () => {
-  assert.equal(match('BOLTOR', 95, 'arsenal')[0].owned, false);
+test('Codex recognition leaves ownership for user review', () => {
+  assert.equal(match('BOLTOR', 95, 'codex')[0].owned, false);
   assert.equal(match('BOLTOR NOT OWNED')[0].owned, false);
   assert.equal(match('BOLTOR')[0].owned, true);
+});
+test('Codex badges establish mastery for one named card without supplying ownership or current rank', () => {
+  const detect = (text: string, source: 'inventory' | 'codex' = 'codex') => matchOcrLines([{ text, confidence: 95, masteryBadge: true }], catalog, 'codex.png', source);
+  const boltor = detect('Boltor')[0];
+  assert.equal(boltor.mastered, true);
+  assert.equal(boltor.masterySource, 'badge');
+  assert.equal(boltor.rank, null);
+  assert.equal(boltor.owned, false);
+  assert.equal(detect('Boltor', 'inventory')[0].mastered, false);
+  assert.ok(detect('Boltor Braton Prime').every(item => !item.mastered));
+  assert.equal(detect('Artemis Bow')[0].mastered, false);
+  assert.equal(detect('Balla')[0].mastered, true);
+  assert.equal(reviewDetection(boltor, { rank: 0 }).mastered, true);
+  assert.equal(reviewDetection(boltor, { item: catalog.find(item => item.name === 'Boltor Prime')! }).mastered, false);
+  const manual = reviewDetection(boltor, { mastered: false });
+  assert.equal(reviewDetection(manual, { rank: 30 }).mastered, false);
+  assert.deepEqual(appendDetections([manual], detect('Boltor')), [manual]);
+  const repeated = appendDetections([boltor], match('Boltor', 99, 'codex'))[0];
+  assert.equal(repeated.masterySource, 'badge');
+  assert.equal(reviewDetection(repeated, { rank: 0 }).mastered, true);
 });
 test('fuzzy or low confidence matches require selection by the user', () => {
   const fuzzy = match('B0LTOR');
@@ -90,10 +110,10 @@ const label = (text: string, x0: number, y0: number, x1: number, y1: number, pas
 test('pairs a wrapped inventory rank only with a uniquely aligned name in the same OCR pass', () => {
   const name = label('Proboscis Cernos', 100, 100, 300, 140);
   const rank = label('[30]', 180, 146, 220, 178);
-  const detect = (lines: OcrLine[], source: 'inventory' | 'arsenal' = 'inventory') => matchOcrLines(lines, catalog, 'wrapped.png', source).find(entry => entry.item.name === 'Proboscis Cernos');
+  const detect = (lines: OcrLine[], source: 'inventory' | 'codex' = 'inventory') => matchOcrLines(lines, catalog, 'wrapped.png', source).find(entry => entry.item.name === 'Proboscis Cernos');
   assert.equal(detect([name, rank])?.rank, 30);
   assert.equal(detect([name, rank])?.mastered, true);
-  assert.equal(detect([name, rank], 'arsenal')?.rank, null);
+  assert.equal(detect([name, rank], 'codex')?.rank, null);
   assert.equal(detect([name, { ...rank, pass: 1 }])?.rank, null);
   assert.equal(detect([name, { ...rank, confidence: 40 }])?.rank, null);
   assert.equal(detect([name, label('[30]', 320, 146, 360, 178)])?.rank, null);
