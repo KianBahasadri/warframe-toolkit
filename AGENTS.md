@@ -6,7 +6,7 @@ Read `README.md` for setup, data semantics, and the code map.
 - Keep the UI limited to useful controls and data. Do not add slogans, promotional headings, or decorative explanatory copy.
 - Use player-facing terms such as rewards, sources, results, and equipment in UI copy and explanations to users. Do not call interface elements "cards" in user-facing text.
 - Keep the app usable locally without an API key or uploading screenshots.
-- Browsing and temporary edits are available to guests; saving personal data requires an account. Use the Warframe username and a separate toolkit password, with no email. Preserve older local saves for explicit migration, and never merge one account's data into another.
+- Browsing and temporary edits are available to guests; saving personal data requires an account. Use the Warframe username and a server-generated access key, with no chosen password or email. Personal sign-in bookmarks carry the key only in the URL fragment; consume and remove it promptly, and never add keys to shared view links or browser storage. Preserve older local saves for explicit migration, and never merge one account's data into another.
 - Preserve the 14 original spreadsheet fields. Ownership, mastery, and current rank are separate facts.
 - OCR is uncertain: keep a review step, never substitute base equipment for a variant, and never infer that missing equipment has been sold.
 - Screenshot merges preserve existing planning fields and notes. Do not silently reset malformed saved data.

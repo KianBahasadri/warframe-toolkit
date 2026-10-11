@@ -3,32 +3,34 @@ import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { accountUsername, emptyProfile, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, validateProfile } from '../src/lib/account.ts';
+import { accountUsername, emptyProfile, isAccessKey, validateProfile } from '../src/lib/account.ts';
 import type { AccountProfile, AccountSession } from '../src/lib/account.ts';
 
 const cookieName = 'warframe_toolkit_session';
 const lifetime = 30 * 24 * 60 * 60 * 1000;
 const hashOptions = { N: 131072, r: 8, p: 1, maxmem: 160 * 1024 * 1024 };
-type AccountRow = { id: string; username: string; salt: string; password_hash: string; profile: string; revision: number };
+type AccountRow = { id: string; username: string; salt: string; password_hash: string; access_key_hash: string | null; profile: string; revision: number };
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
+const newAccessKey = () => `wft_${randomBytes(32).toString('base64url')}`;
+// Only used to migrate accounts created before generated access keys were introduced.
 const passwordHash = (password: string, salt: string) => new Promise<Buffer>((resolve, reject) => scrypt(password, salt, 64, hashOptions, (error, result) => error ? reject(error) : resolve(result)));
 
 export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlite'), origin, now = Date.now }: { databasePath?: string; origin?: string; now?: () => number } = {}) {
   let db: DatabaseSync | undefined, storageError = false, hashing = 0;
   const limits = new Map<string, { attempts: number; until: number }>();
-  const dummySalt = randomBytes(16).toString('hex');
   try {
     if (databasePath !== ':memory:') mkdirSync(dirname(databasePath), { recursive: true, mode: 0o700 });
     db = new DatabaseSync(databasePath);
     if (databasePath !== ':memory:') chmodSync(databasePath, 0o600);
     db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, salt TEXT NOT NULL, password_hash TEXT NOT NULL, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, salt TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL DEFAULT '', access_key_hash TEXT, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS sessions_account ON sessions(account_id);`);
+    if (!db.prepare('PRAGMA table_info(accounts)').all().some(column => column.name === 'access_key_hash')) db.exec('ALTER TABLE accounts ADD COLUMN access_key_hash TEXT');
   } catch { storageError = true; }
 
   function json(res: ServerResponse, status: number, value: unknown) {
@@ -68,6 +70,17 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
     hashing++;
     try { return await passwordHash(password, salt); } finally { hashing--; }
   }
+  function replaceAccessKey(account: AccountRow, keepSession: string) {
+    snapshot(account);
+    const accessKey = newAccessKey();
+    db!.exec('BEGIN IMMEDIATE');
+    try {
+      db!.prepare("UPDATE accounts SET access_key_hash = ?, salt = '', password_hash = '' WHERE id = ?").run(digest(accessKey), account.id);
+      db!.prepare('DELETE FROM sessions WHERE account_id = ? AND token_hash != ?').run(account.id, digest(keepSession));
+      db!.exec('COMMIT');
+    } catch (error) { db!.exec('ROLLBACK'); throw error; }
+    return accessKey;
+  }
   async function body(req: IncomingMessage, max: number): Promise<Record<string, unknown>> {
     const expected = origin || `${'encrypted' in req.socket && req.socket.encrypted ? 'https' : 'http'}://${req.headers.host}`;
     if (req.headers.origin !== expected || req.headers['x-toolkit-request'] !== '1' || req.headers['sec-fetch-site'] === 'cross-site') throw new ApiError(403, 'Open this app directly to make changes.');
@@ -91,22 +104,31 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
       let name: ReturnType<typeof accountUsername>;
       try { name = accountUsername(value.username); } catch (error) { throw new ApiError(400, (error as Error).message); }
       throttle(req, name.key);
-      const password = value.password;
-      if (typeof password !== 'string' || [...password].length > MAX_PASSWORD_LENGTH || !password.length) throw new ApiError(400, `Enter a password of up to ${MAX_PASSWORD_LENGTH} characters.`);
       if (path.endsWith('/register')) {
-        if ([...password].length < MIN_PASSWORD_LENGTH) throw new ApiError(400, `Use at least ${MIN_PASSWORD_LENGTH} characters for your password.`);
+        if (value.accessKey !== undefined || value.password !== undefined) throw new ApiError(400, 'Access keys are generated when you create an account.');
         const savedProfile = value.profile === undefined ? emptyProfile() : profile(value.profile);
-        const salt = randomBytes(16).toString('hex'), hash = await derive(password, salt), id = randomUUID();
-        const result = db.prepare('INSERT OR IGNORE INTO accounts (id, username, username_key, salt, password_hash, profile) VALUES (?, ?, ?, ?, ?, ?)').run(id, name.username, name.key, salt, hash.toString('hex'), JSON.stringify(savedProfile));
+        const accessKey = newAccessKey(), id = randomUUID();
+        const result = db.prepare("INSERT OR IGNORE INTO accounts (id, username, username_key, salt, password_hash, access_key_hash, profile) VALUES (?, ?, ?, '', '', ?, ?)").run(id, name.username, name.key, digest(accessKey), JSON.stringify(savedProfile));
         if (!result.changes) throw new ApiError(409, 'That username is already registered. Sign in instead.');
-        json(res, 201, signIn(req, res, db.prepare('SELECT * FROM accounts WHERE id = ?').get(id) as AccountRow)); return;
+        json(res, 201, { ...signIn(req, res, db.prepare('SELECT * FROM accounts WHERE id = ?').get(id) as AccountRow), accessKey }); return;
       }
+      const credential = value.accessKey;
+      if (typeof credential !== 'string' || !credential.length || [...credential].length > 128) throw new ApiError(400, 'Enter your saved access key.');
       const account = db.prepare('SELECT * FROM accounts WHERE username_key = ?').get(name.key) as AccountRow | undefined;
-      const hash = await derive(password, account?.salt ?? dummySalt);
-      const expected = account ? Buffer.from(account.password_hash, 'hex') : Buffer.alloc(64);
-      if (expected.length !== hash.length || !timingSafeEqual(hash, expected) || !account) throw new ApiError(401, 'Username or password is incorrect.');
+      let accessKey: string | undefined;
+      if (account && account.access_key_hash === null && /^[a-f0-9]{128}$/.test(account.password_hash) && /^[a-f0-9]{32}$/.test(account.salt)) {
+        const hash = await derive(credential, account.salt);
+        if (!timingSafeEqual(hash, Buffer.from(account.password_hash, 'hex'))) throw new ApiError(401, 'Username or access key is incorrect.');
+        const latest = db.prepare('SELECT access_key_hash, password_hash FROM accounts WHERE id = ?').get(account.id);
+        if (latest?.access_key_hash !== null || latest.password_hash !== account.password_hash) throw new ApiError(401, 'Username or access key is incorrect.');
+        accessKey = replaceAccessKey(account, '');
+      } else {
+        const hash = Buffer.from(digest(credential.trim()), 'hex');
+        const expected = account?.access_key_hash && /^[a-f0-9]{64}$/.test(account.access_key_hash) ? Buffer.from(account.access_key_hash, 'hex') : Buffer.alloc(32);
+        if (!timingSafeEqual(hash, expected) || !account || !isAccessKey(credential.trim())) throw new ApiError(401, 'Username or access key is incorrect.');
+      }
       limits.delete(`user:${name.key}`);
-      json(res, 200, signIn(req, res, account)); return;
+      json(res, 200, { ...signIn(req, res, account!), ...(accessKey ? { accessKey } : {}) }); return;
     }
     const account = session(req);
     if (account && value.accountId !== account.id) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
@@ -115,6 +137,10 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
       setCookie(req, res, ''); json(res, 200, { user: null }); return;
     }
     if (!account) throw new ApiError(401, 'Sign in to save your changes.');
+    if (path === '/api/account/access-key' && req.method === 'POST') {
+      throttle(req, account.username.toLowerCase());
+      json(res, 200, { accessKey: replaceAccessKey(account, token(req)) }); return;
+    }
     if (path === '/api/account/profile' && req.method === 'PUT') {
       snapshot(account);
       if (!Number.isSafeInteger(value.revision) || Number(value.revision) < 0) throw new ApiError(400, 'Invalid save revision.');

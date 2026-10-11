@@ -1,6 +1,6 @@
 # Arsenal · Warframe Toolkit
 
-A browser app for tracking Warframe equipment using the fields from your spreadsheet, relic quantities, and searching the official drop tables. Built with React, TypeScript, and Vite. Browse and try the app without an account; sign in to save your inventory and views. Accounts use your Warframe username and a separate toolkit password, with no email. No paid service or API key is required. Catalog browsing and screenshot recognition work offline, and account saves work through the running local server without internet access. Drop-table updates need an internet connection; the most recent successful copy remains available through the local server while offline.
+A browser app for tracking Warframe equipment using the fields from your spreadsheet, relic quantities, and searching the official drop tables. Built with React, TypeScript, and Vite. Browse and try the app without an account; sign in to save your inventory and views. Accounts use your Warframe username and a generated access key, with no password or email. A personal bookmark link can sign you in automatically. No paid service or API key is required. Catalog browsing and screenshot recognition work offline, and account saves work through the running local server without internet access. Drop-table updates need an internet connection; the most recent successful copy remains available through the local server while offline.
 
 ## Run
 
@@ -110,13 +110,17 @@ The full live page was tested during implementation on 2026-10-11: 43,367 source
 
 ## Accounts, storage, and exports
 
-Use your **Warframe username** and choose a **separate password for this toolkit** (15–128 characters). Usernames are compared without case sensitivity and keep their entered capitalization. Accounts are independent of Warframe; this does not verify ownership of a game account or connect to Digital Extremes. There is no email field or password-recovery service.
+Use your **Warframe username** to create an account. The server generates a random **access key** and shows it once, together with a personal sign-in link. Copy the key, download the text file (which includes the link), or save the link as a browser bookmark. Confirm that you saved one before closing. Anyone with the key or link can access your account; keep it private. There is no email recovery. Usernames are compared without case sensitivity and keep their entered capitalization. Accounts are independent of Warframe; this does not verify ownership of a game account or connect to Digital Extremes.
+
+Sign in with your username and key, or open your saved bookmark. Sign-in links use `#sign-in?username=…&key=…`; the credentials stay in the URL fragment, so they are not sent as request URLs or referrers. The app immediately removes them from the address bar and that history entry, then sends the key in a same-origin POST to sign in. The saved bookmark remains reusable. Normal navigation and shared drop-table links do not contain credentials. No key is saved in localStorage or sessionStorage.
+
+While signed in, **Account → Replace access key** generates a new key and link. This invalidates the old key, old bookmarks, and other sessions, while preserving the current session and all saved data. If a signup response is interrupted, reopen the app and replace the key from the signed-in account. If you lose both the key and link and have no active session, you cannot recover access. Older password accounts can enter their previous toolkit password in the access-key field once; a successful sign-in replaces it with a generated key without changing the account ID, profile, or save revision.
 
 Guests can browse every section, use screenshot recognition, export CSV, and make temporary edits. Guest inventory changes are held in memory and disappear on reload. Signing in is required to persist equipment, relics, import history, and drop-table views. Signup offers **Save my current inventory and views to this account** when valid data exists; signing in to an existing account loads that account's data without merging the guest inventory. Signing out returns to the guest workspace from before sign-in.
 
 Accounts and their versioned profiles are stored in `.data/accounts.sqlite`, excluded from Git and blocked from Vite file serving. Keep this file private; back it up with the server stopped so SQLite has closed its journal. `ACCOUNTS_DATABASE` can set another private database path (outside public/static directories). A public installation needs HTTPS; set `ACCOUNTS_ORIGIN` to its exact HTTPS origin when using a reverse proxy so origin checks and Secure cookies match that address. Development and preview share the default database when run from this checkout.
 
-Passwords use individually salted scrypt hashes; sessions use random tokens in HttpOnly, SameSite cookies, with only token hashes stored in SQLite. Sessions expire after 30 days. Login attempts are throttled; writes require the app's origin, the current account ID, and the expected save revision. The implementation follows [OWASP's password-storage guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) and [session guidance](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html). Account storage uses Node's built-in SQLite and crypto modules, without an external account provider.
+Access keys have 32 cryptographically random bytes (256 bits), encoded as `wft_` plus 43 base64url characters. Only SHA-256 digests are stored; generated keys do not need expensive password stretching. New accounts cannot choose their own key or password. The original salted scrypt implementation is retained only to verify and migrate older password accounts; their password hashes are cleared after migration. Sessions use separate random tokens in HttpOnly, SameSite cookies, with only token digests stored in SQLite, following [OWASP's session guidance](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html). Sessions expire after 30 days. Login attempts are throttled; writes require the app's origin, the current account ID, and the expected save revision. Account responses use `Cache-Control: no-store`. Account storage uses Node's built-in SQLite and crypto modules, without an external account provider.
 
 Personal data is no longer written to browser storage. Older `warframe-toolkit.inventory.v1` and `warframe-toolkit.drop-views.v1` values are read for migration and preserved unchanged. Older inventory JSON without relic data loads with an empty relic collection and preserves all equipment fields. Theme and table-column preferences remain local display settings.
 
@@ -127,9 +131,9 @@ While signed in, the save status distinguishes saved data and pending changes. G
 ## Code map
 
 - `src/App.tsx`: navigation, account status, and inventory operations.
-- `server/accounts.ts`: SQLite accounts, password hashing, sessions, protected profile endpoints, and conflict detection.
+- `server/accounts.ts`: SQLite accounts, generated access keys, legacy password migration, sessions, protected profile endpoints, and conflict detection.
 - `src/lib/account.ts` and `src/lib/useAccount.ts`: profile validation, legacy save loading, guest workspace, authentication, and serialized autosaving.
-- `src/components/AccountDialog.tsx`: username/password signup, sign-in, migration choice, and sign-out.
+- `src/components/AccountDialog.tsx`: signup, access-key and bookmark saving, sign-in, key replacement, migration choice, and sign-out.
 - `tests/browser/accountFixture.ts`: isolated real account API used by browser regression tests.
 - `src/components/`: inventory table, weapon filters and details, equipment editor, import review, relics, command palette.
 - `src/components/ColumnPicker.tsx` and `src/lib/inventoryColumns.ts`: table column selection, default layout, and local display preferences.

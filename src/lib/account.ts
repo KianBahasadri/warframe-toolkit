@@ -7,8 +7,22 @@ export interface AccountUser { id: string; username: string }
 export interface SavedDropView { name: string; view: DropView }
 export interface AccountProfile { inventory: Inventory; dropViews: SavedDropView[] }
 export interface AccountSession { user: AccountUser; profile: AccountProfile; revision: number }
-export const MIN_PASSWORD_LENGTH = 15;
-export const MAX_PASSWORD_LENGTH = 128;
+export const isAccessKey = (value: unknown): value is string => typeof value === 'string' && /^wft_[A-Za-z0-9_-]{43}$/.test(value);
+
+export function accessKeyLink(base: string, username: string, accessKey: string): string {
+  const url = new URL(base);
+  url.search = '';
+  url.hash = `sign-in?${new URLSearchParams({ username, key: accessKey })}`;
+  return url.href;
+}
+
+export function readAccessKeyLink(hash: string): { username: string; accessKey: string } | null {
+  if (hash !== '#sign-in' && !hash.startsWith('#sign-in?')) return null;
+  const params = new URLSearchParams(hash.slice('#sign-in?'.length));
+  const accessKey = params.get('key');
+  if (!isAccessKey(accessKey) || params.getAll('key').length !== 1 || params.getAll('username').length !== 1) throw new Error('This sign-in link is incomplete or invalid. Use your saved key to sign in.');
+  return { username: accountUsername(params.get('username')).username, accessKey };
+}
 
 export const emptyProfile = (): AccountProfile => ({ inventory: { version: 1, items: [], relics: [], imports: [], referenceNotice: false }, dropViews: [] });
 

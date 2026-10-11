@@ -10,6 +10,13 @@
 .account-form p { margin: 0; line-height: 1.6; }
 .account-form .dialog-footer { margin-top: 8px; }
 .account-form .check-row { font-size: 12px; line-height: 1.6; }
+.account-form .account-secret { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+.account-key-actions { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.account-key-actions .button { font-size: 12px; padding: 9px 12px; }
+.account-bookmark { font-size: 12px; color: var(--ink); text-underline-offset: 3px; }
+.account-legacy { color: var(--muted); font-size: 12px; }
+.account-legacy summary { cursor: pointer; }
+.account-legacy p { padding-top: 8px; }
 .account-username { font-size: 18px; overflow-wrap: anywhere; }
 .account-error-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .account-error-actions:empty { display: none; }

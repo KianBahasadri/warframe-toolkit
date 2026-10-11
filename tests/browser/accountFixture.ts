@@ -6,9 +6,9 @@ import { emptyProfile } from '../../src/lib/account';
 import type { AccountProfile, AccountSession } from '../../src/lib/account';
 import type { Inventory } from '../../src/lib/model';
 
-export const testPassword = 'a separate toolkit test password';
 type TestAccount = {
   url: string;
+  accessKey: string;
   session: () => Promise<AccountSession>;
   profile: () => Promise<AccountProfile>;
   inventory: () => Promise<Inventory>;
@@ -38,12 +38,14 @@ export const test = base.extend<{ account: TestAccount; signedIn: boolean }>({
       const response = await context.request.put(`${url}/api/account/profile`, { headers, data: { profile, revision: current.revision, accountId: current.user.id } });
       expect(response.ok()).toBe(true);
     };
+    let accessKey = "";
     if (signedIn) {
-      const response = await context.request.post(`${url}/api/account/register`, { headers, data: { username: 'TestTenno', password: testPassword, profile: { ...emptyProfile(), inventory: initialInventory() } } });
+      const response = await context.request.post(`${url}/api/account/register`, { headers, data: { username: 'TestTenno', profile: { ...emptyProfile(), inventory: initialInventory() } } });
       expect(response.status()).toBe(201);
+      accessKey = (await response.json()).accessKey;
     }
     try {
-      await use({ url, session, profile, inventory: async () => (await profile()).inventory, setProfile,
+      await use({ url, accessKey, session, profile, inventory: async () => (await profile()).inventory, setProfile,
         setInventory: async inventory => setProfile({ ...(await session()).profile, inventory }),
         signOut: async () => { const current = await session(); const response = await context.request.post(`${url}/api/account/logout`, { headers, data: { accountId: current.user.id } }); expect(response.ok()).toBe(true); },
       });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { emptyProfile, validateDropViews, validateProfile } from './account';
+import { accountUsername, emptyProfile, isAccessKey, readAccessKeyLink, validateDropViews, validateProfile } from './account';
 import type { AccountProfile, AccountSession, AccountUser, SavedDropView } from './account';
 import type { Inventory } from './model';
 import { parseBackup, STORAGE_KEY } from './storage';
@@ -32,6 +32,7 @@ const message = (error: unknown) => error instanceof Error && error.name !== 'Ty
 export function useAccount() {
   const [state, setState] = useState(guestState);
   const current = useRef(state), guest = useRef(state);
+  const authVersion = useRef(0), authenticating = useRef(false);
   const pending = useRef<Promise<void> | null>(null), timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const update = useCallback((patch: Partial<State>) => { current.current = { ...current.current, ...patch }; setState(current.current); }, []);
 
@@ -53,15 +54,49 @@ export function useAccount() {
     return pending.current;
   }, [update]);
 
+  const authenticate = useCallback(async (mode: 'login' | 'register', username: string, accessKey: string, includeCurrent: boolean): Promise<string | undefined> => {
+    const before = current.current;
+    if (authenticating.current) throw new Error('Sign-in is already in progress. Please wait.');
+    if (before.user && before.dirty && accountUsername(username).key !== accountUsername(before.user.username).key) throw new Error('Save or download your changes before switching accounts.');
+    authenticating.current = true;
+    authVersion.current++;
+    update({ checking: true });
+    try {
+      const response = await request(mode, { username, ...(mode === 'login' ? { accessKey } : includeCurrent ? { profile: before.profile } : {}) });
+      const result = checkedSession(response);
+      if ((mode === 'register' || response.accessKey !== undefined) && !isAccessKey(response.accessKey)) throw new Error('Could not read your new access key. Reopen the app and replace the key from Account.');
+      if (!before.user) guest.current = before;
+      if (before.user?.id === result.user.id && before.dirty) { update({ user: result.user, error: '', checking: false }); await save(); }
+      else update({ ...result, checking: false, dirty: false, saving: false, error: '', viewsError: '', unreadable: false });
+      return response.accessKey;
+    } finally { authenticating.current = false; update({ checking: false }); }
+  }, [save, update]);
+
   useEffect(() => {
     let active = true;
-    queueMicrotask(() => { if (active) void request('session').then(result => {
-      if (!active || !current.current.checking) return;
+    const consumeLink = () => {
+      const hash = location.hash;
+      if (hash !== '#sign-in' && !hash.startsWith('#sign-in?')) return false;
+      // Fragments never reach the server. Remove credentials from this history entry,
+      // even when sign-in fails; the user's saved bookmark remains reusable.
+      history.replaceState(history.state, '', `${location.pathname}${location.search}#weapons`);
+      authVersion.current++;
+      try {
+        const link = readAccessKeyLink(hash)!;
+        void authenticate('login', link.username, link.accessKey, false).catch(error => { if (active) update({ error: message(error) }); });
+      } catch (error) { update({ checking: false, error: message(error) }); }
+      return true;
+    };
+    window.addEventListener('hashchange', consumeLink);
+    queueMicrotask(() => { if (!active || consumeLink()) return;
+      const version = authVersion.current;
+      void request('session').then(result => {
+      if (!active || version !== authVersion.current || !current.current.checking) return;
       if (result.user) update({ ...checkedSession(result), checking: false, error: '', viewsError: '', unreadable: false });
       else update({ checking: false });
-    }).catch(error => { if (active && current.current.checking) update({ checking: false, error: current.current.error || message(error) }); }); });
-    return () => { active = false; };
-  }, [update]);
+    }).catch(error => { if (active && version === authVersion.current && current.current.checking) update({ checking: false, error: current.current.error || message(error) }); }); });
+    return () => { active = false; window.removeEventListener('hashchange', consumeLink); };
+  }, [authenticate, update]);
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => { if (current.current.dirty) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', beforeUnload);
@@ -76,13 +111,10 @@ export function useAccount() {
     else { clearTimeout(timer.current); timer.current = setTimeout(() => void save(), 150); }
     return true;
   };
-  const authenticate = async (mode: 'login' | 'register', username: string, password: string, includeCurrent: boolean) => {
-    const before = current.current;
-    if (before.user && before.dirty && username.trim().toLowerCase() !== before.user.username.toLowerCase()) throw new Error('Save or download your changes before switching accounts.');
-    const result = checkedSession(await request(mode, { username, password, ...(mode === 'register' && includeCurrent ? { profile: before.profile } : {}) }));
-    if (!before.user) guest.current = before;
-    if (before.user?.id === result.user.id && before.dirty) { update({ user: result.user, error: '', checking: false }); await save(); }
-    else update({ ...result, checking: false, dirty: false, saving: false, error: '', viewsError: '', unreadable: false });
+  const replaceAccessKey = async (): Promise<string> => {
+    const response = await request('access-key', { accountId: current.current.user?.id });
+    if (!isAccessKey(response.accessKey)) throw new Error('Could not read your new access key. Try replacing it again.');
+    return response.accessKey;
   };
   const signOut = async () => {
     clearTimeout(timer.current); await save();
@@ -100,7 +132,7 @@ export function useAccount() {
       update({ ...result, dirty: false, error: '', unreadable: false, viewsError: '' });
     } catch (error) { update({ error: message(error) }); }
   };
-  return { ...state, authenticate, signOut, retrySave: save, reloadSaved,
+  return { ...state, authenticate, replaceAccessKey, signOut, retrySave: save, reloadSaved,
     commitInventory: (inventory: Inventory) => commit({ ...current.current.profile, inventory }),
     commitViews: (dropViews: SavedDropView[]) => current.current.user ? commit({ ...current.current.profile, dropViews }) : false,
     canIncludeCurrent: !state.unreadable && !state.viewsError && Boolean(state.profile.inventory.items.length || state.profile.inventory.relics.length || state.profile.inventory.imports.length || state.profile.dropViews.length),
