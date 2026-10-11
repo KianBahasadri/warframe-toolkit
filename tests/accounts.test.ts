@@ -126,6 +126,8 @@ test('unreadable account files and profiles are preserved instead of being reset
     const db = new DatabaseSync(goodPath); db.prepare('UPDATE accounts SET profile = ?').run('{broken');
     assert.equal((await api.request('session', undefined, cookie)).status, 503);
     assert.equal((await api.request('profile', { accountId: data.user.id, profile: emptyProfile(), revision: 0 }, cookie, { method: 'PUT' })).status, 503);
+    assert.equal((await api.request('access-key', { accountId: data.user.id }, cookie)).status, 503);
+    assert.equal(db.prepare('SELECT access_key_hash FROM accounts').get()!.access_key_hash, digest(accessKey));
     assert.equal(db.prepare('SELECT profile FROM accounts').get()!.profile, '{broken'); db.close();
   } finally { await api.close(); await rm(directory, { recursive: true }); }
 });

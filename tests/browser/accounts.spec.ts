@@ -337,6 +337,7 @@ test.describe('generated keys and personal bookmarks', () => {
     });
     for (let visit = 0; visit < 2; visit++) {
       await signOut(page, 'LinkedTenno#123');
+      if (visit === 0) await page.goto('about:blank');
       await page.goto(link);
       await expect(page.getByRole('button', { name: 'Account: LinkedTenno#123', exact: true })).toBeVisible();
       expect((await account.inventory()).items[0]).toMatchObject({ name: 'Boltor', owned: true });
