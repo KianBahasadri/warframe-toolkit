@@ -54,7 +54,7 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   const savedBeforeReview = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
-  await page.getByLabel('Choose screenshots').setInputFiles({ name: 'inventory-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
+  await page.getByLabel('Choose inventory screenshots').setInputFiles({ name: 'inventory-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
   await expect(page.getByLabel('Import Braton Prime', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Import Wisp Prime', { exact: true })).toBeChecked();
@@ -375,18 +375,103 @@ test('Alt number shortcuts follow the top tabs and stay inactive while editing',
   await expect(shortcuts).not.toContainText('Data & backups');
 });
 
-test('canceling OCR releases the importer for another batch', async ({ page }) => {
+test('screenshot instructions show the local example and fit desktop and mobile', async ({ page }) => {
+  await page.goto('/#import');
+  const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
+  const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
+  await expect(inventory).toBeVisible();
+  await expect(arsenal).toBeVisible();
+  const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  const instructions = inventory.getByRole('button', { name: 'Inventory instructions' });
+  await instructions.click();
+  const guide = page.getByRole('dialog', { name: 'Inventory screenshots', exact: true });
+  const example = guide.getByRole('img', { name: /Warframe Inventory\/Sell screen/ });
+  await expect(example).toBeVisible();
+  await expect(example).toHaveJSProperty('naturalWidth', 1920);
+  await expect(example).toHaveJSProperty('naturalHeight', 1200);
+  await expect(guide.getByRole('link', { name: 'Open full-size example' })).toHaveAttribute('href', '/images/import/inventory-weapons.png');
+  await expect(guide.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  expect(await guide.evaluate(dialog => dialog.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Tab');
+  await expect(guide.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+  await page.screenshot({ path: 'test-results/inventory-instructions-desktop.png' });
+  await page.keyboard.press('Escape');
+  await expect(instructions).toBeFocused();
+
+  await arsenal.getByRole('button', { name: 'Arsenal instructions' }).click();
+  await expect(page.getByRole('dialog', { name: 'Arsenal screenshots', exact: true })).toContainText('Owned starts unchecked');
+  await page.mouse.click(1, 1);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(arsenal.getByRole('button', { name: 'Arsenal instructions' })).toBeFocused();
+  await page.getByRole('button', { name: 'Switch to light theme' }).click();
+  await page.setViewportSize({ width: 320, height: 720 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await instructions.click();
+  await expect(example).toBeVisible();
+  expect(await guide.evaluate(dialog => dialog.scrollWidth <= dialog.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/inventory-instructions-mobile.png' });
+  await guide.getByRole('button', { name: 'Close instructions', exact: true }).click();
+  await expect(instructions).toBeFocused();
+  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
+  await expect(page.getByText('Screenshot preview', { exact: true })).toHaveCount(0);
+});
+
+test('the real Inventory example reaches review without changing saved data', async ({ page }) => {
+  const externalRequests: string[] = [];
+  page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
+  await page.goto('/#import');
+  await expect(page.getByRole('heading', { name: 'Import screenshots', exact: true })).toBeVisible();
+  const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  await page.getByLabel('Choose inventory screenshots').setInputFiles('public/images/import/inventory-weapons.png');
+  const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
+  const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
+  await expect(inventory.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
+  await expect(inventory.getByLabel('Import Braton Prime', { exact: true })).toBeChecked();
+  await expect(inventory.getByLabel('Import Braton', { exact: true })).toHaveCount(0);
+  await expect(inventory.getByLabel('Owned: Tonkor', { exact: true })).toBeChecked();
+  await expect(inventory.getByLabel('Mastered: Tonkor', { exact: true })).not.toBeChecked();
+  await expect(arsenal.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false })).toBeDisabled();
+  await expect(arsenal.getByRole('heading', { name: 'Review matches' })).toHaveCount(0);
+  const visibleNames = ['Tonkor', 'Boltor', 'Braton Prime', 'Dera', 'Dread', 'Ignis Wraith', 'Nataruk', 'Phantasma', 'Proboscis Cernos', 'Rubico', 'Strun', 'Tigris', 'Vectis Prime', 'Anku', 'Arca Titron', 'Broken Scepter', 'Broken War'];
+  const names = await inventory.locator('.review-table [role="combobox"]').allTextContents();
+  expect(names.length).toBeGreaterThan(0);
+  expect(names.every(name => visibleNames.includes(name))).toBe(true);
+  await arsenal.getByRole('button', { name: 'Arsenal instructions' }).click();
+  await page.keyboard.press('Escape');
+  await expect(inventory.getByLabel('Owned: Tonkor', { exact: true })).toBeChecked();
+  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
+  expect(externalRequests).toEqual([]);
+});
+
+test('canceling OCR releases the importer and paste uses the focused source', async ({ page }) => {
   await page.goto('/#import');
   const dataUrl = await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 700; const context = canvas.getContext('2d')!; context.fillStyle = '#ffffff'; context.fillRect(0, 0, 1400, 700); context.fillStyle = '#000000'; context.font = '42px Arial'; context.fillText('BRATON PRIME', 100, 150); return canvas.toDataURL('image/png'); });
-  await page.getByLabel('Choose screenshots').setInputFiles({ name: 'cancel-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
+  await page.getByLabel('Choose inventory screenshots').setInputFiles({ name: 'cancel-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
   await page.getByRole('button', { name: 'Cancel reading' }).click();
   await expect(page.getByText('Reading canceled.', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false })).toBeVisible();
-  await chooseOption(page, 'Screenshots from', 'Arsenal · review ownership');
-  await page.getByLabel('Choose screenshots').setInputFiles({ name: 'retry-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
+  await expect(page.getByRole('region', { name: 'Inventory', exact: true }).getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false })).toBeVisible();
+  const pasteImage = () => page.evaluate(url => {
+    const bytes = Uint8Array.from(atob(url.split(',')[1]), character => character.charCodeAt(0));
+    const clipboard = new DataTransfer();
+    clipboard.items.add(new File([bytes], 'retry-test.png', { type: 'image/png' }));
+    // Firefox strips files from constructed ClipboardEvents; attach the readable
+    // clipboard payload a native paste would provide to the event handler.
+    const paste = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, 'clipboardData', { value: clipboard });
+    document.activeElement!.dispatchEvent(paste);
+  }, dataUrl);
+  await page.getByRole('button', { name: 'Arsenal instructions' }).click();
+  await pasteImage();
+  await expect(page.getByText('Screenshot preview', { exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
+  await arsenal.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false }).focus();
+  await pasteImage();
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
-  await expect(page.getByLabel('Owned: Braton Prime', { exact: true })).not.toBeChecked();
+  await expect(arsenal.getByLabel('Owned: Braton Prime', { exact: true })).not.toBeChecked();
 });
 
 test('unreadable saved data is preserved and failed saves remain visible', async ({ page }) => {

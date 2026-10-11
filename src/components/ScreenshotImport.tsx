@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
+import { CircleHelp } from 'lucide-react';
 import { catalog } from '../data/catalog';
 import { createEquipment } from '../lib/model';
 import type { Equipment } from '../lib/model';
 import { matchOcrLines } from '../lib/matching';
 import type { Detection, ScreenshotSource } from '../lib/matching';
 import { Select } from './Select';
+import { ScreenshotHelp } from './ScreenshotHelp';
 
 const equipmentOptions = catalog.map(item => ({ value: item.id, label: item.name }));
+const importSources = [{ value: 'inventory', label: 'Inventory' }, { value: 'arsenal', label: 'Arsenal' }] as const;
 
 interface Scan { file: File; url: string; read: boolean }
 
 export function ScreenshotImport({ onImport, onInventory }: { onImport: (observations: Equipment[], files: string[]) => { added: number; updated: number } | null; onInventory: () => void }) {
   const [source, setSource] = useState<ScreenshotSource>('inventory');
+  const [help, setHelp] = useState<ScreenshotSource | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
   const [detections, setDetections] = useState<Detection[]>([]);
   const [busy, setBusy] = useState(false);
@@ -19,17 +23,19 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  const [dragging, setDragging] = useState<ScreenshotSource | null>(null);
   const [completed, setCompleted] = useState<{ added: number; updated: number } | null>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const inputs = useRef<Record<ScreenshotSource, HTMLInputElement | null>>({ inventory: null, arsenal: null });
+  const pasteSource = useRef<ScreenshotSource>('inventory');
   const controller = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
   const urls = useRef<string[]>([]);
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); urls.current.forEach(URL.revokeObjectURL); }; }, []);
 
-  const processFiles = async (files: File[]) => {
-    if (busyRef.current || !files.length) return;
+  const processFiles = async (files: File[], screenshotSource: ScreenshotSource) => {
+    if (busyRef.current || scans.length || !files.length) return;
+    setSource(screenshotSource);
     if (files.length > 10) { setError('Choose up to 10 screenshots at a time.'); return; }
     if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))) { setError('Use PNG, JPG, or WebP screenshots.'); return; }
     if (files.some(file => file.size > 20 * 1024 * 1024)) { setError('Each screenshot must be smaller than 20 MB.'); return; }
@@ -46,7 +52,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
       }, (file, result) => {
         if (!active.current) return;
         setScans(current => current.map(scan => scan.file === file ? { ...scan, read: true } : scan));
-        const matched = matchOcrLines(result.lines, catalog, file.name, source);
+        const matched = matchOcrLines(result.lines, catalog, file.name, screenshotSource);
         setDetections(current => {
           const byId = new Map(current.map(detection => [detection.item.id, detection]));
           for (const detection of matched) {
@@ -75,9 +81,9 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   const processRef = useRef(processFiles); processRef.current = processFiles;
   useEffect(() => {
     const paste = (event: ClipboardEvent) => {
-      if ((event.target as HTMLElement)?.closest('input, textarea, [contenteditable]')) return;
+      if (document.querySelector('dialog[open]') || event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]')) return;
       const files = [...(event.clipboardData?.items || [])].filter(item => item.type.startsWith('image/')).map(item => item.getAsFile()).filter((file): file is File => Boolean(file));
-      if (files.length) { event.preventDefault(); void processRef.current(files); }
+      if (files.length) { event.preventDefault(); void processRef.current(files, pasteSource.current); }
     };
     document.addEventListener('paste', paste);
     return () => document.removeEventListener('paste', paste);
@@ -95,19 +101,22 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     if (result) setCompleted(result);
   };
   return <section className="import-section" aria-labelledby="import-title">
-    <div className="section-heading">
-      <h1 id="import-title">Import screenshots</h1>
-      <div className="import-actions">
-        {!completed && <Select label="Screenshots from" value={source} disabled={busy || scans.length > 0} onChange={value => setSource(value as ScreenshotSource)} options={[{ value: 'inventory', label: 'Inventory · owned equipment' }, { value: 'arsenal', label: 'Arsenal · review ownership' }]} />}
-        {busy ? <button type="button" className="button secondary" onClick={() => controller.current?.abort()}>Cancel reading</button> : scans.length > 0 && <button type="button" className="button secondary" onClick={clear}>{completed ? 'Import more' : 'Clear'}</button>}
+    <div className="section-heading"><h1 id="import-title">Import screenshots</h1></div>
+    <div className="import-sources">{importSources.map(({ value, label }) => <section key={value} className="import-source" aria-labelledby={`${value}-import-title`} onFocusCapture={() => { pasteSource.current = value; }} onPointerDownCapture={() => { pasteSource.current = value; }}>
+      <div className="section-heading import-source-heading">
+        <h2 id={`${value}-import-title`}>{label}</h2>
+        <div className="import-actions">
+          <button type="button" className="button secondary" aria-label={`${label} instructions`} aria-haspopup="dialog" onClick={() => setHelp(value)}><CircleHelp size={16} aria-hidden="true" />Instructions</button>
+          {source === value && (busy ? <button type="button" className="button secondary" onClick={() => controller.current?.abort()}>Cancel reading</button> : scans.length > 0 && <button type="button" className="button secondary" onClick={clear}>{completed ? 'Import more' : 'Clear'}</button>)}
+        </div>
       </div>
-    </div>
-    <input ref={input} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label="Choose screenshots" tabIndex={-1} onChange={event => { void processFiles([...event.target.files || []]); event.target.value = ''; }} />
-    {error && <p className="callout danger" role="alert">{error}</p>}
-    {!scans.length && <button type="button" className={`drop-zone ${dragging ? 'dragging' : ''}`} onClick={() => input.current?.click()} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); void processFiles([...event.dataTransfer.files]); }}>
+    <input ref={node => { inputs.current[value] = node; }} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label={`Choose ${label.toLowerCase()} screenshots`} tabIndex={-1} disabled={busy || scans.length > 0} onChange={event => { void processFiles([...event.target.files || []], value); event.target.value = ''; }} />
+    {source === value && error && <p className="callout danger" role="alert">{error}</p>}
+    {(!scans.length || source !== value) && <button type="button" className={`drop-zone ${dragging === value ? 'dragging' : ''}`} disabled={busy || scans.length > 0} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); if (!busy && !scans.length) setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
       <span>Drop, paste, or choose screenshots</span>
-      <small>PNG, JPG, WebP · up to 10 images · 20 MB each</small>
+      <small>{completed ? 'Select Import more to start another batch' : scans.length ? 'Finish or clear the current batch first' : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
     </button>}
+    {source === value && <>
     {busy && <div className="import-progress"><span role="status">Reading screenshots… {Math.round(progress * 100)}%</span><progress value={progress} max={1} aria-label="Screenshot reading progress" /></div>}
     {!!scans.length && !completed && <details className="import-preview"><summary>Screenshot preview</summary>
       {scans.length > 1 && <Select className="preview-picker" label="Preview screenshot" value={String(preview)} onChange={value => setPreview(Number(value))} options={scans.map((scan, index) => ({ value: String(index), label: `${index + 1}. ${scan.file.name}` }))} />}
@@ -115,7 +124,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     </details>}
     {!busy && !completed && status && <p className="import-status" role="status">{status}</p>}
     {!!scans.length && !busy && !completed && (detections.length ? <section className="review-section" aria-labelledby="review-title">
-      <div className="section-heading"><h2 id="review-title">Review matches</h2><div className="import-actions">
+      <div className="section-heading"><h3 id="review-title">Review matches</h3><div className="import-actions">
         <button type="button" className="button secondary" onClick={() => setDetections(current => current.map(detection => ({ ...detection, selected: !current.every(entry => entry.selected) })))}>{detections.every(detection => detection.selected) ? 'Deselect all' : 'Select all'}</button>
         <button type="button" className="button primary" disabled={!selected.length} onClick={save}>Import {selected.length} {selected.length === 1 ? 'item' : 'items'}</button>
       </div></div>
@@ -132,5 +141,8 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
       </table></div>
     </section> : !status && !error && <p className="import-status" role="status">No equipment matched.</p>)}
     {completed && <div className="import-result"><span role="status">{completed.added} added · {completed.updated} updated</span><button type="button" className="button primary" onClick={onInventory}>View inventory</button></div>}
+    </>}
+    </section>)}</div>
+    {help && <ScreenshotHelp source={help} onClose={() => setHelp(null)} />}
   </section>;
 }

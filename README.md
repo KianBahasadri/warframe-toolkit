@@ -63,14 +63,16 @@ Search names and notes, filter by era or refinement, and sort columns. **Export 
 
 ## Screenshot import
 
-1. Open **Import screenshots** and choose Inventory or Arsenal.
-2. Drop, paste, or browse for up to 10 English PNG, JPG, or WebP screenshots, each below 20 MB and 32 megapixels.
+1. Open **Import screenshots**. **Inventory** and **Arsenal** have separate sections and **Instructions** buttons. The Inventory guide shows the supplied game screenshot, with a link to open it at full size.
+2. Drop or browse for up to 10 English PNG, JPG, or WebP screenshots in the appropriate section, each below 20 MB and 32 megapixels. To paste, focus that section’s upload area first; pasting before choosing a section defaults to Inventory.
 3. Text recognition starts automatically. Review matched names, ownership, mastery, and rank before importing.
 4. Correct a matched name with its dropdown, deselect unwanted results, and import the selected rows. Expand **Screenshot preview** to compare them with the source image.
 
+Finish or clear the current batch before starting another source. Help dialogs never import their example image or change the source of an active batch. The Inventory example is bundled at `public/images/import/inventory-weapons.png`; provenance is recorded alongside it in `SOURCES.md`.
+
 The reader uses [Tesseract.js](https://github.com/naptha/tesseract.js) entirely in the browser with a bundled English model. It matches names against the 805 bundled equipment names in the weapon database. `npm run catalog:update` refreshes that snapshot and its licenses; it never modifies your saved inventory.
 
-Recognition is a starting point for review. This version has been tested against a synthetic equipment screenshot; actual user inventory/Arsenal screenshots are still needed to tune it to the in-game layout. It does not recognize checkmark icons, equipment pictures, or arbitrary custom weapon names. Prime and other variants are matched separately. Blueprint/component lines are excluded; uncertain fuzzy matches are not selected automatically.
+Recognition is a starting point for review. Tests cover synthetic equipment screenshots and the supplied real Inventory/Sell screenshot. That example still misses some fully visible names, and bracket-only rank labels such as `[30]` are not read as ranks. Real Arsenal screenshots and more Inventory layouts still need testing. The reader does not recognize checkmark icons, equipment pictures, or arbitrary custom weapon names. Prime and other variants are matched separately. Blueprint/component lines are excluded; uncertain fuzzy matches are not selected automatically.
 
 Inventory matches initially count as owned; Arsenal matches require ownership review. Rank and explicit “Mastered” text are read only when they appear on the same line as one matched item. Rank 30, “MAX,” or a nearby mastery icon does not imply full mastery. No absence in a screenshot clears prior ownership or mastery.
 
@@ -89,6 +91,7 @@ Unparseable existing storage is preserved instead of silently resetting it. The 
 - `src/App.tsx`: navigation, persistence, and inventory operations.
 - `src/components/`: inventory table, weapon filters and details, equipment editor, import review, relics, command palette.
 - `src/components/Select.tsx`: shared custom dropdowns with keyboard navigation, type-to-select, and viewport positioning; no native select popup or experimental picker CSS.
+- `src/components/ScreenshotHelp.tsx`: source-specific screenshot instructions and the local Inventory example.
 - `src/lib/weaponCatalog.ts`: catalog/inventory projection, combined filters, and safe catalog-entry ownership updates.
 - `src/assets/warframe/`: bundled in-game tab icons; original asset links and attribution are in [SOURCES.md](src/assets/warframe/SOURCES.md).
 - `src/lib/model.ts`: equipment schema and conservative import merging.
