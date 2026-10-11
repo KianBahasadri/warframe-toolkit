@@ -690,6 +690,13 @@ test('screenshot instructions show the local example and fit desktop and mobile'
   const arsenal = page.getByRole('region', { name: 'Arsenal', exact: true });
   await expect(inventory).toBeVisible();
   await expect(arsenal).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Import screenshots', exact: true })).toHaveCount(0);
+  for (const section of [inventory, arsenal]) {
+    const example = section.getByRole('img', { name: 'Example Warframe Inventory screen showing weapon cards and ranks' });
+    await expect(example).toBeVisible();
+    await expect(example).toHaveAttribute('src', '/images/import/inventory-weapons.png');
+    await expect(example).toHaveJSProperty('naturalWidth', 1920);
+  }
   const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   const instructions = inventory.getByRole('button', { name: 'Inventory instructions' });
   await instructions.click();
@@ -772,6 +779,7 @@ test('pointer highlights the paste destination and a batch hides the other sourc
   await expect(inventory).toHaveCount(0);
   await expect(arsenal.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(1);
   await expect(page.locator('.import-source.is-exiting')).toHaveCount(0);
+  await expect(page.locator('.import-source-example')).toHaveCount(0);
   expect((await arsenal.boundingBox())!.width).toBe((await stage.boundingBox())!.width);
   await waitForScreenshotReview(page);
   await expect(arsenal.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
@@ -815,7 +823,7 @@ for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
   await page.goto('/#import');
-  await expect(page.getByRole('heading', { name: 'Import screenshots', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Import screenshots', exact: true })).toBeVisible();
   const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   await page.getByLabel('Choose inventory screenshots').setInputFiles(fixture.file);
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });

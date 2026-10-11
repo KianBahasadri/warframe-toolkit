@@ -142,8 +142,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     const result = onImport(observations, scans.filter(scan => scan.read).map(scan => scan.file.name));
     if (result) { batch.current.completed = true; setCompleted(result); }
   };
-  return <section className="import-section" aria-labelledby="import-title">
-    <div className="section-heading"><h1 id="import-title">Import screenshots</h1></div>
+  return <section className="import-section" aria-label="Import screenshots">
     <div ref={sourceStage} className={`import-sources${hasBatch ? ' has-batch' : ''}`}>{visibleSources.map(({ value, label }) => <section key={value} data-source={value} className={`import-source${!hasBatch && pasteTarget === value ? ' is-paste-target' : ''}${departing === value ? ' is-exiting' : ''}`} inert={departing === value} aria-hidden={departing === value ? true : undefined} aria-labelledby={`${value}-import-title`} aria-description={!hasBatch && pasteTarget === value ? 'Selected for screenshot paste' : undefined} onFocusCapture={() => choosePasteSource(value)} onPointerDownCapture={() => choosePasteSource(value)} onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && departing === value) setDeparting(null); }}>
       <div className="import-source-content">
       <div className="section-heading import-source-heading">
@@ -155,9 +154,10 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
       </div>
     <input ref={node => { inputs.current[value] = node; }} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label={`Choose ${label.toLowerCase()} screenshots`} tabIndex={-1} disabled={!!completed} onChange={event => { void processFiles([...event.target.files || []], value); event.target.value = ''; }} />
     {source === value && error && <p className="callout danger" role="alert">{error}</p>}
-    {!completed && <button type="button" className={`drop-zone ${scans.length && source === value ? 'drop-zone-compact' : ''} ${dragging === value ? 'dragging' : ''}`} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); choosePasteSource(value); setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
-      <span>{scans.length && source === value ? 'Add screenshots' : 'Drop, paste, or choose screenshots'}</span>
-      <small>{scans.length && source === value ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
+    {!completed && <button type="button" className={`drop-zone ${scans.length && source === value ? 'drop-zone-compact' : ''} ${dragging === value ? 'dragging' : ''}`} aria-labelledby={`${value}-upload-label ${value}-upload-limits`} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); choosePasteSource(value); setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
+      {(!hasBatch || departing === value) && <img className="import-source-example" src="/images/import/inventory-weapons.png" width={1920} height={1200} alt="Example Warframe Inventory screen showing weapon cards and ranks" draggable={false} />}
+      <span id={`${value}-upload-label`}>{scans.length && source === value ? 'Add screenshots' : 'Drop, paste, or choose screenshots'}</span>
+      <small id={`${value}-upload-limits`}>{scans.length && source === value ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
     </button>}
     {source === value && <>
     {busy && <div className="import-progress"><span role="status">Reading screenshots… {Math.round(progress * 100)}%</span><progress value={progress} max={1} aria-label="Screenshot reading progress" /></div>}
