@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Filter, Search, SlidersHorizontal, X } from 'lucide-react';
 import { disposition } from '../lib/model';
 import type { Equipment } from '../lib/model';
@@ -30,6 +30,10 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
   const availableColumns = inventoryColumns.map(column => weapons && column.key === 'name' ? { ...column, title: 'Weapon' } : column);
   const columns = availableColumns.filter(column => visibleColumns.includes(column.key));
   const openMenu = (key: ColumnKey, anchor: HTMLElement, point?: { x: number; y: number }, initialView?: 'filter') => setMenu({ id: ++menuSequence.current, key, anchor, point, initialView });
+  const openHeaderMenu = (key: ColumnKey, event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    openMenu(key, headerButtons.current.get(key)!, event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : undefined);
+  };
   const changeColumns = (next: Column['key'][]) => {
     setVisibleColumns(next);
     setSorting(current => current.filter(sort => next.includes(sort.key)));
@@ -55,10 +59,6 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
   const filterCount = Object.entries(filters).filter(([key, value]) => value !== defaultWeaponFilters[key as keyof typeof filters]).length;
   const sorted = sortRows(filtered, sorting);
   const activeId = sorted.some(item => item.id === active) ? active : sorted[0]?.id;
-  const sortBy = (key: Column['key']) => setSorting(current => {
-    const existing = current.find(sort => sort.key === key);
-    return setColumnSort(current, key, !existing ? 1 : existing.direction === 1 ? -1 : 0);
-  });
   return <>
     <div className="inventory-toolbar">
       <div className="search-field inventory-search"><Search size={16} /><input id="inventory-search" aria-label={weapons ? 'Search weapons' : 'Search equipment'} placeholder={weapons ? 'Search weapons…' : 'Search equipment…'} value={search} onChange={event => setSearch(event.target.value)} /></div>
@@ -80,15 +80,15 @@ export function InventoryTable({ items, onEdit, onToggle, search, setSearch, wea
     </div>)}</div>}
     <div className="table-scroll inventory-grid" role="region" aria-label={weapons ? 'Weapon inventory' : 'Equipment inventory'} tabIndex={0}>
       <table className="inventory-table" style={{ minWidth: columns.reduce((width, column) => width + column.width, 0) }}>
-        <caption className="sr-only">{weapons ? 'Weapon' : 'Equipment'} catalog and inventory. Ownership and planning checkboxes save automatically. Select a name for game details and inventory settings. Right-click a header or press Shift+F10 for column actions.</caption>
+        <caption className="sr-only">{weapons ? 'Weapon' : 'Equipment'} catalog and inventory. Ownership and planning checkboxes save automatically. Select a name for game details and inventory settings. Click or right-click a header, or press Shift+F10, for column actions.</caption>
         <colgroup>{columns.map(column => <col key={column.key} style={{ width: column.width }} />)}</colgroup>
         <thead><tr>{columns.map(column => {
           const sortIndex = sorting.findIndex(sort => sort.key === column.key);
           const sort = sorting[sortIndex];
           return <th scope="col" key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : ''} aria-sort={sortIndex === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}
-            onContextMenu={event => { event.preventDefault(); openMenu(column.key, headerButtons.current.get(column.key)!, event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : undefined); }}
+            onClick={event => openHeaderMenu(column.key, event)} onContextMenu={event => openHeaderMenu(column.key, event)}
             onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { event.preventDefault(); event.stopPropagation(); openMenu(column.key, event.target as HTMLElement); } }}>
-            <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" onClick={() => sortBy(column.key)} aria-label={`Sort ${column.title}${sort ? `, priority ${sortIndex + 1}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : ', unsorted'}`} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button>
+            <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" aria-label={`${column.title} column options`} aria-haspopup="menu" aria-expanded={menu?.key === column.key} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button>
             </div></th>;
         })}</tr></thead>
         <tbody>{sorted.map((item, index) => <tr key={item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, select, a, label') && !window.getSelection()?.toString()) onEdit(item); }}>

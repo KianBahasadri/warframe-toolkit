@@ -152,7 +152,7 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .inventory-section th { position: sticky; top: 0; z-index: 1; background: var(--canvas); }
 .inventory-grid { --table-ink: color-mix(in srgb, var(--ink) 85%, var(--muted)); --table-muted: color-mix(in srgb, var(--ink) 25%, var(--muted)); --table-rule: color-mix(in srgb, var(--line) 55%, transparent); }
 .inventory-table { table-layout: fixed; font-size: 15px; line-height: 1.4; color: var(--table-ink); }
-.inventory-table th { padding: 10px 12px; border-bottom: 1px solid var(--table-rule); color: var(--table-muted); font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.inventory-table th { padding: 10px 12px; border-bottom: 1px solid var(--table-rule); color: var(--table-muted); font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; cursor: pointer; }
 .inventory-table td { height: 64px; padding: 4px 12px; border-bottom: 1px solid var(--table-rule); vertical-align: middle; }
 .inventory-table tbody tr:hover, .inventory-table tbody tr:focus-within { background: var(--surface); }
 .column-header { display: flex; align-items: center; gap: 4px; }
