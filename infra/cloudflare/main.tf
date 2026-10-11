@@ -56,8 +56,9 @@ resource "cloudflare_zone_setting" "https" {
 }
 
 resource "cloudflare_d1_database" "accounts" {
-  account_id = var.account_id
-  name       = "${local.name}-accounts"
+  account_id       = var.account_id
+  name             = "${local.name}-accounts"
+  read_replication = { mode = "disabled" }
   lifecycle { prevent_destroy = true }
 }
 
