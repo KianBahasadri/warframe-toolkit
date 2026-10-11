@@ -3,7 +3,6 @@ import { ArrowDownToLine, Moon, Plus, ScanLine, Search, Sun, X } from 'lucide-re
 import { InventoryTable } from './components/InventoryTable';
 import { EquipmentForm } from './components/EquipmentForm';
 import { ScreenshotImport } from './components/ScreenshotImport';
-import { Backups } from './components/Backups';
 import { Relics } from './components/Relics';
 import { Commands } from './components/Commands';
 import type { Command } from './components/Commands';
@@ -19,8 +18,9 @@ import weaponsIcon from './assets/warframe/weapons.png';
 import warframesIcon from './assets/warframe/warframes.png';
 import relicsIcon from './assets/warframe/relics.png';
 
-type Page = 'weapons' | 'warframes' | 'relics' | 'import' | 'backups';
-const pageNames: Record<Page, string> = { weapons: 'Weapons', warframes: 'Warframes', relics: 'Relics', import: 'Screenshot import', backups: 'Data & backups' };
+type Page = 'weapons' | 'warframes' | 'relics' | 'import';
+const pageNames: Record<Page, string> = { weapons: 'Weapons', warframes: 'Warframes', relics: 'Relics', import: 'Screenshot import' };
+const collectionTabs = [{ key: 'weapons', icon: weaponsIcon }, { key: 'warframes', icon: warframesIcon }, { key: 'relics', icon: relicsIcon }] as const;
 
 function pageFromHash(): Page {
   const value = location.hash.slice(1);
@@ -32,7 +32,7 @@ function loadInventory(): { data: Inventory; error: string; fresh: boolean } {
     const saved = localStorage.getItem(STORAGE_KEY);
     return { data: saved ? parseBackup(saved) : initialInventory(), error: '', fresh: !saved };
   } catch {
-    return { data: { version: 1, items: [], relics: [], imports: [], referenceNotice: false }, error: 'Your saved inventory could not be read. It has not been overwritten. Restore a backup or export the original data below.', fresh: false };
+    return { data: { version: 1, items: [], relics: [], imports: [], referenceNotice: false }, error: 'Your saved inventory could not be read. It has not been overwritten. Download the original data below.', fresh: false };
   }
 }
 
@@ -50,11 +50,11 @@ export default function App() {
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem('arsenal.theme') || 'dark'; } catch { return 'dark'; } });
   const [notice, setNotice] = useState('');
 
-  const commit = (next: Inventory, restoring = false): boolean => {
+  const commit = (next: Inventory): boolean => {
     next = { ...next, relics: next.relics ?? [] };
-    if (unreadable && !restoring) { setStorageError('Export the original data and restore a valid backup before editing. Your unreadable saved data is being preserved.'); return false; }
+    if (unreadable) { setStorageError('Editing is disabled to preserve your unreadable saved inventory. Download the original data below.'); return false; }
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); inventoryRef.current = next; setInventory(next); setStorageError(''); setUnreadable(false); return true; }
-    catch { setStorageError('Your browser could not save changes. Free some storage or download a backup. The last saved inventory is unchanged.'); return false; }
+    catch { setStorageError('Your browser could not save changes. Free some browser storage and try again. The last saved inventory is unchanged.'); return false; }
   };
   useEffect(() => {
     if (initial.fresh) commit(initial.data);
@@ -79,12 +79,7 @@ export default function App() {
     { label: 'Toggle theme', keys: ['Alt', 'Shift', 'T'], run: () => setTheme(value => value === 'dark' ? 'light' : 'dark') },
     { label: 'Keyboard shortcuts', keys: ['Alt', '/'], run: () => setShortcuts(true) },
   ];
-  const destinations: Command[] = [
-    { label: 'Weapons', keys: ['Alt', '1'], run: () => navigate('weapons') },
-    { label: 'Screenshot import', keys: ['Alt', '2'], run: () => navigate('import') },
-    { label: 'Data & backups', keys: ['Alt', '3'], run: () => navigate('backups') },
-    { label: 'Relics', keys: ['Alt', '4'], run: () => navigate('relics') },
-  ];
+  const destinations: Command[] = collectionTabs.map(({ key }, index) => ({ label: pageNames[key], keys: ['Alt', String(index + 1)], run: () => navigate(key) }));
   const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
   keyHandler.current = event => {
     if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'k' || event.ctrlKey && event.code === 'Space')) { if (palette || !document.querySelector('dialog[open]')) { event.preventDefault(); setPalette(value => !value); } return; }
@@ -98,7 +93,7 @@ export default function App() {
 
   const relics = inventory.relics ?? [];
   const nav = <nav className="collection-nav" aria-label="Main navigation"><ul>
-    {([{ key: 'weapons', icon: weaponsIcon }, { key: 'warframes', icon: warframesIcon }, { key: 'relics', icon: relicsIcon }] as const).map(({ key, icon }) => <li key={key}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={{ maskImage: `url(${icon})` }} /><span>{pageNames[key]}</span></a></li>)}
+    {collectionTabs.map(({ key, icon }, index) => <li key={key}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={{ maskImage: `url(${icon})` }} /><span>{pageNames[key]}</span></a></li>)}
     </ul></nav>;
   const visibleItems = useMemo(() => equipmentRows(inventory.items, catalog, page === 'weapons').filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe'), [inventory.items, page]);
   const isInventory = page === 'weapons' || page === 'warframes';
@@ -126,7 +121,6 @@ export default function App() {
           commit({ ...current, relics: (current.relics ?? []).map(relic => relic.id === id ? { ...relic, quantity: Math.max(0, Math.min(MAX_RELIC_QUANTITY, relic.quantity + change)), updatedAt: new Date().toISOString() } : relic) });
         }} />}
         {page === 'import' && <ScreenshotImport onInventory={() => navigate('weapons')} onImport={(observations, files) => { const merged = mergeObservations(inventoryRef.current.items, observations); const next = { ...inventoryRef.current, items: merged.items, imports: [{ id: crypto.randomUUID(), date: new Date().toISOString(), files, added: merged.added, updated: merged.updated }, ...inventoryRef.current.imports].slice(0, 100) }; return commit(next) ? { added: merged.added, updated: merged.updated } : null; }} />}
-        {page === 'backups' && <Backups inventory={inventory} onRestore={data => commit(data, true)} />}
       </main>
     </div>
     {editing && <EquipmentForm item={editing === 'new' ? undefined : editing} existing={inventory.items} onClose={() => setEditing(null)} onSave={item => { const current = inventoryRef.current; const exists = current.items.some(entry => entry.id === item.id); if (commit({ ...current, items: exists ? current.items.map(entry => entry.id === item.id ? item : entry) : [...current.items, item] })) { setEditing(null); setNotice(`${item.name} ${exists ? 'updated' : 'added'}.`); return true; } return false; }} onDelete={id => { if (commit({ ...inventoryRef.current, items: inventoryRef.current.items.filter(item => item.id !== id) })) { setEditing(null); setNotice('Equipment entry removed.'); return true; } return false; }} />}

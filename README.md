@@ -16,7 +16,7 @@ Open **http://127.0.0.1:5173**. Keep using the same hostname and port: browser s
 ```sh
 npm run build       # Production files in dist/
 npm run preview     # Preview the production build on port 4173
-npm test            # Catalog, filtering, matching, merging, backup and CSV tests
+npm test            # Catalog, filtering, matching, merging, storage and CSV tests
 npm run test:browser
 ```
 
@@ -29,6 +29,8 @@ To run the same browser checks in Firefox, install its Playwright build with `np
 The initial inventory transcribes **35 visible weapon rows** from the supplied reference image. It is a partial transcription, not the entire spreadsheet. Hidden rows are not available. It includes the visible ownership, mastery, and planning flags as supplied, not independently verified gameplay advice.
 
 All 14 spreadsheet fields are stored: Owned, Weapon Name, Don't Keep, Crafting Ingredient, Crafting Target, Variant, Incarnon, Quest Weapon, Upgraded, Mastered, Meta / Powerful, Slot, Has Prime Variant, and Override. Rank, notes, source, and modification time are also retained. The same fields support Warframes, primary/secondary/melee weapons, Archguns, Archmelee, companion and exalted weapons, Kitguns, and Amps.
+
+**Alt+1**, **Alt+2**, and **Alt+3** switch to Weapons, Warframes, and Relics, matching the tab order. **Alt+I** opens screenshot import. Shortcuts are paused while editing a field or using a dialog.
 
 - Ownership and mastery checkboxes save immediately and remain independent of rank. Select a name for **Weapon details** or **My inventory**.
 - Weapons starts with **Owned only** checked. Uncheck it to browse the entire catalog, including unowned weapons. Browsing never adds catalog entries to your save. Checking ownership or saving an inventory edit adds only that weapon.
@@ -51,7 +53,7 @@ Sources are [WFCD/warframe-items](https://github.com/WFCD/warframe-items) and th
 
 Run `npm run catalog:update` to regenerate the snapshot and images. It validates ingredient names and downloads all new or changed images before replacing the catalog; it never touches browser saves. Tests cover local image integrity, exact variant matching, recipes, Incarnon eligibility, quest rewards, filtering, and preservation of saved fields. Sources can lag game updates or omit details: absent recipes and drop locations are labeled as unrecorded, not free or unobtainable. Modular assembly stats depend on the chosen parts, and the assembled Mote Amp's stats are unavailable in these sources.
 
-Existing saves retain all 14 original fields and historical planning values in JSON backups. The UI and CSV exports overlay current catalog facts without rewriting those historical values; manual information can still be recovered from JSON. New saved entries receive current catalog facts. Database updates never change ownership, mastery, current rank, keep decisions, upgrades, or notes.
+Existing saves retain all 14 original fields and historical planning values in browser storage. The UI and CSV exports overlay current catalog facts without rewriting those historical values in the saved JSON. New saved entries receive current catalog facts. Database updates never change ownership, mastery, current rank, keep decisions, upgrades, or notes.
 
 ## Relics
 
@@ -74,18 +76,18 @@ Inventory matches initially count as owned; Arsenal matches require ownership re
 
 Repeated names merge into existing entries. Imports preserve keep preferences, crafting notes, Incarnon flags, upgrade status, and all other planning fields. A new observed rank may decrease after Forma. Screenshot files are kept only in the current import view, not in persistent storage. Import history stores filenames and counts.
 
-## Backups and storage
+## Storage and exports
 
-Equipment, relics, and import history are stored in `localStorage` under `warframe-toolkit.inventory.v1`, with a versioned, validated JSON schema. Older saves and backups without relic data load with an empty relic collection and preserve all equipment fields. Browser clearing, changing origin, or switching devices will not carry inventory over automatically.
+Equipment, relics, and import history are stored in `localStorage` under `warframe-toolkit.inventory.v1`, with a versioned, validated JSON schema. Older saves without relic data load with an empty relic collection and preserve all equipment fields. Browser clearing, changing origin, or switching devices will not carry inventory over automatically.
 
-Open **Data & backups** through **Search and commands → Jump to… → Data & backups**, or press **Alt+3**, then choose **Download JSON** for a full backup, including relics. Restoration previews the equipment and relic stack counts and downloads the previous inventory before replacing it. Invalid backups are rejected. **Download CSV** exports the original equipment spreadsheet columns plus rank and notes; relic CSV is available on the Relics tab. User text is escaped and formula-like values are neutralized for spreadsheet use.
+**Export CSV** on Weapons or Warframes exports the original equipment spreadsheet columns plus rank and notes; the same action on Relics exports the relic collection. User text is escaped and formula-like values are neutralized for spreadsheet use.
 
 Unparseable existing storage is preserved instead of silently resetting it. The error panel can export the original data for recovery. Cross-tab updates are reflected in other open copies.
 
 ## Code map
 
 - `src/App.tsx`: navigation, persistence, and inventory operations.
-- `src/components/`: inventory table, weapon filters and details, equipment editor, import review, backups, command palette.
+- `src/components/`: inventory table, weapon filters and details, equipment editor, import review, relics, command palette.
 - `src/components/Select.tsx`: shared custom dropdowns with keyboard navigation, type-to-select, and viewport positioning; no native select popup or experimental picker CSS.
 - `src/lib/weaponCatalog.ts`: catalog/inventory projection, combined filters, and safe catalog-entry ownership updates.
 - `src/assets/warframe/`: bundled in-game tab icons; original asset links and attribution are in [SOURCES.md](src/assets/warframe/SOURCES.md).
@@ -93,7 +95,7 @@ Unparseable existing storage is preserved instead of silently resetting it. The 
 - `src/lib/relics.ts`: relic schema, name normalization, and validation.
 - `src/lib/matching.ts`: exact/fuzzy name matching and same-line observations.
 - `src/lib/ocr.ts`: local OCR worker lifecycle and image preparation.
-- `src/lib/storage.ts`: backup validation and spreadsheet export.
+- `src/lib/storage.ts`: saved inventory validation and spreadsheet export.
 - `src/data/reference.ts`: manually transcribed reference rows.
 - `src/data/catalog.json`: generated equipment catalog; attribution in `CATALOG-LICENSE.txt`.
 - `src/data/relics.json`: generated relic name catalog, using the same attribution.

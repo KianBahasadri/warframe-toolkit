@@ -103,8 +103,8 @@ test('navigation, dialogs, and tables fit narrow screens and support keyboard us
   await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Open search and commands' }).click();
   await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
-  await page.getByRole('option', { name: 'Data & backups', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Data & backups' })).toBeVisible();
+  await page.getByRole('option', { name: 'Warframes', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Warframes', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 720 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Open search and commands' }).click();
@@ -289,8 +289,10 @@ test('relic refinements and quantity edits persist without changing an older equ
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!).items)).toEqual(originalItems);
 });
 
-test('relic CSV and full backups retain records through deletion and restoration', async ({ page }) => {
+test('relic CSV exports records and deletions persist without changing equipment', async ({ page }) => {
   await page.goto('/#relics');
+  await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
+  const originalItems = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!).items);
   await page.getByRole('button', { name: 'Add relic', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Add relic' });
   await dialog.getByLabel('Relic name').fill('Neo N1');
@@ -303,47 +305,74 @@ test('relic CSV and full backups retain records through deletion and restoration
   const csv = await csvPromise;
   expect(csv.suggestedFilename()).toMatch(/^arsenal-relics-.*\.csv$/);
   expect(await readFile((await csv.path())!, 'utf8')).toContain('"Neo N1","Neo","Flawless","5"');
-  await page.getByRole('button', { name: 'Open search and commands' }).click();
-  await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
-  await page.getByRole('option', { name: 'Data & backups', exact: true }).click();
-  const backupPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download JSON' }).click();
-  const backupPath = (await (await backupPromise).path())!;
-  const backup = JSON.parse(await readFile(backupPath, 'utf8'));
-  expect(backup.relics).toHaveLength(1);
-  expect(backup.relics[0]).toMatchObject({ name: 'Neo N1', refinement: 'Flawless', quantity: 5 });
-  expect(backup.items).toHaveLength(35);
-
-  await page.getByRole('link', { name: 'Relics', exact: true }).click();
   await page.getByRole('button', { name: 'Edit Neo N1 Flawless' }).click();
   await page.getByRole('button', { name: 'Remove entry', exact: true }).click();
   await page.getByRole('button', { name: 'Remove relic', exact: true }).click();
   await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Open search and commands' }).click();
-  await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
-  await page.getByRole('option', { name: 'Data & backups', exact: true }).click();
-  await page.getByLabel('Choose inventory backup').setInputFiles(backupPath);
-  await expect(page.getByRole('dialog')).toContainText('1 relic stacks');
-  await page.getByRole('button', { name: 'Back up & restore' }).click();
-  await page.getByRole('link', { name: 'Relics', exact: true }).click();
-  await expect(page.getByLabel('Neo N1 Flawless quantity', { exact: true })).toHaveText('5');
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!))).toEqual(backup);
+  await page.reload();
+  await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!));
+  expect(saved.relics).toEqual([]);
+  expect(saved.items).toEqual(originalItems);
 });
 
-test('invalid backups are rejected and exports download', async ({ page }) => {
+test('old backups links open weapons without changing saved data and CSV still exports', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   await page.goto('/#backups');
-  await page.getByLabel('Choose inventory backup').setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{"version":1,"items":[{}],"imports":[]}') });
-  await expect(page.getByRole('alert')).toContainText('Couldn’t restore');
+  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Data & backups' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open search and commands' }).click();
+  await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
+  await expect(page.getByRole('option', { name: 'Data & backups', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download JSON' }).click();
+  await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^arsenal-backup-.*\.json$/);
-  const path = await download.path();
-  await page.getByLabel('Choose inventory backup').setInputFiles(path!);
-  await expect(page.getByRole('dialog', { name: 'Restore this inventory?' })).toBeVisible();
-  await page.getByRole('button', { name: 'Back up & restore' }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByText('Backup restored.', { exact: false })).toBeVisible();
+  expect(download.suggestedFilename()).toMatch(/^arsenal-inventory-.*\.csv$/);
+  expect(await readFile((await download.path())!, 'utf8')).toContain('"Boltor"');
+  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
+});
+
+test('Alt number shortcuts follow the top tabs and stay inactive while editing', async ({ page }) => {
+  await page.goto('/#import');
+  const navigation = page.getByRole('navigation', { name: 'Main navigation' });
+  const tabs = ['Weapons', 'Warframes', 'Relics'];
+  await expect(navigation.getByRole('link')).toHaveText(tabs);
+  for (const [index, name] of tabs.entries()) {
+    await page.keyboard.press(`Alt+${index + 1}`);
+    await expect(page).toHaveURL(new RegExp(`#${name.toLowerCase()}$`));
+    await expect(navigation.getByRole('link', { name, exact: true })).toHaveAttribute('aria-current', 'page');
+  }
+  await page.keyboard.press('Alt+1');
+  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  await page.getByLabel('Search equipment').focus();
+  await page.keyboard.press('Alt+2');
+  await expect(page).toHaveURL(/#weapons$/);
+  await page.getByRole('button', { name: 'Add equipment', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).focus();
+  await page.keyboard.press('Alt+3');
+  await expect(page.getByRole('dialog', { name: 'Add equipment' })).toBeVisible();
+  await expect(page).toHaveURL(/#weapons$/);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Alt+i');
+  await expect(page).toHaveURL(/#import$/);
+  await page.getByRole('button', { name: 'Open search and commands' }).click();
+  await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
+  for (const [index, name] of tabs.entries()) {
+    const option = page.getByRole('option', { name, exact: true });
+    await expect(option.locator('kbd')).toHaveText(['Alt', String(index + 1)]);
+  }
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Open search and commands' }).click();
+  await page.getByRole('option', { name: 'Keyboard shortcuts', exact: true }).click();
+  const shortcuts = page.getByRole('dialog', { name: 'Keyboard shortcuts', exact: true });
+  for (const [index, name] of tabs.entries()) {
+    const entry = shortcuts.locator('.shortcut-list > div').filter({ has: page.getByText(name, { exact: true }) });
+    await expect(entry.locator('kbd')).toHaveText(['Alt', String(index + 1)]);
+  }
+  await expect(shortcuts).not.toContainText('Data & backups');
 });
 
 test('canceling OCR releases the importer for another batch', async ({ page }) => {
