@@ -104,6 +104,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     setScans([]); setDetections([]); setCompleted(null); setError(''); setStatus(''); setProgress(0); setPreview(0);
   };
   const save = () => {
+    if (busyRef.current || batch.current.completed || !selected.length) return;
     const observations = selected.map(detection => ({ ...createEquipment(detection.item), owned: detection.owned, mastered: detection.mastered, rank: detection.rank, source: `Screenshot · ${detection.filename}` }));
     const result = onImport(observations, scans.filter(scan => scan.read).map(scan => scan.file.name));
     if (result) { batch.current.completed = true; setCompleted(result); }
@@ -131,10 +132,10 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
       <div className="image-preview"><img src={currentScan.url} alt={`Import source: ${currentScan.file.name}`} /></div>
     </details>}
     {!busy && !completed && status && <p className="import-status" role="status">{status}</p>}
-    {!!scans.length && !busy && !completed && (detections.length ? <section className="review-section" aria-labelledby="review-title">
+    {!!scans.length && !completed && (detections.length ? <section className="review-section" aria-labelledby="review-title">
       <div className="section-heading"><h3 id="review-title">Review matches</h3><div className="import-actions">
         <button type="button" className="button secondary" onClick={() => setDetections(current => current.map(detection => reviewDetection(detection, { selected: !current.every(entry => entry.selected) })))}>{detections.every(detection => detection.selected) ? 'Deselect all' : 'Select all'}</button>
-        <button type="button" className="button primary" disabled={!selected.length} onClick={save}>Import {selected.length} {selected.length === 1 ? 'item' : 'items'}</button>
+        <button type="button" className="button primary" disabled={busy || !selected.length} title={busy ? 'Finish or cancel reading before importing.' : undefined} onClick={save}>Import {selected.length} {selected.length === 1 ? 'item' : 'items'}</button>
       </div></div>
       <div className="table-scroll" role="region" aria-label="Screenshot matches" tabIndex={0}><table className="review-table">
         <caption className="sr-only">Review names, ownership, mastery, and rank before importing selected rows. Existing ownership and mastery are preserved.</caption>
@@ -147,7 +148,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
           <td><input className="rank-input" type="number" min={0} max={40} step={1} value={detection.rank ?? ''} placeholder="—" aria-label={`Rank: ${detection.item.name}`} onChange={event => { const value = Number(event.target.value); update(detection.id, { rank: event.target.value !== '' && Number.isInteger(value) && value >= 0 && value <= 40 ? value : null }); }} /></td>
         </tr>)}</tbody>
       </table></div>
-    </section> : !status && !error && <p className="import-status" role="status">No equipment matched.</p>)}
+    </section> : !busy && !status && !error && <p className="import-status" role="status">No equipment matched.</p>)}
     {completed && <div className="import-result"><span role="status">{completed.added} added · {completed.updated} updated</span><button type="button" className="button primary" onClick={onInventory}>View inventory</button></div>}
     </>}
     </section>)}</div>
