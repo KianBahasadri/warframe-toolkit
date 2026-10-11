@@ -10,6 +10,17 @@ async function chooseOption(page: Page, label: string, option: string) {
   await page.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: option, exact: true }).click();
 }
 
+async function equipmentScreenshot(page: Page, name: string, lines: string[]) {
+  const dataUrl = await page.evaluate(text => {
+    const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 600;
+    const context = canvas.getContext('2d')!; context.fillStyle = '#181e23'; context.fillRect(0, 0, 1200, 600);
+    context.fillStyle = '#ffffff'; context.font = '36px Arial';
+    text.forEach((line, index) => context.fillText(line, 80, 100 + index * 120));
+    return canvas.toDataURL('image/png');
+  }, lines);
+  return { name, mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') };
+}
+
 test('inventory edits persist, full fields are available, and equipment can be added', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -474,8 +485,15 @@ test('real screenshot batches merge duplicates and preserve planning, prior mast
   }, createEquipment({ name: 'Vasto', slot: 'Secondary', variant: 'Base' }, { mastered: true, rank: 30, notes: 'Keep my crafting plan', dontKeep: true, override: 'Keep', upgraded: 'Yes' }));
   await page.reload();
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
-  // Repeating the first image also exercises overlapping captures in one batch.
-  await page.getByLabel('Choose inventory screenshots').setInputFiles([...inventoryScreenshots.map(fixture => fixture.file), inventoryScreenshots[0].file]);
+  await page.getByLabel('Choose inventory screenshots').setInputFiles(inventoryScreenshots[0].file);
+  await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: /^Add screenshots/ }).click();
+  await (await chooserPromise).setFiles(inventoryScreenshots[1].file);
+  await expect(page.getByRole('button', { name: 'Cancel reading' })).toBeVisible();
+  // Queue an overlapping image while the second one is still being read.
+  await expect(page.getByRole('button', { name: /^Add screenshots/ })).toBeEnabled();
+  await page.getByLabel('Choose inventory screenshots').setInputFiles(inventoryScreenshots[0].file);
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 120000 });
   const expected = Object.assign({}, ...inventoryScreenshots.map(fixture => fixture.weapons)) as Record<string, number>;
   const names = await page.locator('.review-table [role="combobox"]').allTextContents();
@@ -498,6 +516,92 @@ test('real screenshot batches merge duplicates and preserve planning, prior mast
     else expect(after).toEqual(before);
   }
   expect(saved.imports).toHaveLength(original.imports.length + 1);
+});
+
+test('adding screenshots by paste and drop preserves review corrections and enforces the batch limit', async ({ page }) => {
+  await page.goto('/#import');
+  const first = await equipmentScreenshot(page, 'first.png', ['BOLTOR [30]', 'BRATON PRIME [30]', 'VASTO [0]']);
+  const later = await equipmentScreenshot(page, 'later.png', ['BOLTOR [30]', 'BRATON PRIME [30]', 'VASTO [30]', 'PARIS [30]']);
+  const savedBefore = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
+  await page.getByLabel('Choose inventory screenshots').setInputFiles(first);
+  await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
+  await page.getByLabel('Import Boltor', { exact: true }).uncheck();
+  await page.getByLabel('Owned: Boltor', { exact: true }).uncheck();
+  await page.getByLabel('Rank: Boltor', { exact: true }).fill('12');
+  await page.getByLabel('Mastered: Vasto', { exact: true }).check();
+  const namePicker = page.getByRole('combobox', { name: /^Matched name for BRATON PRIME/ });
+  await namePicker.click();
+  await page.getByRole('option', { name: 'Braton Vandal', exact: true }).click();
+
+  const add = page.getByRole('button', { name: /^Add screenshots/ });
+  const append = async (method: 'paste' | 'drop') => {
+    await add.focus();
+    await add.evaluate((target, { method, base64 }) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([Uint8Array.from(atob(base64), char => char.charCodeAt(0))], `${method}.png`, { type: 'image/png' }));
+      const event = new Event(method, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, method === 'paste' ? 'clipboardData' : 'dataTransfer', { value: transfer });
+      target.dispatchEvent(event);
+    }, { method, base64: later.buffer.toString('base64') });
+  };
+  await append('paste');
+  await expect(page.getByRole('button', { name: 'Cancel reading' })).toBeVisible();
+  await append('drop');
+  await expect(add).toContainText('3/10 images');
+  await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
+  expect((await page.locator('.review-table [role="combobox"]').allTextContents()).sort()).toEqual(['Boltor', 'Braton Vandal', 'Paris', 'Vasto']);
+  await expect(page.getByLabel('Import Boltor', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Mastered: Boltor', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Rank: Boltor', { exact: true })).toHaveValue('12');
+  await expect(page.getByLabel('Mastered: Vasto', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Rank: Vasto', { exact: true })).toHaveValue('0');
+  await expect(page.getByLabel('Import Paris', { exact: true })).toBeChecked();
+  await page.getByText('Screenshot preview', { exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Import source: first.png', exact: true })).toHaveJSProperty('naturalWidth', 1200);
+  await chooseOption(page, 'Preview screenshot', '3. drop.png');
+  await expect(page.getByRole('img', { name: 'Import source: drop.png', exact: true })).toHaveJSProperty('naturalWidth', 1200);
+  await page.getByLabel('Choose inventory screenshots').setInputFiles(Array.from({ length: 8 }, (_, index) => ({ ...later, name: `extra-${index}.png` })));
+  await expect(page.getByRole('alert')).toContainText('Up to 10 screenshots per batch');
+  await expect(add).toContainText('3/10 images');
+  await expect(page.getByRole('button', { name: 'Import 3 items', exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(savedBefore);
+  await page.getByRole('button', { name: 'Import 3 items', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'View inventory' })).toBeVisible();
+  const saved: Inventory = await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!));
+  expect(saved.items.find(item => item.name === 'Vasto')).toMatchObject({ rank: 0, mastered: true });
+  expect(saved.items.find(item => item.name === 'Braton Vandal')).toMatchObject({ rank: 30, mastered: true });
+  expect(saved.items.find(item => item.name === 'Boltor')).toEqual(JSON.parse(savedBefore!).items.find((item: { name: string }) => item.name === 'Boltor'));
+  expect(saved.imports[0].files).toEqual(['first.png', 'paste.png', 'drop.png']);
+  await page.getByRole('button', { name: 'Import more', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Review matches' })).toHaveCount(0);
+  await expect(page.getByLabel('Choose arsenal screenshots')).toBeEnabled();
+});
+
+test('canceling or failing an added screenshot keeps earlier matches and allows another upload', async ({ page }) => {
+  await page.goto('/#import');
+  const first = await equipmentScreenshot(page, 'first.png', ['BOLTOR [30]']);
+  const next = await equipmentScreenshot(page, 'next.png', ['VASTO [0]']);
+  await page.getByLabel('Choose arsenal screenshots').setInputFiles(first);
+  await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
+  await page.getByLabel('Rank: Boltor', { exact: true }).fill('12');
+  await page.getByLabel('Choose arsenal screenshots').setInputFiles(inventoryScreenshots[0].file);
+  await page.getByLabel('Choose arsenal screenshots').setInputFiles(inventoryScreenshots[1].file);
+  await page.getByRole('button', { name: 'Cancel reading' }).click();
+  await expect(page.getByText('Reading canceled.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Add screenshots/ })).toContainText('1/10 images');
+  await expect(page.getByLabel('Rank: Boltor', { exact: true })).toHaveValue('12');
+  await expect(page.locator('.review-table tbody tr')).toHaveCount(1);
+  await page.getByLabel('Choose arsenal screenshots').setInputFiles({ name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Add screenshots/ })).toContainText('1/10 images');
+  await expect(page.getByLabel('Rank: Boltor', { exact: true })).toHaveValue('12');
+  await page.getByLabel('Choose arsenal screenshots').setInputFiles(next);
+  await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
+  await expect(page.getByLabel('Rank: Vasto', { exact: true })).toHaveValue('0');
+  await expect(page.getByLabel('Owned: Vasto', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Rank: Boltor', { exact: true })).toHaveValue('12');
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
 test('canceling OCR releases the importer and paste uses the focused source', async ({ page }) => {

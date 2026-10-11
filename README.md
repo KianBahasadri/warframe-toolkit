@@ -64,11 +64,11 @@ Search names and notes, filter by era or refinement, and sort columns. **Export 
 ## Screenshot import
 
 1. Open **Import screenshots**. **Inventory** and **Arsenal** have separate sections and **Instructions** buttons. The Inventory guide shows the supplied game screenshot, with a link to open it at full size.
-2. Drop or browse for up to 10 English PNG, JPG, or WebP screenshots in the appropriate section, each below 20 MB and 32 megapixels. To paste, focus that section’s upload area first; pasting before choosing a section defaults to Inventory.
+2. Drop or browse for English PNG, JPG, or WebP screenshots in the appropriate section, each below 20 MB and 32 megapixels. Use **Add screenshots** to keep choosing, dropping, or pasting images into the same batch, up to 10 images total. Images added while recognition is running are queued. To paste, focus that section’s upload area first; pasting before choosing a section defaults to Inventory.
 3. Text recognition starts automatically. Review matched names, ownership, mastery, and rank before importing.
 4. Correct a matched name with its dropdown, deselect unwanted results, and import the selected rows. Expand **Screenshot preview** to compare them with the source image.
 
-Finish or clear the current batch before starting another source. Help dialogs never import their example image or change the source of an active batch. The Inventory example is bundled at `public/images/import/inventory-weapons.png`; provenance is recorded alongside it in `SOURCES.md`.
+Adding images preserves earlier matches, name corrections, ranks, and checkbox choices. Canceling recognition keeps completed matches and discards unread images so you can add them again. Finish or clear the current batch before starting another source; after importing, **Import more** starts a fresh batch. Help dialogs never import their example image or change the source of an active batch. The Inventory example is bundled at `public/images/import/inventory-weapons.png`; provenance is recorded alongside it in `SOURCES.md`.
 
 The reader uses [Tesseract.js](https://github.com/naptha/tesseract.js) entirely in the browser with a bundled English model. It matches names against the 805 bundled equipment names in the weapon database. `npm run catalog:update` refreshes that snapshot and its licenses; it never modifies your saved inventory.
 

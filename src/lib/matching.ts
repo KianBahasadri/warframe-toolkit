@@ -5,6 +5,8 @@ export interface OcrLine { text: string; confidence: number; pass?: number; bbox
 export interface Detection {
   id: string;
   item: CatalogItem;
+  recognizedItemId: string;
+  reviewed: boolean;
   rawText: string;
   confidence: number;
   exact: boolean;
@@ -47,7 +49,7 @@ export function rankEstablishesMastery(item: CatalogItem, rank: number | null): 
 }
 
 export function reviewDetection(detection: Detection, patch: Partial<Detection>): Detection {
-  const next = { ...detection, ...patch };
+  const next = { ...detection, ...patch, reviewed: true };
   if (patch.mastered !== undefined) next.masterySource = 'review';
   else if ((patch.item || patch.rank !== undefined) && detection.masterySource !== 'review') {
     const explicit = !patch.item && detection.masterySource === 'text';
@@ -55,6 +57,26 @@ export function reviewDetection(detection: Detection, patch: Partial<Detection>)
     next.masterySource = explicit ? 'text' : next.mastered ? 'rank' : null;
   }
   return next;
+}
+
+export function appendDetections(current: Detection[], incoming: Detection[]): Detection[] {
+  const result = [...current];
+  for (const detection of incoming) {
+    // Remember the original match after a name correction, so another image
+    // cannot reintroduce the rejected name or overwrite the corrected row.
+    const index = result.findIndex(previous => previous.item.id === detection.item.id || previous.recognizedItemId === detection.item.id);
+    if (index === -1) { result.push(detection); continue; }
+    const previous = result[index];
+    if (previous.reviewed) continue;
+    const best = (detection.exact && !previous.exact) || (detection.exact === previous.exact && detection.confidence > previous.confidence) ? detection : previous;
+    result[index] = {
+      ...best, id: previous.id,
+      mastered: previous.mastered || detection.mastered, owned: previous.owned || detection.owned,
+      masterySource: previous.masterySource === 'text' || detection.masterySource === 'text' ? 'text' : previous.masterySource ?? detection.masterySource,
+      rank: detection.rank ?? previous.rank,
+    };
+  }
+  return result;
 }
 
 function wrappedRanks(lines: OcrLine[], source: ScreenshotSource): Map<OcrLine, OcrLine> {
@@ -135,6 +157,7 @@ export function matchOcrLines(lines: OcrLine[], catalog: CatalogItem[], filename
       const mastered = explicitMastery || rankEstablishesMastery(match.item, rank);
       const detection: Detection = {
         id: crypto.randomUUID(), item: match.item, rawText: continuation ? `${line.text}\n${continuation.text}` : line.text, filename,
+        recognizedItemId: match.item.id, reviewed: false,
         confidence: Math.round(match.score), exact: match.exact,
         selected: match.exact && match.score >= 65, owned, mastered, rank,
         masterySource: explicitMastery ? 'text' : mastered ? 'rank' : null,

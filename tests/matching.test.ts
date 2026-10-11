@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { matchOcrLines, reviewDetection } from '../src/lib/matching.ts';
+import { appendDetections, matchOcrLines, reviewDetection } from '../src/lib/matching.ts';
 import type { OcrLine } from '../src/lib/matching.ts';
 import type { CatalogItem } from '../src/lib/model.ts';
 
@@ -121,4 +121,29 @@ test('review corrections recompute automatic mastery and preserve deliberate che
   const manuallyMastered = reviewDetection(match('Boltor [0]')[0], { mastered: true });
   assert.equal(reviewDetection(manuallyMastered, { rank: 0 }).mastered, true);
   assert.equal(reviewDetection(match('Boltor MASTERED')[0], { rank: 0 }).mastered, true);
+});
+
+test('additional screenshots combine unreviewed matches without duplicate rows', () => {
+  const first = match('Boltor');
+  const combined = appendDetections(first, match('Boltor [30]\nVasto [0]'));
+  assert.deepEqual(combined.map(entry => entry.item.name), ['Boltor', 'Vasto']);
+  assert.equal(combined[0].id, first[0].id);
+  assert.equal(combined[0].rank, 30);
+  assert.equal(combined[0].mastered, true);
+  assert.equal(first[0].rank, null);
+});
+
+test('additional screenshots preserve all manually reviewed values, including deselection', () => {
+  const corrected = reviewDetection(match('Boltor [30]')[0], { selected: false, owned: false, mastered: false, rank: 5 });
+  const combined = appendDetections([corrected], match('Boltor [30]\nVasto [0]'));
+  assert.equal(combined.length, 2);
+  assert.deepEqual(combined[0], corrected);
+});
+
+test('repeated screenshots respect corrected names and do not reintroduce the original match', () => {
+  const original = match('Boltor [30]')[0];
+  const corrected = reviewDetection(original, { item: catalog.find(item => item.name === 'Boltor Prime')!, exact: false });
+  const combined = appendDetections([corrected], match('Boltor [30]\nBoltor Prime [30]\nVasto [0]'));
+  assert.deepEqual(combined.map(entry => entry.item.name), ['Boltor Prime', 'Vasto']);
+  assert.deepEqual(combined[0], corrected);
 });

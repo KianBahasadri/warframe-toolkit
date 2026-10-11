@@ -3,7 +3,7 @@ import { CircleHelp } from 'lucide-react';
 import { catalog } from '../data/catalog';
 import { createEquipment } from '../lib/model';
 import type { Equipment } from '../lib/model';
-import { matchOcrLines, reviewDetection } from '../lib/matching';
+import { appendDetections, matchOcrLines, reviewDetection } from '../lib/matching';
 import type { Detection, ScreenshotSource } from '../lib/matching';
 import { Select } from './Select';
 import { ScreenshotHelp } from './ScreenshotHelp';
@@ -12,6 +12,7 @@ const equipmentOptions = catalog.map(item => ({ value: item.id, label: item.name
 const importSources = [{ value: 'inventory', label: 'Inventory' }, { value: 'arsenal', label: 'Arsenal' }] as const;
 
 interface Scan { file: File; url: string; read: boolean }
+interface Batch { source: ScreenshotSource | null; scans: Scan[]; pending: File[]; completed: boolean }
 
 export function ScreenshotImport({ onImport, onInventory }: { onImport: (observations: Equipment[], files: string[]) => { added: number; updated: number } | null; onInventory: () => void }) {
   const [source, setSource] = useState<ScreenshotSource>('inventory');
@@ -29,44 +30,40 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   const pasteSource = useRef<ScreenshotSource>('inventory');
   const controller = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
-  const urls = useRef<string[]>([]);
+  const batch = useRef<Batch>({ source: null, scans: [], pending: [], completed: false });
   const active = useRef(true);
-  useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); urls.current.forEach(URL.revokeObjectURL); }; }, []);
+  useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); batch.current.pending = []; batch.current.scans.forEach(scan => URL.revokeObjectURL(scan.url)); }; }, []);
 
   const processFiles = async (files: File[], screenshotSource: ScreenshotSource) => {
-    if (busyRef.current || scans.length || !files.length) return;
+    if (!files.length || batch.current.completed || controller.current?.signal.aborted || (batch.current.source && batch.current.source !== screenshotSource)) return;
     setSource(screenshotSource);
-    if (files.length > 10) { setError('Choose up to 10 screenshots at a time.'); return; }
+    if (batch.current.scans.length + files.length > 10) { setError('Up to 10 screenshots per batch. Import or clear this batch before adding more.'); return; }
     if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))) { setError('Use PNG, JPG, or WebP screenshots.'); return; }
     if (files.some(file => file.size > 20 * 1024 * 1024)) { setError('Each screenshot must be smaller than 20 MB.'); return; }
-    urls.current.forEach(URL.revokeObjectURL);
     const next = files.map(file => ({ file, url: URL.createObjectURL(file), read: false }));
-    urls.current = next.map(scan => scan.url);
-    setScans(next); setDetections([]); setPreview(0); setCompleted(null); setError('');
+    batch.current.source = screenshotSource;
+    batch.current.scans = [...batch.current.scans, ...next];
+    batch.current.pending.push(...files);
+    pasteSource.current = screenshotSource;
+    setScans(batch.current.scans); setError(''); setStatus('');
+    if (busyRef.current) return;
     setBusy(true); busyRef.current = true; setProgress(0); setStatus('');
     const abort = new AbortController(); controller.current = abort;
     try {
       const { recognizeScreenshots } = await import('../lib/ocr');
-      await recognizeScreenshots(files, (_message, fraction) => {
-        if (active.current) setProgress(fraction);
-      }, (file, result) => {
-        if (!active.current) return;
-        setScans(current => current.map(scan => scan.file === file ? { ...scan, read: true } : scan));
-        const matched = matchOcrLines(result.lines, catalog, file.name, screenshotSource);
-        setDetections(current => {
-          const byId = new Map(current.map(detection => [detection.item.id, detection]));
-          for (const detection of matched) {
-            const previous = byId.get(detection.item.id);
-            if (!previous) byId.set(detection.item.id, detection);
-            else byId.set(detection.item.id, {
-              ...((detection.exact && !previous.exact) || (detection.exact === previous.exact && detection.confidence > previous.confidence) ? detection : previous),
-              mastered: previous.mastered || detection.mastered, owned: previous.owned || detection.owned,
-              rank: detection.rank ?? previous.rank,
-            });
-          }
-          return [...byId.values()];
-        });
-      }, abort.signal);
+      while (batch.current.pending.length) {
+        const queued = batch.current.pending.splice(0);
+        const readCount = batch.current.scans.filter(scan => scan.read).length;
+        await recognizeScreenshots(queued, (_message, fraction) => {
+          if (active.current) setProgress((readCount + fraction * queued.length) / batch.current.scans.length);
+        }, (file, result) => {
+          if (!active.current || abort.signal.aborted) return;
+          batch.current.scans = batch.current.scans.map(scan => scan.file === file ? { ...scan, read: true } : scan);
+          setScans(batch.current.scans);
+          const matched = matchOcrLines(result.lines, catalog, file.name, screenshotSource);
+          setDetections(current => appendDetections(current, matched));
+        }, abort.signal);
+      }
       if (active.current) setProgress(1);
     } catch (problem) {
       if (active.current) {
@@ -74,8 +71,18 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
         else setError(problem instanceof Error ? problem.message : 'Could not read this image. Try a clearer screenshot.');
       }
     } finally {
+      // Failed/canceled images can be added again without clearing read results.
+      batch.current.pending = [];
+      batch.current.scans.filter(scan => !scan.read).forEach(scan => URL.revokeObjectURL(scan.url));
+      batch.current.scans = batch.current.scans.filter(scan => scan.read);
+      if (!batch.current.scans.length) batch.current.source = null;
+      controller.current = null;
       busyRef.current = false;
-      if (active.current) setBusy(false);
+      if (active.current) {
+        setScans(batch.current.scans);
+        setPreview(current => Math.max(0, Math.min(current, batch.current.scans.length - 1)));
+        setBusy(false);
+      }
     }
   };
   const processRef = useRef(processFiles); processRef.current = processFiles;
@@ -92,13 +99,14 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
   const selected = detections.filter(detection => detection.selected);
   const currentScan = scans[preview];
   const clear = () => {
-    urls.current.forEach(URL.revokeObjectURL); urls.current = [];
+    batch.current.scans.forEach(scan => URL.revokeObjectURL(scan.url));
+    batch.current = { source: null, scans: [], pending: [], completed: false };
     setScans([]); setDetections([]); setCompleted(null); setError(''); setStatus(''); setProgress(0); setPreview(0);
   };
   const save = () => {
     const observations = selected.map(detection => ({ ...createEquipment(detection.item), owned: detection.owned, mastered: detection.mastered, rank: detection.rank, source: `Screenshot · ${detection.filename}` }));
     const result = onImport(observations, scans.filter(scan => scan.read).map(scan => scan.file.name));
-    if (result) setCompleted(result);
+    if (result) { batch.current.completed = true; setCompleted(result); }
   };
   return <section className="import-section" aria-labelledby="import-title">
     <div className="section-heading"><h1 id="import-title">Import screenshots</h1></div>
@@ -107,14 +115,14 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
         <h2 id={`${value}-import-title`}>{label}</h2>
         <div className="import-actions">
           <button type="button" className="button secondary" aria-label={`${label} instructions`} aria-haspopup="dialog" onClick={() => setHelp(value)}><CircleHelp size={16} aria-hidden="true" />Instructions</button>
-          {source === value && (busy ? <button type="button" className="button secondary" onClick={() => controller.current?.abort()}>Cancel reading</button> : scans.length > 0 && <button type="button" className="button secondary" onClick={clear}>{completed ? 'Import more' : 'Clear'}</button>)}
+          {source === value && (busy ? <button type="button" className="button secondary" onClick={() => controller.current?.abort()}>Cancel reading</button> : (scans.length > 0 || status || error) && <button type="button" className="button secondary" onClick={clear}>{completed ? 'Import more' : 'Clear'}</button>)}
         </div>
       </div>
-    <input ref={node => { inputs.current[value] = node; }} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label={`Choose ${label.toLowerCase()} screenshots`} tabIndex={-1} disabled={busy || scans.length > 0} onChange={event => { void processFiles([...event.target.files || []], value); event.target.value = ''; }} />
+    <input ref={node => { inputs.current[value] = node; }} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label={`Choose ${label.toLowerCase()} screenshots`} tabIndex={-1} disabled={!!completed || (scans.length > 0 && source !== value)} onChange={event => { void processFiles([...event.target.files || []], value); event.target.value = ''; }} />
     {source === value && error && <p className="callout danger" role="alert">{error}</p>}
-    {(!scans.length || source !== value) && <button type="button" className={`drop-zone ${dragging === value ? 'dragging' : ''}`} disabled={busy || scans.length > 0} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); if (!busy && !scans.length) setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
-      <span>Drop, paste, or choose screenshots</span>
-      <small>{completed ? 'Select Import more to start another batch' : scans.length ? 'Finish or clear the current batch first' : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
+    {(!completed || source !== value) && <button type="button" className={`drop-zone ${scans.length && source === value ? 'drop-zone-compact' : ''} ${dragging === value ? 'dragging' : ''}`} disabled={!!completed || (scans.length > 0 && source !== value)} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); if (!completed && (!scans.length || source === value)) setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
+      <span>{scans.length && source === value ? 'Add screenshots' : 'Drop, paste, or choose screenshots'}</span>
+      <small>{completed ? 'Select Import more to start another batch' : scans.length && source !== value ? 'Finish or clear the current batch first' : scans.length ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
     </button>}
     {source === value && <>
     {busy && <div className="import-progress"><span role="status">Reading screenshots… {Math.round(progress * 100)}%</span><progress value={progress} max={1} aria-label="Screenshot reading progress" /></div>}
@@ -125,7 +133,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     {!busy && !completed && status && <p className="import-status" role="status">{status}</p>}
     {!!scans.length && !busy && !completed && (detections.length ? <section className="review-section" aria-labelledby="review-title">
       <div className="section-heading"><h3 id="review-title">Review matches</h3><div className="import-actions">
-        <button type="button" className="button secondary" onClick={() => setDetections(current => current.map(detection => ({ ...detection, selected: !current.every(entry => entry.selected) })))}>{detections.every(detection => detection.selected) ? 'Deselect all' : 'Select all'}</button>
+        <button type="button" className="button secondary" onClick={() => setDetections(current => current.map(detection => reviewDetection(detection, { selected: !current.every(entry => entry.selected) })))}>{detections.every(detection => detection.selected) ? 'Deselect all' : 'Select all'}</button>
         <button type="button" className="button primary" disabled={!selected.length} onClick={save}>Import {selected.length} {selected.length === 1 ? 'item' : 'items'}</button>
       </div></div>
       <div className="table-scroll" role="region" aria-label="Screenshot matches" tabIndex={0}><table className="review-table">
