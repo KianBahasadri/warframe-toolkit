@@ -11,6 +11,7 @@
     "test:browser": "playwright test",
     "catalog:update": "node scripts/update-catalog.mjs",
     "catalog:relics": "node scripts/update-relics.mjs",
+    "catalog:drop-art": "node --experimental-strip-types scripts/update-drop-art.mjs",
     "postinstall": "node scripts/copy-ocr-assets.mjs"
   },
   "dependencies": {
