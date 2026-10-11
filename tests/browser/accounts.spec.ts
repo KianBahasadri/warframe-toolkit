@@ -6,7 +6,8 @@ import { defaultDropView } from '../../src/lib/dropTables';
 const status = (page: Page) => page.getByRole('status', { name: 'Save status', exact: true });
 async function openGuest(page: Page) {
   await page.goto('/');
-  await expect(status(page)).toContainText('Browsing without an account.');
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+  await expect(status(page)).toHaveCount(0);
 }
 async function register(page: Page, username: string, open = true) {
   if (open) await page.getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -42,7 +43,7 @@ test.describe('guest accounts', () => {
     expect(await page.getByRole('button', { name: /^Edit / }).count()).toBeGreaterThan(650);
     await page.getByLabel('Search weapons').fill('Boltor');
     await page.getByLabel('Owned: Boltor', { exact: true }).check();
-    await expect(status(page)).toContainText('Changes are temporary.');
+    await expect(status(page)).toHaveCount(0);
     await page.getByRole('link', { name: 'Relics', exact: true }).click();
     await page.getByRole('button', { name: 'Add relic', exact: true }).click();
     const dialog = page.getByRole('dialog');
@@ -54,12 +55,12 @@ test.describe('guest accounts', () => {
     expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBeNull();
     page.on('dialog', dialog => dialog.accept());
     await page.reload();
-    await expect(status(page)).toContainText('Browsing without an account.');
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
     await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Weapons', exact: true }).click();
     await page.getByLabel('Search weapons').fill('Boltor');
     await expect(page.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
-    await page.getByRole('button', { name: 'Sign in to save', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Sign in', exact: true })).toBeVisible();
     await expect(page.locator('input[type=email]')).toHaveCount(0);
   });
@@ -141,7 +142,7 @@ test.describe('guest accounts', () => {
       await route.fulfill({ response });
     });
     await page.goto('/#droptables');
-    await expect(status(page)).toHaveText('Checking sign-in…');
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Saved views', exact: true }).click();
     await page.getByRole('button', { name: 'Sign in to save view', exact: true }).click();
     await register(page, 'SlowSessionTenno', false);

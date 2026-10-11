@@ -1,8 +1,9 @@
 .account-button { max-width: 220px; gap: 8px; }
 .account-button span { overflow: hidden; text-overflow: ellipsis; }
 .account-button svg { flex-shrink: 0; }
+.account-button.account-sign-in { background: var(--ink-strong); border-color: var(--ink-strong); color: var(--canvas); font-weight: 600; }
+.account-button.account-sign-in:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); }
 .account-save-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 20px; margin-bottom: 18px; color: var(--muted); font-size: 12px; }
-.account-save-status button { border: 0; padding: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font-size: inherit; }
 .account-form { display: grid; gap: 16px; }
 .account-form > label:not(.check-row) { display: grid; gap: 8px; font-size: 13px; }
 .account-form input:not([type="checkbox"]) { width: 100%; min-width: 0; }

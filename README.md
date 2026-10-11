@@ -122,7 +122,7 @@ Personal data is no longer written to browser storage. Older `warframe-toolkit.i
 
 **Export CSV** on Weapons or Warframes exports the original equipment spreadsheet columns plus rank and notes; the same action on Relics exports the relic collection. User text is escaped and formula-like values are neutralized for spreadsheet use.
 
-The save status distinguishes saved data, pending changes, and temporary guest edits. Failed saves keep the draft visible and offer retry, download, or explicitly discarding changes to reload the saved version. Signing out waits for a successful save. Conflicting edits from another tab or device are rejected instead of overwriting them. Unreadable local or server data is preserved instead of silently resetting it; the local error panel can download the original inventory for recovery.
+While signed in, the save status distinguishes saved data and pending changes. Guests see a prominent **Sign in** button in the header. Failed saves keep the draft visible and offer retry, download, or explicitly discarding changes to reload the saved version. Signing out waits for a successful save. Conflicting edits from another tab or device are rejected instead of overwriting them. Unreadable local or server data is preserved instead of silently resetting it; the local error panel can download the original inventory for recovery.
 
 ## Code map
 
