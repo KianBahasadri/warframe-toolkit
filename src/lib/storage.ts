@@ -64,6 +64,6 @@ export function downloadFile(filename: string, contents: string, type: string): 
   const url = URL.createObjectURL(new Blob([contents], { type }));
   const a = document.createElement('a');
   a.href = url; a.download = filename;
-  document.body.append(a); a.click(); a.remove();
+  document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

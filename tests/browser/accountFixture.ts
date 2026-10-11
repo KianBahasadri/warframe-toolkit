@@ -5,6 +5,7 @@ import { initialInventory } from '../../src/data/reference';
 import { emptyProfile } from '../../src/lib/account';
 import type { AccountProfile, AccountSession } from '../../src/lib/account';
 import type { Inventory } from '../../src/lib/model';
+import { cloudflareRuntime } from '../cloudflare/runtime';
 
 type TestAccount = {
   url: string;
@@ -20,10 +21,11 @@ type TestAccount = {
 export const test = base.extend<{ account: TestAccount; signedIn: boolean }>({
   signedIn: [true, { option: true }],
   account: [async ({ page, context, signedIn, baseURL }, use) => {
-    const api = createAccountsApi({ databasePath: ':memory:', origin: baseURL });
-    const server = createServer((req, res) => api.middleware(req, res, () => { res.writeHead(404); res.end(); }));
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
-    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const cloud = process.env.WARFRAME_TEST_BACKEND === 'cloudflare' ? await cloudflareRuntime({ origin: baseURL }) : undefined;
+    const api = cloud ? undefined : createAccountsApi({ databasePath: ':memory:', origin: baseURL });
+    const server = api ? createServer((req, res) => api.middleware(req, res, () => { res.writeHead(404); res.end(); })) : undefined;
+    if (server) await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const url = cloud?.url ?? `http://127.0.0.1:${(server!.address() as { port: number }).port}`;
     await context.route('**/api/account/**', async route => route.fulfill({ response: await route.fetch({ url: url + new URL(route.request().url()).pathname }) }));
     const headers = { Origin: baseURL!, 'X-Toolkit-Request': '1' };
     const session = async (): Promise<AccountSession> => {
@@ -51,9 +53,11 @@ export const test = base.extend<{ account: TestAccount; signedIn: boolean }>({
       });
     } finally {
       await page.close();
-      server.closeAllConnections();
-      await new Promise<void>(resolve => server.close(() => resolve()));
-      api.close();
+      if (server) {
+        server.closeAllConnections();
+        await new Promise<void>(resolve => server.close(() => resolve()));
+      }
+      api?.close(); await cloud?.close();
     }
   }, { auto: true }],
 });

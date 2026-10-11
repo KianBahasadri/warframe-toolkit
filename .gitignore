@@ -9,3 +9,14 @@ playwright-report/
 *.tsbuildinfo
 .cache/
 .data/
+.wrangler/
+.tools/
+build/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.example.tfvars
+crash.log

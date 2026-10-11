@@ -24,6 +24,10 @@ Browser tests use an installed Chromium at `/usr/bin/chromium`; set `CHROMIUM_PA
 
 To run the same browser checks in Firefox, install its Playwright build with `npx playwright install firefox`, then run `WARFRAME_TEST_BROWSER=firefox npm run test:browser`.
 
+## Cloudflare hosting
+
+The hosted deployment uses Cloudflare Workers Static Assets, **D1 for accounts and saved inventories**, and SQLite Durable Objects for request coordination and scheduled drop-table caching. Terraform manages the deployment, including code, assets, database migrations, routing, DNS, and the update schedule. See [deployment and recovery instructions](infra/cloudflare/README.md). `npm run build:cloudflare` builds both frontend and Worker; `npm run test:cloudflare` checks the Cloudflare runtime locally. Normal `npm run dev` continues to work without Cloudflare credentials.
+
 ## Inventory
 
 New accounts start with an empty inventory, unless you choose to copy current data during signup. Existing local inventories are shown to guests without being overwritten. The older reference inventory transcribes **35 visible weapon rows** from the supplied image; it remains in `src/data/reference.ts` for regression tests and is not seeded into new accounts. That transcription is partial, includes only visible fields, and is not independently verified gameplay advice.
@@ -132,6 +136,9 @@ While signed in, the save status distinguishes saved data and pending changes. G
 
 - `src/App.tsx`: navigation, account status, and inventory operations.
 - `server/accounts.ts`: SQLite accounts, generated access keys, legacy password migration, sessions, protected profile endpoints, and conflict detection.
+- `cloudflare/`: hosted D1 account API, chunked profile schema, scheduled durable drop cache, and Worker entry point; shares validation and parsing with local development.
+- `infra/cloudflare/`: pinned Terraform deployment, provider lock, and deployment/recovery documentation. `scripts/terraform.mjs` loads private credentials and invokes Terraform; `scripts/cloudflare-migrate.mjs` applies its D1 migrations.
+- `tests/cloudflare/`: isolated Cloudflare runtime regression tests. `WARFRAME_TEST_BACKEND=cloudflare` also runs the existing browser suite against D1.
 - `src/lib/account.ts` and `src/lib/useAccount.ts`: profile validation, legacy save loading, guest workspace, authentication, and serialized autosaving.
 - `src/components/AccountDialog.tsx`: signup, access-key and bookmark saving, sign-in, key replacement, migration choice, and sign-out.
 - `tests/browser/accountFixture.ts`: isolated real account API used by browser regression tests.

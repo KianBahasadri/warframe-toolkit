@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
+    "build:cloudflare": "npm run build && tsc -p tsconfig.cloudflare.json && node scripts/build-cloudflare.mjs",
+    "test:cloudflare": "tsc -p tsconfig.cloudflare.json && node scripts/build-cloudflare.mjs && node --experimental-strip-types --test tests/cloudflare/*.test.ts",
+    "infra": "node scripts/terraform.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:browser": "playwright test",
@@ -25,12 +28,16 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261011.1",
     "@playwright/test": "^1.64.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.0",
+    "esbuild": "0.28.2",
+    "miniflare": "5.20261006.1-alpha",
     "typescript": "^5.9.3",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "wrangler": "4.149.0"
   }
 }
