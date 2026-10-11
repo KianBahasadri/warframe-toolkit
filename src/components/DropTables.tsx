@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { Ref } from 'react';
-import { ArrowDownToLine, ArrowLeft, Bookmark, ChevronLeft, ChevronRight, CircleHelp, ExternalLink, Filter, Link, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, Bookmark, ChevronLeft, ChevronRight, CircleHelp, ExternalLink, Filter, Link, Search, SlidersHorizontal, X } from 'lucide-react';
 import { TablePopover } from './TablePopover';
 import { Select } from './Select';
 import { Dialog } from './Dialog';
@@ -8,21 +8,21 @@ import { DropFacet, DropFilterForm, DropSorts } from './DropTableControls';
 import { DropDetails } from './DropDetails';
 import { DropGroupCard, DropModePicker, DropRewardCards, dropBrowseOptions } from './DropBrowser';
 import { compileDropQuery, defaultDropView, DROP_TABLES_URL, dropColumns, dropFilterLabel, dropRowsCsv, dropViewHash, filterDropRows, isDropView, moveDropSort, readDropView, setDropSort, sortDropRows } from '../lib/dropTables';
-import type { DropBrowseMode, DropColumnKey, DropDataset, DropFilter, DropRow, DropView } from '../lib/dropTables';
+import type { DropBrowseMode, DropColumnKey, DropFilter, DropRow, DropView } from '../lib/dropTables';
 import { dropBrowseCounts, groupDropRows } from '../lib/dropExplorer';
+import { useDropData } from '../lib/useDropData';
 import { downloadFile } from '../lib/storage';
 import './DropTables.css';
 
-export interface DropTableActions { exportCsv: () => void; refresh: () => void }
-let sessionData: DropDataset | null = null;
+export interface DropTableActions { exportCsv: () => void }
 let sessionView = defaultDropView();
 const facetKeys: DropColumnKey[] = ['category', 'location', 'mission', 'rotation', 'stage', 'era', 'refinement', 'rarity'];
 const viewsKey = 'warframe-toolkit.drop-views.v1';
 type SavedView = { name: string; view: DropView };
 
 export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }) {
-  const [data, setData] = useState(sessionData);
-  const [loading, setLoading] = useState(true), [error, setError] = useState(''), [notice, setNotice] = useState('');
+  const { data, loading, error } = useDropData();
+  const [notice, setNotice] = useState('');
   const [view, setView] = useState(() => location.hash.includes('?') ? readDropView(location.hash) : sessionView);
   const [filtersOpen, setFiltersOpen] = useState(false), [help, setHelp] = useState(false), [viewsOpen, setViewsOpen] = useState(false);
   const [chanceOpen, setChanceOpen] = useState(false);
@@ -37,30 +37,8 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
     } catch { return { views: [], error: 'Saved views could not be read. The original data has been kept.' }; }
   });
   const searchInput = useRef<HTMLInputElement>(null), viewsButton = useRef<HTMLButtonElement>(null), chanceButton = useRef<HTMLButtonElement>(null);
-  const resultsHeading = useRef<HTMLHeadingElement>(null), request = useRef<AbortController | null>(null);
+  const resultsHeading = useRef<HTMLHeadingElement>(null);
   const changeView = (next: DropView) => { setView(next); setPage(1); };
-  const refresh = async () => {
-    request.current?.abort();
-    const controller = new AbortController(); request.current = controller;
-    setLoading(true); setError('');
-    try {
-      const response = await fetch('/api/droptables', { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45_000)]), cache: 'no-store' });
-      if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('The live drop-table endpoint is unavailable. Run this app with npm run dev or npm run preview.');
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Could not load the official drop tables.');
-      if (!Array.isArray(result.rows) || !result.rows.length || typeof result.fetchedAt !== 'string' || result.rows.some((row: DropRow) => typeof row.reward !== 'string' || typeof row.source !== 'string' || typeof row.tableChance !== 'number')) throw new Error('The live drop-table response was not recognized.');
-      if (controller.signal.aborted) return;
-      sessionData = result; setData(result); setDetails(null);
-    } catch (cause) {
-      if (!controller.signal.aborted) setError(cause instanceof Error && cause.name !== 'TimeoutError' && cause.name !== 'TypeError' ? cause.message : 'Could not reach the live drop tables. Check your connection and retry.');
-    } finally { if (!controller.signal.aborted) setLoading(false); }
-  };
-  useEffect(() => {
-    // StrictMode replays mount effects; do not start a download for its discarded mount.
-    let mounted = true;
-    queueMicrotask(() => { if (mounted) void refresh(); });
-    return () => { mounted = false; request.current?.abort(); };
-  }, []);
   useEffect(() => {
     sessionView = view;
     const timer = window.setTimeout(() => history.replaceState(null, '', dropViewHash(view)), 250);
@@ -106,7 +84,7 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
     downloadFile(`warframe-drops-${new Date().toISOString().slice(0, 10)}.csv`, dropRowsCsv(rows, dropColumns.map(column => column.key)), 'text/csv;charset=utf-8');
     setNotice(`Exported all ${rows.length.toLocaleString()} matching entries with all fields.`);
   };
-  useImperativeHandle(actionsRef, () => ({ exportCsv, refresh: () => { void refresh(); } }));
+  useImperativeHandle(actionsRef, () => ({ exportCsv }));
   useEffect(() => setPageInput(String(currentPage)), [currentPage]);
   const goToPage = (next: number) => { setPage(Math.max(1, Math.min(pages, next))); resultsHeading.current?.scrollIntoView({ block: 'start' }); focusResults(); };
   const saveViews = (next: SavedView[]) => {
@@ -121,10 +99,10 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
   };
 
   return <section className="drop-tables" aria-label="Drop Tables">
-    <div className="drop-heading"><div><h1>Drop Tables</h1><div className="drop-provenance"><a href={DROP_TABLES_URL} target="_blank" rel="noreferrer">Warframe PC drops <ExternalLink size={12} /></a>{data && <><span>Published {data.updated || 'date unavailable'}</span><span title={new Date(data.fetchedAt).toLocaleString()}>Fetched {new Date(data.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></>}</div></div>
-      <div className="drop-heading-actions"><button type="button" ref={viewsButton} className="button secondary" aria-expanded={viewsOpen} onClick={() => setViewsOpen(!viewsOpen)}><Bookmark size={15} />Saved views</button><button type="button" className="button secondary drop-refresh" disabled={loading} aria-busy={loading} onClick={() => void refresh()}><RefreshCw size={15} className={loading ? 'drop-spinner' : ''} />{loading ? 'Fetching…' : 'Refresh'}</button></div>
+    <div className="drop-heading"><div><h1>Drop Tables</h1><div className="drop-provenance"><a href={DROP_TABLES_URL} target="_blank" rel="noreferrer">Warframe PC drops <ExternalLink size={12} /></a>{data && <span>Published {data.updated || 'date unavailable'}</span>}<span>Last fetched: {data ? <time dateTime={data.fetchedAt} title={new Date(data.fetchedAt).toLocaleString()}>{new Date(data.fetchedAt).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time> : 'Not yet'}</span><span>Updates automatically every hour</span></div></div>
+      <div className="drop-heading-actions"><button type="button" ref={viewsButton} className="button secondary" aria-expanded={viewsOpen} onClick={() => setViewsOpen(!viewsOpen)}><Bookmark size={15} />Saved views</button></div>
     </div>
-    {error && <div className="callout danger" role="alert">{error}{data && <p>Showing the last successful fetch from {new Date(data.fetchedAt).toLocaleString()}.</p>}<button type="button" className="button secondary" disabled={loading} onClick={() => void refresh()}>Retry</button></div>}
+    {error && <div className="callout danger" role="alert">{error}{data && <p>Showing the last successful fetch from {new Date(data.fetchedAt).toLocaleString()}.</p>}<p>Updates will retry automatically.</p></div>}
     {data && data.skippedRows > 0 && <p className="callout caution" role="status">{data.skippedRows.toLocaleString()} entries could not be parsed. These results are incomplete; consult the official table.</p>}
     <DropModePicker mode={mode} counts={counts} loading={loading} onSelect={chooseMode} />
     {notice && <div className="drop-notice" role="status"><span>{notice}</span><button type="button" className="icon-button" aria-label="Dismiss drop table notification" onClick={() => setNotice('')}><X size={14} /></button></div>}
@@ -140,16 +118,16 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
       {sortValue === 'custom' && <DropSorts sorting={view.sorting} onSort={(key, direction) => changeView({ ...view, sorting: setDropSort(view.sorting, key, direction) })} onPriority={(key, index) => changeView({ ...view, sorting: moveDropSort(view.sorting, key, index) })} onClear={() => changeView({ ...view, sorting: [] })} />}
       <div className="drop-results-heading">
         <div>{groupKey !== undefined && <button type="button" className="drop-back" onClick={() => { chooseMode(mode); focusResults(); }}><ArrowLeft size={14} />All {option!.noun}</button>}<h2 ref={resultsHeading} tabIndex={-1}>{groupKey === undefined ? option!.noun[0].toUpperCase() + option!.noun.slice(1) : selectedTitle}</h2>
-          <div className="drop-result-summary" role="status">{data ? <>{groupKey === undefined && <><strong>{groups.length.toLocaleString()}</strong> {option!.noun}<span aria-hidden="true"> · </span></>}<strong>{rows.length.toLocaleString()}</strong> matching entries</> : loading ? 'Fetching official drop tables…' : 'No live data loaded'}</div>
+          <div className="drop-result-summary" role="status">{data ? <>{groupKey === undefined && <><strong>{groups.length.toLocaleString()}</strong> {option!.noun}<span aria-hidden="true"> · </span></>}<strong>{rows.length.toLocaleString()}</strong> matching entries</> : loading ? 'Loading saved drop tables…' : 'Waiting for an automatic update'}</div>
         </div>
         <div className="drop-results-actions"><label className="drop-sort-label"><span>Sort by</span><Select label="Sort results" value={sortValue} options={[{ value: 'name', label: 'Name A–Z' }, { value: 'chance-desc', label: 'Chance: high to low' }, { value: 'chance-asc', label: 'Chance: low to high' }, ...(sortValue === 'custom' ? [{ value: 'custom', label: 'Custom order' }] : [])]} onChange={value => changeView({ ...view, sorting: value === 'name' ? [] : [{ key: 'chance', direction: value === 'chance-desc' ? -1 : 1 }] })} /></label>
-          <button type="button" className="icon-button" aria-label="Copy view link" title="Copy view link" onClick={async () => { try { await navigator.clipboard.writeText(`${location.origin}${location.pathname}${dropViewHash(view)}`); setNotice('View link copied. It will fetch the latest published data when opened.'); } catch { setNotice('Could not copy the link. Copy this page’s address from your browser.'); } }}><Link size={17} /></button><button type="button" className="icon-button" aria-label="Export CSV" title="Export all matching entries as CSV" disabled={!rows.length || view.query !== deferredQuery} onClick={exportCsv}><ArrowDownToLine size={17} /></button>
+          <button type="button" className="icon-button" aria-label="Copy view link" title="Copy view link" onClick={async () => { try { await navigator.clipboard.writeText(`${location.origin}${location.pathname}${dropViewHash(view)}`); setNotice('View link copied. It uses the latest automatic update.'); } catch { setNotice('Could not copy the link. Copy this page’s address from your browser.'); } }}><Link size={17} /></button><button type="button" className="icon-button" aria-label="Export CSV" title="Export all matching entries as CSV" disabled={!rows.length || view.query !== deferredQuery} onClick={exportCsv}><ArrowDownToLine size={17} /></button>
         </div>
       </div>
       <div className="drop-results" role="region" aria-label="Drop results" aria-busy={loading || view.query !== deferredQuery}>
         {!data && loading ? <div className="drop-group-grid" aria-hidden="true">{Array.from({ length: 6 }, (_, index) => <div className="drop-loading-card" key={index}><span /><span /><span /></div>)}</div> : groupKey === undefined ? <div className="drop-group-grid">{groups.slice(offset, offset + view.pageSize).map(group => <DropGroupCard key={group.key} group={group} mode={mode} onSelect={() => openGroup(group.key)} />)}</div> : <DropRewardCards rows={rows.slice(offset, offset + view.pageSize)} mode={mode} onOpen={setDetails} />}
         {data && !total && <div className="drop-empty"><Search size={28} aria-hidden="true" /><h3>No matching drops</h3><p>{query.error || 'Try another search, clear your filters, or choose a different view.'}</p>{changed && <button type="button" className="button secondary" onClick={resetFilters}>Clear search and filters</button>}</div>}
-        {!data && !loading && <div className="drop-empty"><p>Live drop tables could not be loaded.</p><button type="button" className="button secondary" onClick={() => void refresh()}>Try again</button></div>}
+        {!data && !loading && <div className="drop-empty"><p>Drop tables will appear after a successful automatic update.</p></div>}
       </div>
       {data && total > 0 && <div className="drop-pagination"><span>{(offset + 1).toLocaleString()}–{Math.min(offset + view.pageSize, total).toLocaleString()} of {total.toLocaleString()} {groupKey === undefined ? option!.noun : 'entries'}</span><label>Per page<Select label="Results per page" value={String(view.pageSize)} options={[...new Set([12, 24, 48, 96, view.pageSize])].sort((a, b) => a - b).map(value => ({ value: String(value), label: String(value) }))} onChange={value => changeView({ ...view, pageSize: Number(value) })} /></label><div className="drop-page-controls"><button type="button" className="icon-button" disabled={currentPage === 1} aria-label="Previous page" onClick={() => goToPage(currentPage - 1)}><ChevronLeft size={17} /></button><form onSubmit={event => { event.preventDefault(); const next = Number(pageInput); if (Number.isInteger(next) && next >= 1 && next <= pages) goToPage(next); else setPageInput(String(currentPage)); }}><label>Page<input type="number" min="1" max={pages} value={pageInput} onChange={event => setPageInput(event.target.value)} onBlur={() => setPageInput(String(currentPage))} /></label><span>of {pages.toLocaleString()}</span><button type="submit" className="sr-only">Go to page</button></form><button type="button" className="icon-button" disabled={currentPage === pages} aria-label="Next page" onClick={() => goToPage(currentPage + 1)}><ChevronRight size={17} /></button></div></div>}
     </div>}
@@ -157,8 +135,8 @@ export function DropTables({ actionsRef }: { actionsRef: Ref<DropTableActions> }
     {details && <DropDetails row={details} onClose={() => setDetails(null)} onFindReward={() => browseRelated('item', details.reward)} onFindSource={() => browseRelated('source', details.source)} />}
     {viewsOpen && <TablePopover anchor={viewsButton.current!} label="Drop table views" className="drop-views-popover" onClose={() => setViewsOpen(false)}><div className="column-menu-heading">Saved views</div><div className="column-menu-content">
       {saved.views.length > 0 ? <div className="drop-saved-views">{saved.views.map((entry, index) => <div key={entry.name}><button type="button" className="column-menu-action" onClick={() => { changeView({ ...entry.view, browse: entry.view.browse ?? { mode: 'item' } }); closeViews(); }}>{entry.name}</button><button type="button" className="icon-button" aria-label={`Delete view ${entry.name}`} onClick={() => saveViews(saved.views.filter((_, position) => position !== index))}><X size={14} /></button></div>)}</div> : <p className="drop-saved-empty muted small">No saved views</p>}
-      <form className="drop-save-view" onSubmit={event => { event.preventDefault(); if (!viewName.trim() || saved.error || !mode) return; if (saved.views.some(entry => entry.name.toLocaleLowerCase() === viewName.trim().toLocaleLowerCase())) { setNotice('A view with that name already exists. Choose another name.'); return; } if (saveViews([...saved.views, { name: viewName.trim(), view: { ...view, browse: view.browse ?? { mode } } }])) { setViewName(''); closeViews(); setNotice('View saved. Live drop data is fetched when opened.'); } }}><label>View name<input maxLength={60} value={viewName} onChange={event => setViewName(event.target.value)} disabled={Boolean(saved.error) || !mode} /></label><button type="submit" className="button secondary" disabled={!viewName.trim() || Boolean(saved.error) || !mode}>Save current view</button>{saved.error && <p className="error-text small">{saved.error}</p>}{!mode && <p className="muted small">Choose a browse view to save it.</p>}</form>
+      <form className="drop-save-view" onSubmit={event => { event.preventDefault(); if (!viewName.trim() || saved.error || !mode) return; if (saved.views.some(entry => entry.name.toLocaleLowerCase() === viewName.trim().toLocaleLowerCase())) { setNotice('A view with that name already exists. Choose another name.'); return; } if (saveViews([...saved.views, { name: viewName.trim(), view: { ...view, browse: view.browse ?? { mode } } }])) { setViewName(''); closeViews(); setNotice('View saved. Drop data updates automatically.'); } }}><label>View name<input maxLength={60} value={viewName} onChange={event => setViewName(event.target.value)} disabled={Boolean(saved.error) || !mode} /></label><button type="submit" className="button secondary" disabled={!viewName.trim() || Boolean(saved.error) || !mode}>Save current view</button>{saved.error && <p className="error-text small">{saved.error}</p>}{!mode && <p className="muted small">Choose a browse view to save it.</p>}</form>
     </div></TablePopover>}
-    {help && <Dialog title="Search & drop rates" onClose={() => setHelp(false)} className="drop-help"><h3>Search syntax</h3><p>Combine terms to narrow results. Use quotes for a phrase and a minus sign to exclude a term. Search ignores letter case.</p><dl className="drop-query-examples"><div><dt><code>"nova prime"</code></dt><dd>Find the phrase across all text fields</dd></div><div><dt><code>reward:forma -source:lith</code></dt><dd>Forma rewards, excluding Lith sources</dd></div><div><dt><code>mission:survival rotation:c</code></dt><dd>Survival rewards in rotation C</dd></div><div><dt><code>chance:&gt;=10 chance:&lt;50</code></dt><dd>Drop chance from 10% up to, but excluding, 50%</dd></div></dl><p className="small muted">Fields: reward, source, category, location, mission, rotation, stage, era, refinement, rarity, chance, within, roll. Numeric fields accept =, &gt;, &gt;=, &lt;, and &lt;=.</p><h3>Reading the rates</h3><p><strong>Drop chance</strong> combines the source’s table roll rate with the reward’s within-table chance. Rates above 100% indicate multiple rolls; their overall odds are left uncalculated. The rarity label comes directly from the publisher.</p><p>Bounty stages and rotations are separate opportunities. Duplicate rewards within a table remain separate entries; they are not automatically added together. Reverse indexes for enemy drops are shown once.</p><p className="muted small">The official page describes PC rewards and may omit drops or lag hotfixes. Listed relics or sources can be vaulted or unavailable. Refresh fetches the latest published page, not an in-game live rotation. CSV exports every matching entry in the current group or view, with all fields; rates are percentages.</p><a href={DROP_TABLES_URL} target="_blank" rel="noreferrer">Open the official drop tables</a></Dialog>}
+    {help && <Dialog title="Search & drop rates" onClose={() => setHelp(false)} className="drop-help"><h3>Search syntax</h3><p>Combine terms to narrow results. Use quotes for a phrase and a minus sign to exclude a term. Search ignores letter case.</p><dl className="drop-query-examples"><div><dt><code>"nova prime"</code></dt><dd>Find the phrase across all text fields</dd></div><div><dt><code>reward:forma -source:lith</code></dt><dd>Forma rewards, excluding Lith sources</dd></div><div><dt><code>mission:survival rotation:c</code></dt><dd>Survival rewards in rotation C</dd></div><div><dt><code>chance:&gt;=10 chance:&lt;50</code></dt><dd>Drop chance from 10% up to, but excluding, 50%</dd></div></dl><p className="small muted">Fields: reward, source, category, location, mission, rotation, stage, era, refinement, rarity, chance, within, roll. Numeric fields accept =, &gt;, &gt;=, &lt;, and &lt;=.</p><h3>Reading the rates</h3><p><strong>Drop chance</strong> combines the source’s table roll rate with the reward’s within-table chance. Rates above 100% indicate multiple rolls; their overall odds are left uncalculated. The rarity label comes directly from the publisher.</p><p>Bounty stages and rotations are separate opportunities. Duplicate rewards within a table remain separate entries; they are not automatically added together. Reverse indexes for enemy drops are shown once.</p><p className="muted small">The official page describes PC rewards and may omit drops or lag hotfixes. Listed relics or sources can be vaulted or unavailable. Automatic updates retrieve the published page, not an in-game live rotation. CSV exports every matching entry in the current group or view, with all fields; rates are percentages.</p><a href={DROP_TABLES_URL} target="_blank" rel="noreferrer">Open the official drop tables</a></Dialog>}
   </section>;
 }

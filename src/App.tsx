@@ -77,7 +77,7 @@ export default function App() {
   const exportCsv = () => { downloadFile(`arsenal-inventory-${new Date().toISOString().slice(0, 10)}.csv`, inventoryCsv(equipmentRows(inventoryRef.current.items, catalog)), 'text/csv;charset=utf-8'); setNotice('Inventory CSV downloaded.'); };
   const exportRelics = () => { downloadFile(`arsenal-relics-${new Date().toISOString().slice(0, 10)}.csv`, relicsCsv(inventoryRef.current.relics ?? []), 'text/csv;charset=utf-8'); setNotice('Relics CSV downloaded.'); };
   const commands: Command[] = [
-    ...(page === 'droptables' ? [{ label: 'Refresh drop tables', keys: ['Alt', 'R'], run: () => dropActions.current?.refresh() }] : [{ label: `Add ${equipmentLabel}`, keys: ['Alt', 'N'], run: () => setEditing('new') }]),
+    ...(page === 'droptables' ? [] : [{ label: `Add ${equipmentLabel}`, keys: ['Alt', 'N'], run: () => setEditing('new') }]),
     { label: 'Import screenshots', keys: ['Alt', 'I'], run: () => navigate('import') },
     { label: page === 'droptables' ? 'Export filtered drop tables CSV' : page === 'relics' ? 'Export relics CSV' : 'Export inventory CSV', keys: ['Alt', 'E'], run: page === 'droptables' ? () => dropActions.current?.exportCsv() : page === 'relics' ? exportRelics : exportCsv },
     { label: 'Toggle theme', keys: ['Alt', 'Shift', 'T'], run: () => setTheme(value => value === 'dark' ? 'light' : 'dark') },

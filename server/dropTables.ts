@@ -36,4 +36,3 @@ export async function fetchLiveDropTables(fetcher: typeof fetch = fetch, parentS
   } finally { await reader.cancel().catch(() => {}); }
   return parseDropTables(Buffer.concat(chunks).toString('utf8'));
 }
-

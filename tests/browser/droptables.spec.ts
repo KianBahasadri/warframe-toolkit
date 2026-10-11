@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { parseDropTables } from '../../src/lib/dropTableParser';
-import { defaultDropView, dropViewHash } from '../../src/lib/dropTables';
+import { defaultDropView, DROP_CACHE_POLL_MS, dropViewHash } from '../../src/lib/dropTables';
 import artwork from '../../src/data/drop-art.json' with { type: 'json' };
 
 test.setTimeout(30_000);
@@ -15,7 +15,7 @@ async function mockDrops(page: Page) { await page.route('**/api/droptables', rou
 async function browse(page: Page, label: string) { await page.getByRole('button', { name: `Browse by ${label}`, exact: true }).click(); }
 async function openDrops(page: Page, mode = 'item') {
   await mockDrops(page); await page.goto('/#droptables');
-  await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+  await expect(page.locator('.drop-provenance time')).toHaveAttribute('datetime', data.fetchedAt);
   await browse(page, mode);
 }
 async function select(page: Page, label: string, value: string) {
@@ -23,32 +23,63 @@ async function select(page: Page, label: string, value: string) {
   await page.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: value, exact: true }).click();
 }
 
-test('starts with browse choices, fetches on entry and refresh, and retains data after failure without touching inventory', async ({ page }) => {
-  let requests = 0, fail = false;
-  await page.route('**/api/droptables', route => { requests++; return fail ? route.fulfill({ status: 502, json: { error: 'Official page unavailable' } }) : route.fulfill({ json: { ...data, updated: requests === 1 ? data.updated : '02 January, 2026' } }); });
+test('uses cached data, updates automatically, keeps the successful fetch time and has no manual refresh controls', async ({ page }) => {
+  await page.clock.install();
+  let requests = 0, fail = false, sourceError = '', fetchedAt = data.fetchedAt;
+  await page.route('**/api/droptables', route => {
+    requests++;
+    if (fail) return route.fulfill({ status: 503, json: { error: 'Local service unavailable' } });
+    const etag = `"${fetchedAt}-${sourceError}"`;
+    if (route.request().headers()['if-none-match'] === etag) return route.fulfill({ status: 304, headers: { ETag: etag } });
+    return route.fulfill({ headers: { ETag: etag }, json: { ...data, fetchedAt, refreshError: sourceError || null } });
+  });
   await page.goto('/');
   const inventory = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   expect(requests).toBe(0);
   await page.getByRole('link', { name: 'Drop Tables', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
+  const fetchedTime = page.locator('.drop-provenance time');
+  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
+  await expect(page.locator('.drop-provenance')).toContainText('Last fetched:');
+  await expect(fetchedTime).toContainText('2026');
+  await expect(page.getByRole('button', { name: /^(Refresh|Retry|Try again)$/ })).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Browse drop tables by' }).getByRole('button')).toHaveCount(6);
   await expect(page.getByRole('table')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Drop results', exact: true })).toHaveCount(0);
   expect(requests).toBe(1);
   await browse(page, 'mission type');
   await expect(page.locator('.drop-group-card')).toHaveCount(2);
-  fail = true; await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await page.getByRole('button', { name: 'Open Survival', exact: true }).click();
+  await page.getByRole('button', { name: 'Nova Prime Systems Blueprint from Mercury/Apollodorus (Survival): details', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('spinbutton', { name: 'Attempts', exact: true }).fill('77');
+  fail = true; await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
   await expect(page.getByRole('alert')).toContainText('Showing the last successful fetch');
-  await expect(page.locator('.drop-group-card')).toHaveCount(2);
-  fail = false; await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
+  await expect(dialog.getByRole('spinbutton', { name: 'Attempts', exact: true })).toHaveValue('77');
+  fail = false; sourceError = 'Official page unavailable'; await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
+  await expect(page.getByRole('alert')).toContainText(sourceError);
+  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
+  sourceError = ''; fetchedAt = '2026-01-02T13:00:00.000Z'; await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
   await expect(page.getByRole('alert')).toHaveCount(0);
-  await expect(page.locator('.drop-provenance')).toContainText('02 January, 2026');
-  expect(requests).toBe(3);
+  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
+  await expect(dialog.getByRole('spinbutton', { name: 'Attempts', exact: true })).toHaveValue('77');
+  expect(requests).toBe(4);
+  await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
   await page.getByRole('link', { name: 'Drop Tables', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled();
   expect(requests).toBe(4);
-  await expect(page.locator('.drop-group-card')).toHaveCount(2);
+  await expect(page.locator('.drop-result-card')).toHaveCount(4);
+  await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
+  await expect.poll(() => requests).toBe(5);
+  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open search and commands' }).click();
+  await expect(page.getByRole('option', { name: 'Refresh drop tables', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Alt+r'); expect(requests).toBe(5);
+  await page.reload();
+  await expect(fetchedTime).toHaveAttribute('datetime', fetchedAt);
+  expect(requests).toBe(6);
   expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(inventory);
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => /drop/.test(key)))).toEqual([]);
 });
@@ -206,6 +237,7 @@ test('group pagination, complete CSV exports, saved views and links preserve the
 });
 
 test('load failure, malformed saved views, narrow screens and inert source markup remain usable', async ({ page }) => {
+  await page.clock.install();
   await page.route('**/api/droptables', route => route.fulfill({ status: 502, json: { error: 'Upstream timeout' } }));
   await page.addInitScript(() => localStorage.setItem('warframe-toolkit.drop-views.v1', '{broken'));
   await page.goto('/#droptables');
@@ -213,7 +245,7 @@ test('load failure, malformed saved views, narrow screens and inert source marku
   await expect(page.getByRole('button', { name: 'Browse by item', exact: true })).toContainText('Unavailable');
   await browse(page, 'item');
   await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toBeDisabled();
-  await mockDrops(page); await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await mockDrops(page); await page.clock.fastForward(DROP_CACHE_POLL_MS + 1000);
   await expect(page.locator('.drop-result-summary')).toContainText('87 matching entries');
   await page.getByRole('button', { name: 'Saved views', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Drop table views' })).toContainText('The original data has been kept');
@@ -239,6 +271,21 @@ test('load failure, malformed saved views, narrow screens and inert source marku
   await page.getByRole('button', { name: 'Switch to light theme' }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/drop-tables-mobile.png', fullPage: true });
+});
+
+test('first-run cache preparation recovers automatically without a fetch or retry button', async ({ page }) => {
+  await page.clock.install();
+  let ready = false;
+  await page.route('**/api/droptables', route => ready ? route.fulfill({ json: data }) : route.fulfill({ status: 503, json: { refreshing: true, error: 'Waiting for the first automatic update.' } }));
+  await page.goto('/#droptables');
+  await expect(page.locator('.drop-provenance')).toContainText('Last fetched: Not yet');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await browse(page, 'mission type');
+  await expect(page.locator('.drop-results')).toHaveAttribute('aria-busy', 'true');
+  ready = true; await page.clock.fastForward(6000);
+  await expect(page.locator('.drop-provenance time')).toHaveAttribute('datetime', data.fetchedAt);
+  await expect(page.locator('.drop-group-card')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: /^(Refresh|Retry|Try again)$/ })).toHaveCount(0);
 });
 
 test('legacy shared and saved views still open their results, and navigation shortcuts retain the browser', async ({ page }) => {
