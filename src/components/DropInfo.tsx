@@ -12,7 +12,7 @@ export function DropInfo({ data, onClose }: { data: DropDataset | null; onClose:
       <div><dt>Last fetched</dt><dd>{data ? <time dateTime={data.fetchedAt} title={new Date(data.fetchedAt).toLocaleString([], { timeZoneName: 'long' })}>{new Date(data.fetchedAt).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}</time> : 'Not yet'}</dd></div>
     </dl>
     <h3>Browsing</h3>
-    <p>Choose mission type, item, location, relic, bounty, or source. Select a card to see its drops, then narrow the results with search and filters. Open a reward card for its rates and odds calculator.</p>
+    <p>Choose how to browse: mission type, item, location, relic, bounty, or source. Select a result to see its drops, then narrow the list with search and filters. Open a reward to see its drop chances and use the odds calculator.</p>
     <h3>Drop chances</h3>
     <p>Rotations, bounty stages, and relic refinements are separate entries. Chances apply to the listed opportunity; repeated rewards are not added together. A listed source may be vaulted or currently unavailable.</p>
     <h3>Updates</h3>
