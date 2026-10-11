@@ -33,9 +33,9 @@ All 14 spreadsheet fields are stored: Owned, Weapon Name, Don't Keep, Crafting I
 **Alt+1**, **Alt+2**, and **Alt+3** switch to Weapons, Warframes, and Relics, matching the tab order. **Alt+I** opens screenshot import. Shortcuts are paused while editing a field or using a dialog.
 
 - Ownership and mastery checkboxes save immediately and remain independent of rank. Select a name for **Weapon details** or **My inventory**.
-- Weapons starts with **Owned only** checked. Uncheck it to browse the entire catalog, including unowned weapons. Browsing never adds catalog entries to your save. Checking ownership or saving an inventory edit adds only that weapon.
-- Search names, crafting targets, notes, weapon types, tags, and quest names. Combine slot and Incarnon filters with weapon type, variant, mastery, quest rewards, crafting use, Foundry recipes, Prime counterparts, vault status, keep preference, and maximum required MR. Reset filters restores the owned view.
-- **All 14 fields** switches to the full spreadsheet view.
+- Weapons starts with **Owned only** checked under **Filters**. Uncheck it to browse the entire catalog, including unowned weapons. Browsing never adds catalog entries to your save. Checking ownership or saving an inventory edit adds only that weapon.
+- Search names, crafting targets, notes, weapon types, tags, and quest names. Open **Filters** to choose slot, Incarnon status, weapon type, variant, mastery, quest rewards, crafting use, Foundry recipes, Prime counterparts, vault status, keep preference, and maximum required MR. With the panel closed, only controls changed from their defaults remain visible. Returning a filter to its default hides it again; **Reset filters** restores the owned view.
+- The compact table groups the slot and Incarnon status under each name, with larger game images and separate ownership, current rank, and mastery columns. **All 14 fields** switches to the full spreadsheet view; current rank remains visible under the name there. Routine values and checkboxes use neutral colors.
 - Sort by multiple columns; repeated header clicks cycle ascending, descending, and unsorted.
 - The override takes precedence over the Don't Keep checkbox. No item is automatically marked safe to sell.
 - Known equipment gets its slot, variant, crafting targets, Incarnon eligibility, quest rewards, and Prime counterpart automatically. Those facts are read-only. Keep preferences, ownership, mastery, rank, upgrades, favorites, and notes remain personal.

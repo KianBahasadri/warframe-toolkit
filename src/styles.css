@@ -44,7 +44,14 @@ p { margin-bottom: 16px; }
 input:not([type="checkbox"]), .select-trigger, textarea { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 9px 12px; max-width: 100%; min-width: 0; font-size: 14px; }
 input::placeholder, textarea::placeholder { color: var(--faint); }
 input:not([type="checkbox"]):hover, .select-trigger:hover:not(:disabled), textarea:hover { border-color: var(--line-strong); }
-input[type="checkbox"] { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: var(--control-selected); cursor: pointer; }
+input[type="checkbox"] { appearance: none; display: inline-grid; place-content: center; width: 18px; height: 18px; margin: 0; flex-shrink: 0; border: 1px solid var(--control-selected); border-radius: 4px; background: var(--surface); color: var(--ink); accent-color: var(--control-selected); cursor: pointer; }
+input[type="checkbox"]:checked { background: var(--action-primary); }
+input[type="checkbox"]:checked::before { content: ''; width: 14px; height: 14px; background: currentColor; mask: url('./assets/check.svg') center / contain no-repeat; }
+input[type="checkbox"]:hover:not(:disabled) { border-color: var(--control-selected-hover); background: var(--action-primary-hover); }
+@media (forced-colors: active) {
+  input[type="checkbox"] { appearance: auto; background: revert; border: revert; accent-color: auto; }
+  input[type="checkbox"]::before { display: none; }
+}
 .select-trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; line-height: 1.5; font-weight: 400; }
 .select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .select-trigger > svg { color: var(--muted); }
@@ -110,8 +117,60 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .full-table { min-width: 1880px; }
 .inventory-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .section-heading h1 { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 500; line-height: 1.35; letter-spacing: normal; margin: 0; }
-.inventory-section .table-scroll { max-height: 64dvh; }
+.inventory-section .table-scroll { max-height: max(320px, calc(100dvh - 208px)); }
 .inventory-section th { position: sticky; top: 0; z-index: 1; background: var(--canvas); }
+.inventory-grid { --table-ink: color-mix(in srgb, var(--ink) 85%, var(--muted)); --table-muted: color-mix(in srgb, var(--ink) 25%, var(--muted)); --table-rule: color-mix(in srgb, var(--line) 55%, transparent); }
+.inventory-table { table-layout: fixed; min-width: 1136px; font-size: 15px; line-height: 1.4; color: var(--table-ink); }
+.inventory-table .column-name { width: 360px; }
+.inventory-table .column-owned { width: 96px; }
+.inventory-table .column-rank { width: 84px; }
+.inventory-table .column-mastered { width: 124px; }
+.inventory-table .column-upgraded { width: 112px; }
+.inventory-table .column-keep { width: 164px; }
+.inventory-table th { padding: 10px 12px; border-bottom: 1px solid var(--table-rule); color: var(--table-muted); font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.inventory-table td { height: 64px; padding: 4px 12px; border-bottom: 1px solid var(--table-rule); vertical-align: middle; }
+.inventory-table tbody tr:hover, .inventory-table tbody tr:focus-within { background: var(--surface); }
+.inventory-table .sort-button { position: relative; max-width: 100%; min-height: 28px; padding-right: 28px; }
+.inventory-table .sort-indicator { position: absolute; right: 0; width: 24px; gap: 2px; }
+.inventory-table .check-cell { padding-left: 8px; padding-right: 8px; }
+.inventory-table .check-cell .sort-button { padding-right: 0; }
+.inventory-table .check-cell .sort-indicator { right: auto; left: calc(100% + 4px); }
+.inventory-table .check-cell .sort-indicator:empty { width: 24px; }
+.inventory-table .table-checkbox { min-width: 40px; height: 40px; }
+.inventory-table .number-cell { text-align: right; font-variant-numeric: tabular-nums; }
+.inventory-table td.number-cell { font-family: var(--mono); font-size: 14px; }
+.inventory-table .number-cell .sort-button { padding-right: 0; padding-left: 28px; }
+.inventory-table .number-cell .sort-indicator { right: auto; left: 0; }
+.inventory-table .equipment-name { width: 100%; gap: 12px; min-height: 56px; color: var(--table-ink); font-size: 16px; line-height: 1.35; white-space: normal; }
+.inventory-table .equipment-image, .inventory-table .equipment-initial { width: 88px; height: 56px; flex-shrink: 0; }
+.inventory-table .equipment-initial { background: transparent; color: var(--table-muted); font-size: 16px; }
+.equipment-identity { min-width: 0; }
+.equipment-label { display: block; overflow-wrap: anywhere; }
+.equipment-meta { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; color: var(--table-muted); font-size: 14px; font-weight: 400; line-height: 1.4; margin-top: 2px; }
+.equipment-meta:empty { display: none; }
+.equipment-meta > span + span::before { content: '·'; margin-right: 8px; }
+.inventory-table .crafting-target-cell { white-space: normal; overflow-wrap: anywhere; }
+.inventory-table .crafting-cell, .inventory-table .catalog-fact { color: var(--table-ink); font-size: inherit; }
+.inventory-table .table-secondary, .inventory-table .table-missing, .inventory-table .cell-note { color: var(--table-muted); }
+.inventory-table .cell-note { display: block; font-size: 14px; }
+.inventory-table.full-table { min-width: 2080px; }
+.inventory-table.full-table .column-craftingTarget { width: 240px; }
+.inventory-table.full-table .column-dontKeep, .inventory-table.full-table .column-incarnon { width: 104px; }
+.inventory-table.full-table .column-craftingIngredient { width: 152px; }
+.inventory-table.full-table .column-questWeapon { width: 136px; }
+.inventory-table.full-table .column-powerful, .inventory-table.full-table .column-hasPrimeVariant { width: 160px; }
+.inventory-table.full-table .column-variant, .inventory-table.full-table .column-slot, .inventory-table.full-table .column-override { width: 120px; }
+@media (min-width: 760px) {
+  .inventory-grid:has(.full-table) { scroll-padding-left: 360px; }
+  .inventory-table.full-table th:first-child, .inventory-table.full-table td:first-child { position: sticky; left: 0; z-index: 2; background: var(--canvas); }
+  .inventory-table.full-table th:first-child { z-index: 3; }
+  .inventory-table.full-table tr:hover td:first-child, .inventory-table.full-table tr:focus-within td:first-child { background: var(--surface); }
+}
+.inventory-section .inventory-toolbar { gap: 8px; margin-bottom: 12px; }
+.inventory-section .inventory-search { width: 300px; margin-right: 4px; }
+.inventory-section .inventory-toolbar > .button { font-size: 14px; }
+.inventory-section .filter-result { margin-left: 4px; font: 13px var(--ui); font-variant-numeric: tabular-nums; }
+.inventory-section .inventory-actions { margin-left: auto; }
 .form-field { display: flex; flex-direction: column; gap: 8px; }
 .relics-section { padding-top: 0; }
 .relics-section .heading-actions { flex-direction: row; width: auto; }
@@ -129,8 +188,13 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .owned-filter { display: inline-flex; align-items: center; gap: 8px; padding: 0 8px; min-height: 40px; white-space: nowrap; cursor: pointer; }
 .filter-result { color: var(--muted); font: 11px var(--mono); white-space: nowrap; margin-left: auto; }
 .weapon-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 16px; margin-bottom: 20px; }
-.weapon-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
-.weapon-filters .select-trigger, .weapon-filters input { width: 100%; font-size: 12px; color: var(--ink); }
+.weapon-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
+.weapon-filters .select-trigger, .weapon-filters input[type="number"] { width: 100%; font-size: 14px; color: var(--ink); }
+.weapon-filters .owned-filter { flex-direction: row; align-self: end; }
+.weapon-active-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 20px; }
+.weapon-active-filters > label:not(.owned-filter) { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 14px; color: var(--muted); }
+.weapon-active-filters .select-trigger { max-width: 100%; font-size: 14px; }
+.weapon-active-filters input[type="number"] { width: 140px; }
 .equipment-image { width: 64px; height: 44px; object-fit: contain; flex-shrink: 0; }
 .catalog-yes { font-size: 12px; color: var(--derived); }
 .equipment-dialog { width: min(760px, calc(100vw - 32px)); }
@@ -225,6 +289,11 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }button:active:not(:disabled) { transform: none; } }
 @media (max-width: 1000px) { .weapon-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 600px) {
+  .inventory-section .inventory-search { width: 100%; margin: 0; }
+  .inventory-section .fields-button { width: auto; }
+  .inventory-section .inventory-actions { width: 100%; justify-content: flex-start; }
+  .inventory-section .inventory-actions .button { padding-left: 10px; padding-right: 10px; }
+  .inventory-section .filter-result { margin-left: auto; }
   .weapon-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 12px; }
   .weapon-overview { flex-direction: column; align-items: stretch; gap: 8px; }
   .weapon-overview img { align-self: center; }

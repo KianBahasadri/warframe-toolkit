@@ -30,7 +30,7 @@ export function RecipeDetails({ recipe }: { recipe: Recipe }) {
   return <div className="recipe-details">
     <dl className="recipe-cost"><div><dt>Credits</dt><dd>{recipe.credits === null ? 'Unknown' : number(recipe.credits)}</dd></div><div><dt>Build time</dt><dd>{recipe.seconds === null ? 'Unknown' : duration(recipe.seconds)}</dd></div><div><dt>Produces</dt><dd>{recipe.quantity}</dd></div></dl>
     <ul className="recipe-materials">{recipe.ingredients.map(part => <li key={part.id}>
-      <div><span>{part.name}{part.equipment && <small>Consumes equipment</small>}</span><strong>× {number(part.count)}</strong></div>
+      <div><span>{part.name}{part.equipment && <small>Consumes weapon</small>}</span><strong>× {number(part.count)}</strong></div>
       {part.recipes?.map(subrecipe => <details key={subrecipe.id}><summary>Craft {part.name}</summary><RecipeDetails recipe={subrecipe} /></details>)}
     </li>)}</ul>
   </div>;

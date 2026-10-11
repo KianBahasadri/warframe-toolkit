@@ -43,6 +43,7 @@ export default function App() {
   const [storageError, setStorageError] = useState(initial.error);
   const [unreadable, setUnreadable] = useState(Boolean(initial.error));
   const [page, setPage] = useState<Page>(pageFromHash);
+  const equipmentLabel = page === 'weapons' ? 'weapon' : 'equipment';
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Equipment | 'new' | null>(null);
   const [palette, setPalette] = useState(false);
@@ -73,7 +74,7 @@ export default function App() {
   const exportCsv = () => { downloadFile(`arsenal-inventory-${new Date().toISOString().slice(0, 10)}.csv`, inventoryCsv(equipmentRows(inventoryRef.current.items, catalog)), 'text/csv;charset=utf-8'); setNotice('Inventory CSV downloaded.'); };
   const exportRelics = () => { downloadFile(`arsenal-relics-${new Date().toISOString().slice(0, 10)}.csv`, relicsCsv(inventoryRef.current.relics ?? []), 'text/csv;charset=utf-8'); setNotice('Relics CSV downloaded.'); };
   const commands: Command[] = [
-    { label: 'Add equipment', keys: ['Alt', 'N'], run: () => setEditing('new') },
+    { label: `Add ${equipmentLabel}`, keys: ['Alt', 'N'], run: () => setEditing('new') },
     { label: 'Import screenshots', keys: ['Alt', 'I'], run: () => navigate('import') },
     { label: page === 'relics' ? 'Export relics CSV' : 'Export inventory CSV', keys: ['Alt', 'E'], run: page === 'relics' ? exportRelics : exportCsv },
     { label: 'Toggle theme', keys: ['Alt', 'Shift', 'T'], run: () => setTheme(value => value === 'dark' ? 'light' : 'dark') },
@@ -103,13 +104,13 @@ export default function App() {
         {storageError && <div className="callout danger" role="alert"><strong>Storage problem:</strong> {storageError}{initial.error && <button type="button" className="button secondary" onClick={() => { try { downloadFile('arsenal-original-data.txt', localStorage.getItem(STORAGE_KEY) || '', 'text/plain'); } catch { setNotice('Browser storage is unavailable.'); } }}>Download original data</button>}</div>}
         {notice && <div className="callout info inline-notice" role="status"><span>{notice}</span><button type="button" className="icon-button" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => setNotice('')}><X size={16} /></button></div>}
         {isInventory && <>
-          <section className="inventory-section" aria-labelledby="inventory-title">
-            <div className="section-heading"><h1 id="inventory-title">{pageNames[page]}</h1><div className="inventory-actions">
-              <button type="button" className="button secondary" onClick={() => setEditing('new')}><Plus size={16} />Add equipment</button>
+          <section className="inventory-section" aria-label={pageNames[page]}>
+            {page !== 'weapons' && <div className="section-heading"><h1>{pageNames[page]}</h1></div>}
+            <InventoryTable key={page} weapons={page === 'weapons'} items={visibleItems} search={search} setSearch={setSearch} onEdit={row => setEditing(editableRecord(row))} onToggle={(item, field) => commit({ ...inventoryRef.current, items: toggleEquipment(inventoryRef.current.items, item, field) })} actions={<>
+              <button type="button" className="button secondary" onClick={() => setEditing('new')}><Plus size={16} />Add {equipmentLabel}</button>
               <button type="button" className="button primary" onClick={() => navigate('import')}><ScanLine size={16} />Import screenshots</button>
               <button type="button" className="button quiet" onClick={exportCsv}><ArrowDownToLine size={15} />Export CSV</button>
-            </div></div>
-            <InventoryTable key={page} weapons={page === 'weapons'} items={visibleItems} search={search} setSearch={setSearch} onEdit={row => setEditing(editableRecord(row))} onToggle={(item, field) => commit({ ...inventoryRef.current, items: toggleEquipment(inventoryRef.current.items, item, field) })} />
+            </>} />
           </section>
         </>}
         {page === 'relics' && <Relics relics={relics} onExport={exportRelics} onSave={relic => {
@@ -123,8 +124,8 @@ export default function App() {
         {page === 'import' && <ScreenshotImport onInventory={() => navigate('weapons')} onImport={(observations, files) => { const merged = mergeObservations(inventoryRef.current.items, observations); const next = { ...inventoryRef.current, items: merged.items, imports: [{ id: crypto.randomUUID(), date: new Date().toISOString(), files, added: merged.added, updated: merged.updated }, ...inventoryRef.current.imports].slice(0, 100) }; return commit(next) ? { added: merged.added, updated: merged.updated } : null; }} />}
       </main>
     </div>
-    {editing && <EquipmentForm item={editing === 'new' ? undefined : editing} existing={inventory.items} onClose={() => setEditing(null)} onSave={item => { const current = inventoryRef.current; const exists = current.items.some(entry => entry.id === item.id); if (commit({ ...current, items: exists ? current.items.map(entry => entry.id === item.id ? item : entry) : [...current.items, item] })) { setEditing(null); setNotice(`${item.name} ${exists ? 'updated' : 'added'}.`); return true; } return false; }} onDelete={id => { if (commit({ ...inventoryRef.current, items: inventoryRef.current.items.filter(item => item.id !== id) })) { setEditing(null); setNotice('Equipment entry removed.'); return true; } return false; }} />}
+    {editing && <EquipmentForm weapons={page === 'weapons'} item={editing === 'new' ? undefined : editing} existing={inventory.items} onClose={() => setEditing(null)} onSave={item => { const current = inventoryRef.current; const exists = current.items.some(entry => entry.id === item.id); if (commit({ ...current, items: exists ? current.items.map(entry => entry.id === item.id ? item : entry) : [...current.items, item] })) { setEditing(null); setNotice(`${item.name} ${exists ? 'updated' : 'added'}.`); return true; } return false; }} onDelete={id => { if (commit({ ...inventoryRef.current, items: inventoryRef.current.items.filter(item => item.id !== id) })) { setEditing(null); setNotice(`${page === 'weapons' ? 'Weapon' : 'Equipment'} entry removed.`); return true; } return false; }} />}
     {palette && <Commands commands={commands} destinations={destinations} onClose={() => setPalette(false)} />}
-    {shortcuts && <Dialog title="Keyboard shortcuts" onClose={() => setShortcuts(false)}><dl className="shortcut-list"><div><dt>Search and commands</dt><dd><kbd>Ctrl</kbd> + <kbd>K</kbd> / <kbd>⌘</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>Space</kbd></dd></div>{[...commands, ...destinations].map(command => <div key={command.label}><dt>{command.label}</dt><dd>{command.keys.map(key => <kbd key={key}>{key}</kbd>)}</dd></div>)}<div><dt>Move between equipment rows</dt><dd><kbd>↑</kbd><kbd>↓</kbd></dd></div><div><dt>Open selected equipment</dt><dd><kbd>Enter</kbd><kbd>Space</kbd></dd></div></dl></Dialog>}
+    {shortcuts && <Dialog title="Keyboard shortcuts" onClose={() => setShortcuts(false)}><dl className="shortcut-list"><div><dt>Search and commands</dt><dd><kbd>Ctrl</kbd> + <kbd>K</kbd> / <kbd>⌘</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>Space</kbd></dd></div>{[...commands, ...destinations].map(command => <div key={command.label}><dt>{command.label}</dt><dd>{command.keys.map(key => <kbd key={key}>{key}</kbd>)}</dd></div>)}<div><dt>Move between {equipmentLabel} rows</dt><dd><kbd>↑</kbd><kbd>↓</kbd></dd></div><div><dt>Open selected {equipmentLabel}</dt><dd><kbd>Enter</kbd><kbd>Space</kbd></dd></div></dl></Dialog>}
   </div>;
 }

@@ -31,14 +31,15 @@ test('inventory edits persist, full fields are available, and equipment can be a
   page.on('pageerror', error => errors.push(error.message));
   page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(30);
-  await page.getByLabel('Search equipment').fill('Boltor');
+  await page.getByLabel('Search weapons').fill('Boltor');
   await page.getByLabel('Owned: Boltor', { exact: true }).click();
   await expect(page.getByLabel('Owned: Boltor', { exact: true })).toHaveCount(0);
   await page.reload();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page.getByLabel('Owned only', { exact: true }).uncheck();
-  await page.getByLabel('Search equipment').fill('Boltor');
+  await page.getByLabel('Search weapons').fill('Boltor');
   await expect(page.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
   await page.getByRole('button', { name: 'Edit Boltor', exact: true }).click();
   await page.getByRole('tab', { name: 'My inventory' }).click();
@@ -46,14 +47,59 @@ test('inventory edits persist, full fields are available, and equipment can be a
   await page.getByRole('button', { name: 'Save changes' }).click();
   await page.getByRole('button', { name: 'All 14 fields' }).click();
   await expect(page.getByRole('columnheader')).toHaveCount(14);
-  await page.getByRole('button', { name: 'Add equipment', exact: true }).click();
-  await page.getByLabel('Find in the equipment catalog').fill('Wisp Prime');
+  await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
+  await page.getByLabel('Find in the weapon catalog').fill('Wisp Prime');
   await page.getByRole('button', { name: 'Wisp Prime Warframe', exact: true }).click();
-  await page.getByRole('button', { name: 'Add equipment', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Add weapon', exact: true }).last().click();
   await page.getByRole('link', { name: 'Warframes' }).click();
   await expect(page.getByRole('button', { name: 'Edit Wisp Prime' })).toBeVisible();
   await page.screenshot({ path: 'test-results/warframes.png', fullPage: true });
   expect(errors).toEqual([]);
+});
+
+test('compact table keeps rank separate from mastery and sorts unknown ranks last', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('region', { name: 'Weapons', exact: true }).waitFor();
+  await page.evaluate(() => {
+    const key = 'warframe-toolkit.inventory.v1';
+    const inventory = JSON.parse(localStorage.getItem(key)!);
+    const ranks: Record<string, number | null> = { Anku: 0, 'Arca Titron': 30, Atomos: null, Bo: 9 };
+    inventory.items = inventory.items.filter((item: { name: string }) => item.name in ranks).map((item: { name: string }) => ({ ...item, owned: true, rank: ranks[item.name], mastered: item.name === 'Anku' }));
+    localStorage.setItem(key, JSON.stringify(inventory));
+  });
+  await page.reload();
+  const rows = page.locator('.inventory-table tbody tr');
+  const names = page.locator('.inventory-table .equipment-label');
+  const anku = rows.filter({ has: page.getByRole('button', { name: 'Edit Anku', exact: true }) });
+  const arca = rows.filter({ has: page.getByRole('button', { name: 'Edit Arca Titron', exact: true }) });
+  await expect(anku.getByRole('cell').nth(2)).toHaveText('0');
+  await expect(anku.getByRole('checkbox', { name: 'Mastered: Anku', exact: true })).toBeChecked();
+  await expect(arca.getByRole('cell').nth(2)).toHaveText('30');
+  await expect(arca.getByRole('checkbox', { name: 'Mastered: Arca Titron', exact: true })).not.toBeChecked();
+  const rankSort = page.getByRole('button', { name: /^Sort Rank,/ });
+  await rankSort.click();
+  await expect(names).toHaveText(['Anku', 'Bo', 'Arca Titron', 'Atomos']);
+  await rankSort.click();
+  await expect(names).toHaveText(['Arca Titron', 'Bo', 'Anku', 'Atomos']);
+  await rankSort.click();
+  await page.getByRole('button', { name: /^Sort Owned,/ }).click();
+  await rankSort.click();
+  await expect(rankSort).toHaveAccessibleName('Sort Rank, priority 2, ascending');
+  await expect(names).toHaveText(['Anku', 'Bo', 'Arca Titron', 'Atomos']);
+  const first = page.getByRole('button', { name: 'Edit Anku', exact: true });
+  await first.focus();
+  await first.press('ArrowDown');
+  const next = page.getByRole('button', { name: 'Edit Bo', exact: true });
+  await expect(next).toBeFocused();
+  await next.press('Enter');
+  await expect(page.getByRole('dialog', { name: 'Bo', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(next).toBeFocused();
+  await page.getByRole('button', { name: 'All 14 fields', exact: true }).click();
+  await expect(page.getByRole('columnheader')).toHaveCount(14);
+  await expect(anku.getByText('Rank 0', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Compact view', exact: true }).click();
+  await expect(names).toHaveText(['Anku', 'Bo', 'Arca Titron', 'Atomos']);
 });
 
 test('real local OCR reads an image and merges reviewed imports without losing notes', async ({ page }) => {
@@ -126,13 +172,13 @@ test('real local OCR reads an image and merges reviewed imports without losing n
 test('navigation, dialogs, and tables fit narrow screens and support keyboard use', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile.png', fullPage: true });
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Warframes' }).click();
   await expect(page.getByRole('heading', { name: 'Warframes', exact: true })).toBeVisible();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Weapons' }).click();
-  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Open search and commands' }).click();
   await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
   await page.getByRole('option', { name: 'Warframes', exact: true }).click();
@@ -160,6 +206,7 @@ test('dropdowns support keyboard selection and relic suggestions preserve manual
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await page.getByLabel('Filter by slot').focus();
   await page.keyboard.press('Space');
   await page.keyboard.press('ArrowDown');
@@ -236,13 +283,13 @@ test('custom dropdowns cancel changes, follow focus, and fit dialogs in both the
   await expect(incarnon).toBeFocused();
   await incarnon.click();
   await page.keyboard.press('End');
-  await page.getByRole('heading', { name: 'Weapons', exact: true }).click();
+  await page.getByLabel('Search weapons').click();
   await expect(incarnon).toHaveText('Any Incarnon status');
   await expect(page.getByRole('listbox')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Switch to light theme' }).click();
   await page.setViewportSize({ width: 320, height: 720 });
-  await page.getByRole('button', { name: 'Add equipment', exact: true }).click();
+  await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
   await expect(page.locator('select')).toHaveCount(0);
   const variant = page.getByRole('combobox', { name: 'Variant', exact: true });
   await variant.click();
@@ -350,10 +397,10 @@ test('relic CSV exports records and deletions persist without changing equipment
 
 test('old backups links open weapons without changing saved data and CSV still exports', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   await page.goto('/#backups');
-  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Data & backups' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open search and commands' }).click();
   await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
@@ -378,14 +425,14 @@ test('Alt number shortcuts follow the top tabs and stay inactive while editing',
     await expect(navigation.getByRole('link', { name, exact: true })).toHaveAttribute('aria-current', 'page');
   }
   await page.keyboard.press('Alt+1');
-  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
-  await page.getByLabel('Search equipment').focus();
+  await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
+  await page.getByLabel('Search weapons').focus();
   await page.keyboard.press('Alt+2');
   await expect(page).toHaveURL(/#weapons$/);
-  await page.getByRole('button', { name: 'Add equipment', exact: true }).click();
+  await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).focus();
   await page.keyboard.press('Alt+3');
-  await expect(page.getByRole('dialog', { name: 'Add equipment' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Add weapon' })).toBeVisible();
   await expect(page).toHaveURL(/#weapons$/);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Alt+i');
@@ -480,7 +527,7 @@ for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every
 test('real screenshot batches merge duplicates and preserve planning, prior mastery, and absent equipment', async ({ page }) => {
   test.setTimeout(180000);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   const original: Inventory = await page.evaluate(vasto => {
     const key = 'warframe-toolkit.inventory.v1';
     const data = JSON.parse(localStorage.getItem(key)!);
@@ -666,9 +713,9 @@ test('unreadable saved data is preserved and failed saves remain visible', async
   await page.addInitScript(() => localStorage.setItem('warframe-toolkit.inventory.v1', 'broken original data'));
   await page.goto('/');
   await expect(page.getByRole('alert')).toContainText('could not be read');
-  await page.getByRole('button', { name: 'Add equipment', exact: true }).click();
-  await page.getByLabel('Equipment name', { exact: true }).fill('Custom item');
-  await page.getByRole('button', { name: 'Add equipment', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
+  await page.getByLabel('Weapon name', { exact: true }).fill('Custom item');
+  await page.getByRole('button', { name: 'Add weapon', exact: true }).last().click();
   await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Couldn’t save');
   expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe('broken original data');
 });
@@ -679,13 +726,19 @@ test('weapon catalog defaults to owned, combines filters, and adds an unowned we
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Weapons', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Filter by slot', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Incarnon filter', exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Owned only', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('columnheader').first()).toContainText('Weapon');
+  await expect(page.getByRole('button', { name: 'Add weapon', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await expect(page.getByLabel('Owned only', { exact: true })).toBeChecked();
   await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(30);
   const saved = await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'));
   await page.getByLabel('Owned only', { exact: true }).uncheck();
   expect(await page.getByRole('button', { name: /^Edit / }).count()).toBeGreaterThan(650);
-  await page.getByLabel('Search equipment').fill('bronco');
-  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByLabel('Search weapons').fill('bronco');
   await chooseOption(page, 'Variant filter', 'Prime');
   await chooseOption(page, 'Incarnon filter', 'Incarnon Genesis compatible');
   await chooseOption(page, 'Filter by slot', 'Secondary');
@@ -693,6 +746,18 @@ test('weapon catalog defaults to owned, combines filters, and adds an unowned we
   await chooseOption(page, 'Mastery', 'Not mastered');
   await page.getByLabel('Maximum required MR').fill('8');
   await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Edit Bronco Prime', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  const activeFilters = page.getByRole('group', { name: 'Active weapon filters', exact: true });
+  await expect(activeFilters.getByRole('combobox')).toHaveCount(5);
+  await expect(page.getByRole('combobox', { name: 'Weapon type', exact: true })).toHaveCount(0);
+  await expect(activeFilters.getByRole('combobox', { name: 'Filter by slot', exact: true })).toHaveText('Secondary');
+  await expect(activeFilters.getByRole('combobox', { name: 'Incarnon filter', exact: true })).toHaveText('Incarnon Genesis compatible');
+  await chooseOption(page, 'Filter by slot', 'All slots');
+  await expect(page.getByRole('combobox', { name: 'Filter by slot', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Filters', exact: true })).toBeFocused();
+  await chooseOption(page, 'Incarnon filter', 'Any Incarnon status');
+  await expect(page.getByRole('combobox', { name: 'Incarnon filter', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Edit Bronco Prime', exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe(saved);
   await page.getByRole('button', { name: 'Edit Bronco Prime', exact: true }).click();
@@ -714,8 +779,10 @@ test('weapon catalog defaults to owned, combines filters, and adds an unowned we
   expect(data.items.find((item: { name: string }) => item.name === 'Bronco Prime')).toMatchObject({ owned: true, mastered: false, incarnon: true, craftingTarget: 'Akbronco Prime', notes: 'Build an Incarnon loadout' });
   expect(data.items.filter((item: { name: string }) => item.name !== 'Bronco Prime')).toEqual(JSON.parse(saved!).items);
   await page.reload();
+  await expect(page.getByRole('group', { name: 'Active weapon filters', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await expect(page.getByLabel('Owned only', { exact: true })).toBeChecked();
-  await page.getByLabel('Search equipment').fill('Bronco Prime');
+  await page.getByLabel('Search weapons').fill('Bronco Prime');
   await expect(page.getByLabel('Owned: Bronco Prime', { exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Edit Bronco Prime', exact: true }).click();
   await page.getByRole('tab', { name: 'My inventory' }).click();
@@ -727,11 +794,11 @@ test('weapon catalog defaults to owned, combines filters, and adds an unowned we
 test('quest and crafting details stay local and filters fit mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByLabel('Owned only', { exact: true }).uncheck();
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByLabel('Owned only', { exact: true }).uncheck();
   await chooseOption(page, 'Quest reward', 'Weapon or blueprint reward');
   await chooseOption(page, 'Foundry recipe', 'No recorded recipe');
-  await page.getByLabel('Search equipment').fill('Nataruk');
+  await page.getByLabel('Search weapons').fill('Nataruk');
   await expect(page.getByRole('button', { name: 'Edit Nataruk', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/weapon-filters-mobile.png', fullPage: true });
@@ -745,7 +812,7 @@ test('quest and crafting details stay local and filters fit mobile', async ({ pa
   await page.getByRole('button', { name: 'Reset filters', exact: true }).first().click();
   await expect(page.getByLabel('Owned only', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Quest reward', { exact: true })).toHaveText('Any');
-  await page.getByLabel('Search equipment').fill('Boltor');
+  await page.getByLabel('Search weapons').fill('Boltor');
   await page.getByRole('button', { name: 'Edit Boltor', exact: true }).click();
   await expect(page.getByRole('dialog').getByText('Boltor Incarnon Genesis', { exact: true }).first()).toBeVisible();
   await page.getByRole('tab', { name: 'Weapon details' }).focus();
