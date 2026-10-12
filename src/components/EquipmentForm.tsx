@@ -6,6 +6,7 @@ import { WeaponDetails } from './WeaponDetails';
 import { catalog } from '../data/catalog';
 import { createEquipment, normalizeName, slots, variants } from '../lib/model';
 import { catalogFields, withCatalogFacts } from '../lib/weaponCatalog';
+import { canSubsume } from '../lib/recommendations';
 import type { BooleanField } from '../lib/weaponCatalog';
 import type { Equipment, Slot, Variant, Upgrade, Override } from '../lib/model';
 
@@ -18,6 +19,7 @@ export function EquipmentForm({ item, existing, onSave, onClose, onDelete, weapo
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [view, setView] = useState<'details' | 'inventory'>(item && catalog.some(entry => normalizeName(entry.name) === normalizeName(item.name)) ? 'details' : 'inventory');
   const entry = catalog.find(entry => normalizeName(entry.name) === normalizeName(draft.name));
+  const facts = withCatalogFacts(draft, entry);
   const tracked = existing.some(saved => saved.id === draft.id);
   const update = <K extends keyof Equipment>(key: K, value: Equipment[K]) => setDraft(previous => ({ ...previous, [key]: value }));
   const matches = catalog.filter(entry => entry.name.toLowerCase().includes(query.toLowerCase())).slice(0, 7);
@@ -55,11 +57,14 @@ export function EquipmentForm({ item, existing, onSave, onClose, onDelete, weapo
         {!entry && <><label>Slot<Select label="Slot" value={draft.slot} onChange={value => update('slot', value as Slot)} options={slots.map(value => ({ value, label: value }))} /></label><label>Variant<Select label="Variant" value={draft.variant} onChange={value => update('variant', value as Variant)} options={variants.map(value => ({ value, label: value }))} /></label></>}
         <label>Upgraded<Select label="Upgraded" value={draft.upgraded} onChange={value => update('upgraded', value as Upgrade)} options={['Unknown', 'Yes', 'No'].map(value => ({ value, label: value }))} /></label>
         <label>Current rank<input type="number" min="0" max="40" step="1" placeholder="Unknown" value={draft.rank ?? ''} onChange={event => update('rank', event.target.value === '' ? null : Number(event.target.value))} /></label>
+        {(entry?.incarnon?.type === 'genesis' || !entry && draft.incarnon) && <label>Incarnon adapter installed<Select label="Incarnon adapter installed" value={draft.incarnonInstalled ?? 'Unknown'} onChange={value => update('incarnonInstalled', value as Upgrade)} options={['Unknown', 'Yes', 'No'].map(value => ({ value, label: value }))} /></label>}
+        {canSubsume({ ...facts, catalogItem: entry }) && <label>Helminth ability unlocked<Select label="Helminth ability unlocked" value={draft.helminth ?? 'Unknown'} onChange={value => update('helminth', value as Upgrade)} options={['Unknown', 'Yes', 'No'].map(value => ({ value, label: value }))} /></label>}
       </div>
       <fieldset className="checkbox-grid"><legend>Inventory & planning</legend>{fields.filter(([key]) => !entry || !catalogFields.some(field => field === key)).map(([key, title, description]) => <label className="check-row" key={key}><input type="checkbox" checked={draft[key]} onChange={event => update(key, event.target.checked)} /><span>{title}<small>{description}</small></span></label>)}</fieldset>
       <div className="form-grid">
         {!entry && <label className="span-2">Crafting target<input value={draft.craftingTarget} onChange={event => update('craftingTarget', event.target.value)} placeholder="e.g. Proboscis Cernos" maxLength={500} /></label>}
         <label className="span-2">Recommended action override<Select label="Recommended action override" value={draft.override} onChange={value => update('override', value as Override)} options={['None', 'Keep', "Don't keep"].map(value => ({ value, label: value }))} /></label>
+        {facts.hasPrimeVariant && draft.override === 'Keep' && <p className="catalog-notice span-2">A Prime counterpart exists, so the recommendation cannot be Keep. Your saved override is preserved.</p>}
         <div className="form-field span-2"><label htmlFor="equipment-notes">Notes</label><textarea id="equipment-notes" rows={3} value={draft.notes} onChange={event => update('notes', event.target.value)} placeholder="Build ideas, Forma investment, things to remember…" maxLength={5000} /></div>
       </div>
       {entry && <p className="catalog-notice">Crafting, Incarnon, quest, and variant details are filled from the weapon catalog.</p>}

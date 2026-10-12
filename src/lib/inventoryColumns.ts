@@ -1,4 +1,4 @@
-import { disposition } from './model.ts';
+import { recommendationFor } from './recommendations.ts';
 import type { Equipment } from './model.ts';
 import type { EquipmentRow } from './weaponCatalog.ts';
 import type { TableColumn, TableModel } from './tableView.ts';
@@ -12,7 +12,7 @@ export const inventoryColumns: Column[] = [
   { key: 'mastered', title: 'Mastered', width: 124, kind: 'boolean' },
   { key: 'incarnon', title: 'Incarnon', width: 176, kind: 'boolean', choices: [{ value: 'yes', label: 'All Incarnon' }, { value: 'native', label: 'Native' }, { value: 'genesis', label: 'Genesis compatible' }, { value: 'none', label: 'No Incarnon' }] },
   { key: 'upgraded', title: 'Upgraded', width: 112, choices: 'values' },
-  { key: 'keep', title: 'Recommended action', width: 220, choices: 'values' },
+  { key: 'keep', title: 'Recommended action', width: 260, choices: 'values', wrap: true },
   { key: 'craftingTarget', title: 'Crafting target', width: 240, wrap: true },
   { key: 'dontKeep', title: "Don't keep", width: 112, kind: 'boolean' },
   { key: 'craftingIngredient', title: 'Crafting ingredient', width: 176, kind: 'boolean' },
@@ -30,9 +30,9 @@ export const COLUMNS_STORAGE_KEY = 'arsenal.inventory-columns';
 
 export const equipmentTableModel: TableModel<EquipmentRow> = {
   value(item, key) {
-    if (key === 'keep') return disposition(item);
+    if (key === 'keep') return recommendationFor(item).action;
     if (key === 'incarnon') return item.incarnon ? item.catalogItem?.incarnon?.type === 'genesis' ? 'genesis' : item.catalogItem?.incarnon?.type === 'native' ? 'native' : 'yes' : 'none';
-    return item[key as keyof Equipment];
+    return item[key as keyof Equipment] ?? null;
   },
   matchesChoice: (item, key, choice) => key === 'incarnon' && choice === 'yes' ? item.incarnon : undefined,
 };

@@ -1,6 +1,6 @@
 import type { Ref } from 'react';
 import { ScanLine } from 'lucide-react';
-import { disposition } from '../lib/model';
+import { recommendationFor, recommendedActions } from '../lib/recommendations';
 import type { Equipment } from '../lib/model';
 import { catalogFields, defaultWeaponFilters, filterEquipment } from '../lib/weaponCatalog';
 import type { BooleanField, EquipmentRow } from '../lib/weaponCatalog';
@@ -25,7 +25,7 @@ function equipmentFilters(items: EquipmentRow[], weapons: boolean, ownedOnlyDefa
     choice('recipe', 'Foundry recipe', [['yes', 'Recipe available'], ['no', 'No recorded recipe']]),
     choice('prime', 'Prime counterpart', [['yes', 'Has Prime variant'], ['no', 'No Prime counterpart']], 'hasPrimeVariant'),
     choice('vaulted', 'Prime vault status', [['yes', 'Vaulted'], ['no', 'Not vaulted']]),
-    choice('keep', 'Recommended action filter', [['Keep', 'Keep'], ["Don't keep", "Don't keep"]], 'keep'),
+    choice('keep', 'Recommended action filter', recommendedActions.map(action => [action, action]), 'keep'),
     { key: 'maxMr', label: 'Maximum required MR', kind: 'number', min: 0, max: 30 },
   ];
 }
@@ -53,7 +53,7 @@ export function InventoryTable({ items, onEdit, onToggle, onAdd, onExport, onImp
       ? <>{item.catalogItem?.image ? <img className="equipment-image" src={item.catalogItem.image} width="88" height="56" alt="" loading="lazy" /> : <span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span>}<span className="equipment-identity"><span className="equipment-label">{item.name}</span>{!visibleColumns.includes('slot') && <span className="equipment-meta">{item.slot}</span>}</span></>
       : column.key === 'incarnon' && item.catalogItem ? <span className="catalog-fact" aria-label={`Incarnon: ${item.name}: ${item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}`}>{item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}</span>
       : column.kind === 'boolean' ? item.catalogItem && catalogFields.some(key => key === column.key) ? <span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item[column.key as keyof Equipment] ? 'Yes' : 'No'}`}>{item[column.key as keyof Equipment] ? 'Yes' : 'No'}</span> : <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} onChange={() => onToggle(item, column.key as BooleanField)} /></label>
-      : column.key === 'keep' ? <span className="keep-value">{disposition(item)}{item.override !== 'None' && <span className="cell-note">Override</span>}</span>
+      : column.key === 'keep' ? <span className="keep-value"><span className="recommended-action">{recommendationFor(item).action}</span><span className="cell-note">{recommendationFor(item).reason}</span></span>
       : column.key === 'rank' ? item.rank === null ? <span className="table-missing" aria-label="Rank unknown">—</span> : item.rank
       : column.key === 'craftingTarget' ? <span className="crafting-cell">{item.craftingTarget || <span className="table-missing">—</span>}</span>
       : column.key === 'notes' ? item.notes || <span className="table-missing">—</span>

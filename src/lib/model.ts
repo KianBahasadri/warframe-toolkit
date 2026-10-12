@@ -77,6 +77,8 @@ export interface Equipment {
   incarnon: boolean;
   questWeapon: boolean;
   upgraded: Upgrade;
+  incarnonInstalled?: Upgrade;
+  helminth?: Upgrade;
   powerful: boolean;
   hasPrimeVariant: boolean;
   override: Override;
@@ -115,12 +117,6 @@ export function createEquipment(item: Pick<CatalogItem, 'name' | 'slot' | 'varia
     hasPrimeVariant: item.hasPrimeVariant || false, override: 'None', rank: null, notes: '',
     source: 'Added manually', updatedAt: overrides.updatedAt ?? new Date().toISOString(), ...overrides,
   };
-}
-
-export function disposition(item: Equipment): string {
-  if (item.override === 'Keep') return 'Keep';
-  if (item.override === "Don't keep") return "Don't keep";
-  return item.dontKeep ? "Don't keep" : 'Keep';
 }
 
 // Only affirmative observations are merged. An absent checkmark in a screenshot

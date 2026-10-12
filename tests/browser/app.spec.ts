@@ -345,6 +345,7 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await page.getByRole('button', { name: 'Edit Boltor', exact: true }).click();
   await page.getByRole('tab', { name: 'My inventory' }).click();
   await page.getByLabel('Notes', { exact: true }).fill('Important crafting note');
+  await chooseOption(page, 'Incarnon adapter installed', 'Yes');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await page.getByRole('link', { name: 'Warframes', exact: true }).click();
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
@@ -405,6 +406,7 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await page.getByRole('button', { name: 'Edit Boltor', exact: true }).click();
   await page.getByRole('tab', { name: 'My inventory' }).click();
   await expect(page.getByLabel('Notes', { exact: true })).toHaveValue('Important crafting note');
+  await expect(page.getByRole('combobox', { name: 'Incarnon adapter installed', exact: true })).toHaveText('Yes');
   expect(externalRequests).toEqual([]);
 });
 

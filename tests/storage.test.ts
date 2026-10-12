@@ -6,7 +6,7 @@ import { inventoryCsv, parseBackup } from '../src/lib/storage.ts';
 const item = () => createEquipment({ name: 'Boltor', slot: 'Primary', variant: 'Base' });
 
 test('screenshot imports preserve planning fields and previous mastery', () => {
-  const before = { ...item(), mastered: true, dontKeep: true, notes: 'Keep for Boltace', upgraded: 'Yes' as const, override: 'Keep' as const, incarnon: true, rank: 30 };
+  const before = { ...item(), mastered: true, dontKeep: true, notes: 'Keep for Boltace', upgraded: 'Yes' as const, override: 'Keep' as const, incarnon: true, incarnonInstalled: 'Yes' as const, helminth: 'No' as const, rank: 30 };
   const incoming = { ...item(), owned: false, mastered: false, rank: 0, notes: '' };
   const result = mergeObservations([before], [incoming]);
   assert.equal(result.items.length, 1);
@@ -34,10 +34,26 @@ test('malformed or duplicate backups are rejected before replacing data', () => 
   assert.throws(() => parseBackup(JSON.stringify({ version: 1, items: [entry, entry], imports: [] })), /duplicate/);
   assert.throws(() => parseBackup(JSON.stringify({ version: 1, items: [{ ...entry, rank: 41 }], imports: [] })), /rank/);
 });
+test('recommendation facts roundtrip without changing older saves or accepting malformed states', () => {
+  const legacy = { version: 1, items: [item()], imports: [], relics: [], referenceNotice: false };
+  assert.deepEqual(parseBackup(JSON.stringify(legacy)), legacy);
+  assert.equal('incarnonInstalled' in parseBackup(JSON.stringify(legacy)).items[0], false);
+  for (const state of ['Unknown', 'Yes', 'No']) {
+    const inventory = { ...legacy, items: [{ ...legacy.items[0], incarnonInstalled: state, helminth: state }] };
+    assert.deepEqual(parseBackup(JSON.stringify(inventory)), inventory);
+  }
+  for (const field of ['incarnonInstalled', 'helminth']) {
+    for (const invalid of [true, null, 1, 'yes', {}]) {
+      assert.throws(() => parseBackup(JSON.stringify({ ...legacy, items: [{ ...legacy.items[0], [field]: invalid }] })), new RegExp(field));
+    }
+  }
+});
 test('CSV includes spreadsheet columns, quoted cells and formula-safe notes', () => {
-  const output = inventoryCsv([{ ...item(), notes: '=HYPERLINK("bad")\nsecond line', craftingTarget: 'A, B' }]);
+  const output = inventoryCsv([{ ...item(), notes: '=HYPERLINK("bad")\nsecond line', craftingTarget: 'A, B', incarnonInstalled: 'Yes', helminth: 'No' }]);
   assert.ok(output.includes('"Has Prime Variant"'));
   assert.ok(output.includes('"A, B"'));
   assert.ok(output.includes('"\'=HYPERLINK(""bad"")\nsecond line"'));
   assert.ok(output.includes('"TRUE"'));
+  assert.ok(output.includes('"Incarnon Installed","Helminth Ability Unlocked"'));
+  assert.ok(output.endsWith(',"Yes","No"'));
 });

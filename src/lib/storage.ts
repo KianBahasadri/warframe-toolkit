@@ -19,6 +19,9 @@ export function validateInventory(value: unknown): Inventory {
     if (stringFields.some(key => typeof item[key] !== 'string' || item[key].length > 10000) || !item.id || !item.name.trim()) throw new Error('An equipment row has missing or invalid text fields.');
     if (booleanFields.some(key => typeof item[key] !== 'boolean')) throw new Error(`Invalid checkbox values for ${item.name}.`);
     if (!slots.includes(item.slot) || !variants.includes(item.variant) || !['Unknown', 'Yes', 'No'].includes(item.upgraded) || !['None', 'Keep', "Don't keep"].includes(item.override)) throw new Error(`Invalid equipment settings for ${item.name}.`);
+    for (const field of ['incarnonInstalled', 'helminth'] as const) {
+      if (item[field] !== undefined && !['Unknown', 'Yes', 'No'].includes(item[field])) throw new Error(`Invalid ${field} setting for ${item.name}.`);
+    }
     if (item.rank !== null && (!Number.isInteger(item.rank) || item.rank < 0 || item.rank > 40)) throw new Error(`Invalid rank for ${item.name}.`);
     if (ids.has(item.id) || names.has(item.name.toLowerCase().replace(/[^a-z0-9]/g, ''))) throw new Error('The backup contains duplicate equipment.');
     ids.add(item.id); names.add(item.name.toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -42,6 +45,7 @@ const csvColumns: [string, keyof Equipment][] = [
   ['Incarnon', 'incarnon'], ['Quest Weapon?', 'questWeapon'], ['Upgraded', 'upgraded'],
   ['Mastered', 'mastered'], ['Meta / Powerful', 'powerful'], ['Slot', 'slot'],
   ['Has Prime Variant', 'hasPrimeVariant'], ['Override', 'override'], ['Rank', 'rank'], ['Notes', 'notes'],
+  ['Incarnon Installed', 'incarnonInstalled'], ['Helminth Ability Unlocked', 'helminth'],
 ];
 
 function csvCell(value: unknown): string {

@@ -47,9 +47,24 @@ Weapons, Warframes, and Relics share the same toolbar and table layout: search, 
 - Drag a column header left or right to change its position. Its cells follow the pointer while neighboring columns slide aside to preview the new layout; the table scrolls horizontally when you drag near an edge. Release to apply the move, or press **Escape** to slide back to the original layout. Reduced-motion preferences disable the sliding transitions. The header menu also offers **Move left** and **Move right** for keyboard and touch use. Hidden columns retain their positions when shown again. On wider screens, the first column stays pinned as the table scrolls.
 - Left-click or right-click a column header to open its menu for sorting, sort priorities, filters, and adding/removing columns. **Enter**, **Space**, and **Shift+F10** also open the menu while the header is focused. Choose **Sort ascending** or **Sort descending** in the menu; selecting the active direction again removes that column’s sort. Sort by any number of columns; numbered arrows show their priorities. Changing direction keeps a column's priority, and **Sort priority** moves it earlier or later. Unknown ranks sort last in either direction.
 - Column filters support text matching, yes/no and category choices, and rank comparisons or unknown ranks. Active filters appear above the table and remain visible if their column is hidden; select one to edit it or use its **×** to remove it. Matching controls in **Filters** replace the corresponding column filter, and **Reset filters** clears both kinds.
-- The override takes precedence over the Don't Keep checkbox. No item is automatically marked safe to sell.
+- **Recommended action** is calculated from mastery, catalog facts, crafting progress, and personal planning fields. Each suggestion includes its reason; filters and sorting use the calculated action. See the priority rules below.
 - Known equipment gets its slot, variant, crafting targets, Incarnon eligibility, quest rewards, and Prime counterpart automatically. Those facts are read-only. Keep preferences, ownership, mastery, rank, upgrades, favorites, and notes remain personal.
 - Catalog suggestions can be replaced with a custom item name when adding equipment. Custom items retain manual fields and an initials placeholder when no game image is known.
+
+### Recommended actions
+
+Weapons and Warframes use the same ordered formula in `src/lib/recommendations.ts`. The first applicable rule wins:
+
+1. **Master** owned, unmastered equipment before any crafting, upgrade, keep preference, or disposal. Unowned, unmastered equipment gets **Acquire & master**; unowned, mastered equipment gets **No action**. Current rank does not override the separate mastery fact, including after Forma and for rank-40 weapons. Exalted equipment gets **Use** or **No action**, since it has no separate mastery. Permanent quest rewards such as Excalibur Umbra and Skiajati get **Use** after mastery.
+2. **Use for crafting** when an exact crafting target is neither owned nor mastered. Reasons list target names and the required copies of this ingredient; variants are never substituted. **Craft a spare** instead when the current copy has upgrades, an installed adapter, a favorite flag, or a quest use, or when a variant, Incarnon candidate, or Keep override merits preserving it and there is no Prime counterpart. This does not claim that all other recipe resources are available. Completed targets are ignored; rebuilding them or stocking duplicate copies is not modeled.
+3. A **Prime counterpart always excludes Keep**, even with a Keep override, upgrades, or favorite flag. After mastery and crafting uses, suggest **Sell**, **Remove Incarnon** first for a recorded installed adapter, or a Helminth action for a base Warframe. Quest disposal gets **Review** for its use, replacement, and sale restrictions. This is the chosen collection policy, not a claim that Prime is always the strongest build or currently obtainable.
+4. Without a Prime counterpart, the manual Keep override wins over Don't keep. Disposal preferences still come after mastery and crafting uses, and use the same adapter, Helminth, and quest checks.
+5. **Add Incarnon** for Genesis-compatible equipment without a recorded installed adapter; **Keep** installed Genesis and native Incarnon equipment. Unknown installation state gives conditional advice. The existing Incarnon field means eligibility, and Upgraded does not imply an installed adapter.
+6. **Keep** favorites, upgraded equipment, quest rewards, special variants, and Warframes without a Prime counterpart. Otherwise suggest **Sell** for catalog equipment or **Review** for unknown custom equipment.
+
+**My inventory** includes **Incarnon adapter installed** for Genesis-compatible equipment and **Helminth ability unlocked** for base Warframes, each with Unknown/Yes/No. Before base-Warframe disposal, unknown Helminth status gets **Check Helminth**, No gets **Subsume**, and Yes allows the later disposal recommendation. Prime and Umbra variants are never recommended for subsuming. Missing fields in older saves remain unknown. Screenshot imports preserve both fields; computed recommendations are never saved into personal records, and browsing never changes inventory.
+
+Game-mechanic references: [Genesis installation and variant compatibility](https://www.warframe.com/en/patch-notes/pc/33-0-0), [adapter removal at Cavalero](https://www.warframe.com/en/patch-notes/pc/33-5-0), [Helminth subsuming](https://www.warframe.com/en/patch-notes/pc/29-0-0), and [permanent quest rewards](https://support.warframe.com/hc/en-us/articles/9503863772557-Quest-Tips-Post-Second-Dream-Spoilers-Warning). The formula uses the bundled catalog and entered facts, not live build rankings, spare-copy counts, resource balances, or unlock progress. Recommendations do not perform any in-game action.
 
 ## Weapon database
 
@@ -133,7 +148,7 @@ Access keys have 32 cryptographically random bytes (256 bits), encoded as `wft_`
 
 Personal data is no longer written to browser storage. Older `warframe-toolkit.inventory.v1` and `warframe-toolkit.drop-views.v1` values are read for migration and preserved unchanged. Older inventory JSON without relic data loads with an empty relic collection and preserves all equipment fields. Theme and table-column preferences remain local display settings.
 
-**Export CSV** on Weapons or Warframes exports the original equipment spreadsheet columns plus rank and notes; the same action on Relics exports the relic collection. User text is escaped and formula-like values are neutralized for spreadsheet use.
+**Export CSV** on Weapons or Warframes exports the original equipment spreadsheet columns plus rank, notes, Incarnon installation, and Helminth ability status; the same action on Relics exports the relic collection. User text is escaped and formula-like values are neutralized for spreadsheet use.
 
 While signed in, the save status distinguishes saved data and pending changes. Guests see a prominent **Sign in** button beside **Create account** in the header. Each opens its respective form directly. Failed saves keep the draft visible and offer retry, download, or explicitly discarding changes to reload the saved version. Signing out waits for a successful save. Conflicting edits from another tab or device are rejected instead of overwriting them. Unreadable local or server data is preserved instead of silently resetting it; the local error panel can download the original inventory for recovery.
 
@@ -168,6 +183,7 @@ While signed in, the save status distinguishes saved data and pending changes. G
 - `src/components/ScreenshotHelp.tsx`: source-specific screenshot instructions and local Inventory/Codex examples.
 - `src/components/ScreenshotGallery.tsx`: screenshot modal with previous/next controls and keyboard navigation.
 - `src/lib/weaponCatalog.ts`: catalog/inventory projection, combined filters, and safe catalog-entry ownership updates.
+- `src/lib/recommendations.ts`: shared equipment action priorities and reasons, using exact crafting targets and personal mastery/upgrade facts.
 - `src/assets/warframe/`: bundled in-game tab icons; original asset links and attribution are in [SOURCES.md](src/assets/warframe/SOURCES.md).
 - `src/lib/model.ts`: equipment schema and conservative import merging.
 - `src/lib/relics.ts`: relic schema, name normalization, and validation.

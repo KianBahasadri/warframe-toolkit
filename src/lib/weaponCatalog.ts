@@ -1,9 +1,12 @@
-import { createEquipment, disposition, normalizeName } from './model.ts';
+import { createEquipment, normalizeName } from './model.ts';
 import type { CatalogItem, Equipment } from './model.ts';
+import { calculateRecommendation, recommendationFor } from './recommendations.ts';
+import type { Recommendation } from './recommendations.ts';
 
 export interface EquipmentRow extends Equipment {
   catalogItem?: CatalogItem;
   saved?: Equipment;
+  recommendation?: Recommendation;
 }
 
 export const catalogFields = ['slot', 'variant', 'craftingIngredient', 'craftingTarget', 'incarnon', 'questWeapon', 'hasPrimeVariant'] as const;
@@ -34,7 +37,8 @@ export function equipmentRows(items: Equipment[], database: CatalogItem[], inclu
       saved: undefined, catalogItem,
     });
   }
-  return rows.sort((a, b) => a.name.localeCompare(b.name));
+  const inventory = new Map(items.map(item => [normalizeName(item.name), item]));
+  return rows.map(row => ({ ...row, recommendation: calculateRecommendation(row, inventory) })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function editableRecord(row: EquipmentRow): Equipment {
@@ -87,7 +91,7 @@ export function filterEquipment(items: EquipmentRow[], search: string, filters: 
       && booleanMatch(entry ? Boolean(entry.recipes?.length) : undefined, filters.recipe)
       && booleanMatch(item.hasPrimeVariant, filters.prime)
       && booleanMatch(entry?.vaulted, filters.vaulted)
-      && (!filters.keep || disposition(item) === filters.keep)
+      && (!filters.keep || recommendationFor(item).action === filters.keep)
       && (filters.maxMr === '' || entry !== undefined && entry.masteryReq <= Number(filters.maxMr));
   });
 }
