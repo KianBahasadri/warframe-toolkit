@@ -1,5 +1,4 @@
-# Activate only after R2 is enabled and its possible overage billing is accepted.
-# Copy to state.tf, review/apply with the existing local backend, then migrate.
+# Private Terraform state shared by local deployments and GitHub Actions.
 resource "cloudflare_r2_bucket" "terraform" {
   account_id    = var.account_id
   name          = "warframe-toolkit-terraform"

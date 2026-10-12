@@ -12,7 +12,7 @@ function productionState() {
     ['cloudflare_workers_route', 'app', 'a6ad1fffd58c4a158ec52cb1ac7d28bd'],
     ['cloudflare_zone_setting', 'https', 'always_use_https'],
   ].map(([type, name, id]) => ({ mode: 'managed', type, name, instances: [{ attributes: { id } }] }));
-  return { lineage: '72fa0006-b941-0133-a965-c2a18df5ee18', resources };
+  return { lineage: 'fda4ae0f-f27e-c291-9eea-8c87fada68c3', resources };
 }
 
 test('deployment refuses empty, unrelated, incomplete or mismatched production state', () => {

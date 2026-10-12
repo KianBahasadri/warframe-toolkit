@@ -1,5 +1,4 @@
-# Copy to backend.tf only after Terraform has created the private state bucket.
-# Then migrate the existing state with `npm run infra -- init -migrate-state`.
+# Shared production state. Credentials are supplied in the environment.
 terraform {
   backend "s3" {
     bucket = "warframe-toolkit-terraform"

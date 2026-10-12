@@ -1,7 +1,9 @@
 // Existing production identities: a fresh or incomplete state must never create
 // replacements for live accounts, Durable Objects, or the application route.
 export function assertProductionState(state) {
-  if (state?.lineage !== '72fa0006-b941-0133-a965-c2a18df5ee18') throw new Error('Production state is missing or has a different lineage. Restore/import state before deploying.');
+  // R2 migration assigned this lineage; every resource and output was compared
+  // with the private pre-migration backup before adopting it.
+  if (state?.lineage !== 'fda4ae0f-f27e-c291-9eea-8c87fada68c3') throw new Error('Production state is missing or has a different lineage. Restore/import state before deploying.');
   const expected = {
     'cloudflare_d1_database.accounts': '2784ba23-6688-46fe-92e8-969d9784c66b',
     'cloudflare_dns_record.apex': 'dc887e7ed77bc60d13db709223741791',

@@ -1,8 +1,10 @@
 import { access, chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { cloudflare, loadCredentials } from './cloudflare-api.mjs';
+import { r2Credentials } from './r2-credentials.mjs';
 
 process.umask(0o077);
 const version = '1.16.5', architecture = { x64: 'amd64', arm64: 'arm64' }[process.arch];
@@ -24,6 +26,9 @@ if (!args.length) throw new Error('Usage: npm run infra -- init|validate|plan|ap
 // Backend credentials are needed during init as well as plan/apply. Keep them
 // in the environment; -backend-config would copy them into plans and metadata.
 try { process.loadEnvFile('.env'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+if (existsSync('infra/cloudflare/backend.tf') && !['fmt', 'validate', 'version', 'providers'].includes(args[0]) && !args.includes('-backend=false')) {
+  Object.assign(process.env, await r2Credentials());
+}
 if (!['fmt', 'validate', 'version', 'init'].includes(args[0])) {
   loadCredentials();
   const hostname = process.env.TF_VAR_hostname || 'bahasadri.com';

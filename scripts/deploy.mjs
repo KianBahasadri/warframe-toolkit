@@ -3,13 +3,16 @@ import { createHash } from 'node:crypto';
 import { readFile, rm } from 'node:fs/promises';
 import { setTimeout } from 'node:timers/promises';
 import { loadCredentials } from './cloudflare-api.mjs';
+import { r2Credentials } from './r2-credentials.mjs';
 import { assertProductionState, assertSafePlan } from './deployment-checks.mjs';
 
 process.umask(0o077);
 loadCredentials();
-for (const name of ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']) {
-  if (!process.env[name]) throw new Error(`Missing ${name}. Configure private Terraform state credentials before deploying.`);
-}
+const credentials = await r2Credentials();
+Object.assign(process.env, credentials);
+// Derived credentials are not registered GitHub secrets. Mask them before any
+// child process runs, while keeping captured Terraform JSON free of log lines.
+if (process.env.GITHUB_ACTIONS === 'true') for (const value of Object.values(credentials)) console.log(`::add-mask::${value}`);
 function terraform(args, capture = false) {
   const result = spawnSync(process.execPath, ['scripts/terraform.mjs', ...args], {
     stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit', encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,

@@ -28,7 +28,7 @@ To run the same browser checks in Firefox, install its Playwright build with `np
 
 The hosted deployment uses Cloudflare Workers Static Assets, **D1 for accounts and saved inventories**, and SQLite Durable Objects for request coordination and scheduled drop-table caching. Terraform manages the deployment, including code, assets, database migrations, routing, DNS, and the update schedule. See [deployment and recovery instructions](infra/cloudflare/README.md). `npm run build:cloudflare` builds both frontend and Worker; `npm run test:cloudflare` checks the Cloudflare runtime locally. Normal `npm run dev` continues to work without Cloudflare credentials.
 
-The [production workflow](.github/workflows/deploy.yml) tests pushes to `main`, deploys with Terraform, and checks the live release. Activation requires GitHub deployment secrets and migration of the existing Terraform state to a private, locking remote backend; see [automatic deployment setup](infra/cloudflare/README.md#automatic-deployment). Local state is deliberately rejected by the automated deploy command.
+Terraform state is stored in a private **R2** bucket managed by Terraform, with locking shared by local and automated deployments. The [production workflow](.github/workflows/deploy.yml) tests pushes to `main`, deploys with Terraform, and checks the live release. GitHub activation is pending authentication, setting the `CLOUDFLARE_API_TOKEN` repository secret, and pushing the workflow; see [automatic deployment setup](infra/cloudflare/README.md#automatic-deployment). The same token authenticates R2, without separate stored credentials. Local state is rejected by the automated deploy command.
 
 ## Inventory
 

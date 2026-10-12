@@ -2,8 +2,9 @@
 
 Terraform is the deployment entry point. It owns the Worker code, static assets,
 D1 database, ordered SQL migrations, SQLite Durable Object namespaces, schedule,
-Worker route, apex DNS record, HTTPS redirect setting, and disabled workers.dev
-URLs. Do not use `wrangler deploy` or create these resources in the dashboard.
+Worker route, apex DNS record, HTTPS redirect setting, disabled workers.dev
+URLs, and the private R2 state bucket. Do not use `wrangler deploy` or create
+these resources in the dashboard.
 
 The target is https://bahasadri.com. The existing proxied CNAME and HTTPS setting
 are adopted with Terraform import blocks, without changing their values. The
@@ -18,11 +19,20 @@ Terraform 1.16.5 from HashiCorp and verifies its published SHA-256 checksum.
 The committed provider lock pins Cloudflare 5.27.0.
 
 Put `CLOUDFLARE_API_TOKEN=...` in private, ignored `.env`, or export it in the
-environment. The token needs Account **Workers Scripts: Edit**, **D1: Edit**;
+environment. The token needs Account **Workers Scripts: Edit**, **D1: Edit**,
+**Workers R2 Storage: Edit**;
 Zone **Zone: Read**, **DNS: Edit**, **Workers Routes: Edit**, and **Zone Settings:
 Edit**, restricted to the deployment account and `bahasadri.com`. The wrapper
 discovers the account and zone IDs without printing credentials. Terraform's
 provider reads the token from the environment, not a state-backed variable.
+
+`scripts/r2-credentials.mjs` derives R2 S3 credentials from this same token,
+following [Cloudflare's documented token authentication](https://developers.cloudflare.com/r2/api/tokens/#get-s3-api-credentials-from-an-api-token).
+They exist only in child-process environments, never in Terraform configuration,
+state, or backend metadata. CI masks the derived values before running Terraform.
+Optional `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` overrides can instead use
+R2 Object Read & Write credentials scoped to `warframe-toolkit-terraform`. Both
+must be provided together; no Amazon account is involved.
 
 ```sh
 npm test
@@ -74,37 +84,27 @@ coordinates with local Terraform runs. Multiple queued pushes can coalesce to
 the latest pending commit, so intermediate commits are not guaranteed a separate
 deployment. Local commits alone do not trigger a deployment.
 
-**Activation is pending:** GitHub CLI authentication is not available in this
-development box, the current Cloudflare token lacks R2 access, and state is still
-local. The workflow and R2 configuration are prepared, but automatic production
-deployment has not been enabled or run on GitHub. Do not push an active deployment
-workflow expecting it to work until the following state migration is complete.
+**R2 is active. GitHub activation is pending:** GitHub CLI authentication is not
+available in this development box, so the workflow has not been pushed or run
+on GitHub. The remaining steps are:
 
-The R2 option is defined in `state.tf.example` and `backend.tf.example`. It uses
-one private Standard-storage bucket, with public `r2.dev` access disabled and
-Terraform `prevent_destroy`. All infrastructure is created through Terraform.
-No paid Workers or D1 subscription is enabled by these files.
+1. Authenticate `gh auth login --scopes workflow` inside `node-dev`.
+2. Set the repository secret `CLOUDFLARE_API_TOKEN` from private input. This is
+   the only deployment secret required. Never paste it into a workflow or Git.
+3. Push to `main` and check the first workflow run and production verification.
 
-1. Accept R2's possible overage billing and enable R2 on the Cloudflare account.
-   Add Account **Workers R2 Storage: Edit** to the scoped Cloudflare token in
-   `.env`. Do not create the bucket manually.
-2. Copy `state.tf.example` to `state.tf`, review a normal Terraform plan, and apply
-   it using the existing local state. This creates the private state bucket.
-3. Create R2 **Object Read & Write** credentials scoped only to
-   `warframe-toolkit-terraform`. Add the access key ID as `AWS_ACCESS_KEY_ID` and
-   secret access key as `AWS_SECRET_ACCESS_KEY` to private `.env`. These variable
-   names come from Terraform's S3 backend; no Amazon account is involved.
-4. Keep a private backup of the existing local state. Copy `backend.tf.example`
-   to `backend.tf`, then run `npm run infra -- init -migrate-state` and confirm
-   migration of that existing state to the new bucket. Do not use `-reconfigure`
-   to migrate and do not start from empty state. Run a plan to verify no changes.
-   Commit both activated `.tf` files. Never commit credentials, state or plans.
-5. Authenticate `gh auth login --scopes workflow` inside `node-dev`. The workflow
-   declares the `production` environment and limits deployments to `main` in
-   the public repository. Set these repository secrets from private input:
-   `CLOUDFLARE_API_TOKEN`, `TERRAFORM_STATE_ACCESS_KEY_ID` (the R2 access key ID),
-   and `TERRAFORM_STATE_SECRET_ACCESS_KEY` (the R2 secret access key).
-6. Push to `main` and check the first workflow run and production verification.
+The workflow declares the `production` environment and limits deployments to
+`main` in the public repository. `state.tf` manages the private Standard-storage
+bucket `warframe-toolkit-terraform`, with public `r2.dev` access disabled and
+Terraform `prevent_destroy`. `backend.tf` stores state at
+`production/terraform.tfstate` in that bucket. No paid Workers or D1 subscription
+is enabled by this configuration.
+
+The existing local state was backed up privately and migrated with
+`npm run infra -- init -migrate-state`. All ten resources and outputs were
+compared with that backup before accepting the migrated state's lineage in the
+deployment guard. New checkouts use normal `init` to load the existing remote
+state; do not repeat the bootstrap or create replacement infrastructure.
 
 The R2 S3 backend uses `use_lockfile = true`; do not disable locking to bypass a
 failed deployment. Only force-unlock after confirming that the owning Terraform
@@ -117,7 +117,7 @@ are [free](https://docs.github.com/en/billing/concepts/product-billing/github-ac
 The workflow stops if the repository becomes private, since private repositories
 have different billing. It does not configure paid runners or artifact/cache storage. R2
 Standard includes 10 GB-month storage, 1 million Class A operations and 10 million
-Class B operations monthly; this roughly 28 KB state should use a small fraction.
+Class B operations monthly; this small state file should use a small fraction.
 However, [R2 bills usage beyond its free allowance](https://developers.cloudflare.com/r2/pricing/)
 and the allowance is shared across the account. It is not an unconditional
 zero-billing guarantee. The existing app's Free-plan quotas are listed below.
@@ -149,8 +149,9 @@ New cron schedules can take [up to 15 minutes to propagate](https://developers.c
 then run on the next five-minute boundary. Until the first fetch, the drop
 endpoint returns 503 with a retry interval. Other features work immediately.
 
-This uses Free-compatible resources, without enabling a paid subscription. Free
-quotas still apply: Workers and Durable Objects each allow 100,000 requests/day;
+The app runtime uses Free-compatible resources, without enabling a paid Workers
+or D1 subscription. R2 state storage has the separate pricing described above.
+Free quotas still apply: Workers and Durable Objects each allow 100,000 requests/day;
 D1 allows 5 million rows read/day, 100,000 rows written/day and 5 GB total storage.
 Static asset requests are free and unlimited. Keep an eye on usage if traffic
 grows. See [Workers limits](https://developers.cloudflare.com/workers/platform/limits/),
@@ -160,12 +161,19 @@ and [static asset billing](https://developers.cloudflare.com/workers/static-asse
 
 ## State and recovery
 
-Terraform state and saved plans are local, private and excluded from Git. Keep
-a private backup of `infra/cloudflare/terraform.tfstate` and its backup file;
-the local Git checkpoints do **not** back them up. Run one Terraform operation
-at a time. There is no paid remote-state service configured. Losing state does
-not delete cloud data, but requires importing the existing resources before
-another deployment. Never solve a missing state file by recreating the database.
+The R2 object is the authoritative Terraform state. Local state backups, backend
+metadata and saved plans remain private and excluded from Git. The pre-migration
+backup is under `.data/terraform-backups/`, with directory mode 700 and file mode
+600; local Git checkpoints do **not** back it up. Before manual infrastructure
+changes, use `node scripts/terraform.mjs state pull` to save a current private
+backup with restrictive permissions. Do not upload it as a GitHub artifact.
+
+Keep `backend.tf` enabled and locking on. Old local state copies are stale and
+must not be used for deployment. If the remote object is lost, stop deployments
+and restore a verified backup or import the existing resources. The automated
+command rejects empty state, a different lineage, or missing production resource
+IDs. Losing state does not delete cloud data; never recreate the database to
+resolve missing state. No Terraform Cloud subscription is involved.
 
 D1 and Worker resources have `prevent_destroy`; the existing apex record is
 also protected. For rollback, rebuild a known-good Git commit and apply its
@@ -198,6 +206,13 @@ The subsequent account cleanup passed 70 Node tests, 4 Cloudflare runtime tests,
 The account changes are live; desktop/mobile checks confirmed both guest account
 buttons and direct signup, with no page errors. Terraform updated the Worker
 without changing either Durable Object namespace ID, and a final plan reported
-no changes. Actionlint, deployment-guard tests, and validation of the proposed
-R2 configuration passed locally. A real GitHub workflow run remains pending the
-activation steps above.
+no changes.
+
+R2 migration subsequently preserved all ten resources and outputs. A real
+competing Terraform plan was refused while an interactive apply held the remote
+lock; the verification apply was cancelled without changing infrastructure or
+state. All 73 Node tests, the Cloudflare production build, Actionlint, and
+Terraform formatting/validation passed. The automated deployment command ran
+successfully against R2 using only the Cloudflare token: its plan had no changes
+and live checks verified the release, frontend, and guest account endpoint.
+A real GitHub workflow run remains pending the activation steps above.
