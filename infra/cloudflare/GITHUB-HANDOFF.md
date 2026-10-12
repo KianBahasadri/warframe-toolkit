@@ -17,11 +17,17 @@ Billing checked on 2026-10-12 UTC: the repository is public and uses standard
 GitHub-hosted Ubuntu runners, with no stored Actions artifacts or caches.
 Workflows run only on pushes to `main` or manual dispatch, one deployment at a
 time, with a 25-minute job timeout. Cloudflare's reported month-to-date R2 usage
-across the account was 34 Class A operations and 45 Class B operations; the latest
-state-bucket storage sample contained one 29,668-byte object. These reported
-amounts are below the Standard free allowances. The deployment token cannot read
-account subscriptions or the full billing statement, so this check does not
-verify unrelated account charges.
+across the account at 03:08 UTC was 42 Class A operations and 57 Class B
+operations; the latest state-bucket storage sample contained one 29,668-byte
+object. These reported amounts are below the Standard free allowances.
+
+Billing read access was added and verified after the initial check. Account and
+zone subscriptions, billing history, and current-cycle billable usage were
+reviewed without changing billing settings. No current-cycle billable usage was
+reported, and all returned historical invoices were closed. The dedicated
+unpaid-invoice endpoint was unavailable, so an outstanding balance was not
+independently verified through that endpoint. Usage reports can lag recent
+activity; this is a point-in-time check, not a spending cap.
 
 The original task was to finish GitHub Actions activation for
 `KianBahasadri/warframe-toolkit` from the host. The user authorized publishing
