@@ -156,7 +156,7 @@ export function ScreenshotImport({ onImport, onInventory }: { onImport: (observa
     {source === value && error && <p className="callout danger" role="alert">{error}</p>}
     {!completed && <button type="button" className={`drop-zone ${scans.length && source === value ? 'drop-zone-compact' : ''} ${dragging === value ? 'dragging' : ''}`} aria-labelledby={`${value}-upload-label ${value}-upload-limits`} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); choosePasteSource(value); setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
       {(!hasBatch || departing === value) && <img className="import-source-example" src={`/images/import/${value}-weapons.png`} width={1920} height={1200} alt={value === 'inventory' ? 'Example Warframe Inventory screen showing weapons and ranks' : 'Example Warframe Codex screen showing weapons and mastery badges'} draggable={false} />}
-      <span id={`${value}-upload-label`}>{scans.length && source === value ? 'Add screenshots' : 'Drop, paste, or choose screenshots'}</span>
+      <span id={`${value}-upload-label`}>{scans.length && source === value ? 'Add screenshots' : 'Drag and drop or Ctrl+V to paste. Or click to open file browser'}</span>
       <small id={`${value}-upload-limits`}>{scans.length && source === value ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
     </button>}
     {source === value && <>

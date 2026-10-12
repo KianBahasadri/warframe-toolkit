@@ -275,7 +275,10 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .drop-zone { width: 100%; padding: 24px 16px; min-height: 148px; border: 0; border-radius: 0; background: transparent; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; font-size: 14px; }
 .import-sources:not(.has-batch) .drop-zone, .import-source.is-exiting .drop-zone { flex: 1; }
-.import-source-example { display: block; flex-shrink: 0; width: 100%; max-width: 640px; height: auto; max-height: min(42dvh, 360px); object-fit: contain; margin-bottom: 16px; }
+.import-source-example { display: block; flex-shrink: 0; width: 100%; max-width: 640px; height: auto; max-height: min(42dvh, 360px); object-fit: contain; margin-bottom: 16px; transition: transform 280ms cubic-bezier(.2,.8,.2,1); }
+.import-sources:not(.has-batch) .import-source:not(.is-paste-target) .import-source-example { transform: scale(.75); }
+.drop-zone > span, .drop-zone > small { transition: opacity 180ms, visibility 180ms; }
+.import-sources:not(.has-batch) .import-source:not(.is-paste-target) .drop-zone > :is(span, small) { opacity: 0; visibility: hidden; }
 .drop-zone:hover { color: var(--ink-strong); }
 .drop-zone.dragging { background: var(--surface-raised); }
 .drop-zone:active:not(:disabled) { transform: none; }

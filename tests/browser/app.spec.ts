@@ -762,8 +762,8 @@ test('pointer highlights the paste destination and a batch hides the other sourc
   };
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
   const codex = page.getByRole('region', { name: 'Codex', exact: true });
-  const inventoryUpload = inventory.getByRole('button', { name: /^Drop, paste, or choose screenshots/ });
-  const codexUpload = codex.getByRole('button', { name: /^Drop, paste, or choose screenshots/ });
+  const inventoryUpload = inventory.getByRole('button', { name: /^Drag and drop or Ctrl\+V to paste\. Or click to open file browser/ });
+  const codexUpload = codex.getByRole('button', { name: /^Drag and drop or Ctrl\+V to paste\. Or click to open file browser/ });
   await inventoryUpload.focus();
   await expect(inventory).toHaveAccessibleDescription('Selected for screenshot paste');
   // Moving through blank page space changes the destination without a click,
@@ -1141,7 +1141,7 @@ test('canceling OCR releases the importer and paste uses the focused source', as
   await page.getByRole('button', { name: 'Cancel reading' }).click();
   await expect(page.getByText('Reading canceled.', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Inventory', exact: true }).getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Inventory', exact: true }).getByRole('button', { name: 'Drag and drop or Ctrl+V to paste. Or click to open file browser', exact: false })).toBeVisible();
   const pasteImage = () => page.evaluate(url => {
     const bytes = Uint8Array.from(atob(url.split(',')[1]), character => character.charCodeAt(0));
     const clipboard = new DataTransfer();
@@ -1157,7 +1157,7 @@ test('canceling OCR releases the importer and paste uses the focused source', as
   await expect(page.getByRole('list', { name: 'Screenshot previews' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   const codex = page.getByRole('region', { name: 'Codex', exact: true });
-  await codex.getByRole('button', { name: 'Drop, paste, or choose screenshots', exact: false }).focus();
+  await codex.getByRole('button', { name: 'Drag and drop or Ctrl+V to paste. Or click to open file browser', exact: false }).focus();
   await pasteImage();
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
   await expect(codex.getByLabel('Owned: Braton Prime', { exact: true })).not.toBeChecked();
