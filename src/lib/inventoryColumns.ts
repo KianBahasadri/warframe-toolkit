@@ -12,7 +12,7 @@ export const inventoryColumns: Column[] = [
   { key: 'mastered', title: 'Mastered', width: 124, kind: 'boolean' },
   { key: 'incarnon', title: 'Incarnon', width: 176, kind: 'boolean', choices: [{ value: 'yes', label: 'All Incarnon' }, { value: 'native', label: 'Native' }, { value: 'genesis', label: 'Genesis compatible' }, { value: 'none', label: 'No Incarnon' }] },
   { key: 'upgraded', title: 'Upgraded', width: 112, choices: 'values' },
-  { key: 'keep', title: 'Keep preference', width: 164, choices: 'values' },
+  { key: 'keep', title: 'Recommended action', width: 220, choices: 'values' },
   { key: 'craftingTarget', title: 'Crafting target', width: 240, wrap: true },
   { key: 'dontKeep', title: "Don't keep", width: 112, kind: 'boolean' },
   { key: 'craftingIngredient', title: 'Crafting ingredient', width: 176, kind: 'boolean' },

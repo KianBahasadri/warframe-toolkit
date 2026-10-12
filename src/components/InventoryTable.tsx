@@ -25,7 +25,7 @@ function equipmentFilters(items: EquipmentRow[], weapons: boolean, ownedOnlyDefa
     choice('recipe', 'Foundry recipe', [['yes', 'Recipe available'], ['no', 'No recorded recipe']]),
     choice('prime', 'Prime counterpart', [['yes', 'Has Prime variant'], ['no', 'No Prime counterpart']], 'hasPrimeVariant'),
     choice('vaulted', 'Prime vault status', [['yes', 'Vaulted'], ['no', 'Not vaulted']]),
-    choice('keep', 'Keep preference filter', [['Keep', 'Keep'], ["Don't keep", "Don't keep"]], 'keep'),
+    choice('keep', 'Recommended action filter', [['Keep', 'Keep'], ["Don't keep", "Don't keep"]], 'keep'),
     { key: 'maxMr', label: 'Maximum required MR', kind: 'number', min: 0, max: 30 },
   ];
 }

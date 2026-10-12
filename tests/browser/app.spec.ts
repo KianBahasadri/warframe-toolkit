@@ -54,7 +54,7 @@ test('inventory edits persist, full fields are available, and equipment can be a
   await page.getByRole('button', { name: 'Columns', exact: true }).click();
   const columnOptions = page.getByRole('group', { name: 'Table columns' }).getByRole('checkbox');
   for (const option of await columnOptions.all()) if (!await option.isChecked()) await option.check();
-  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Keep preference', 'Crafting target', "Don't keep", 'Crafting ingredient', 'Variant', 'Quest weapon', 'Meta / powerful', 'Slot', 'Has Prime variant', 'Override', 'Notes']);
+  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Recommended action', 'Crafting target', "Don't keep", 'Crafting ingredient', 'Variant', 'Quest weapon', 'Meta / powerful', 'Slot', 'Has Prime variant', 'Override', 'Notes']);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
   await page.getByLabel('Find in the weapon catalog').fill('Wisp Prime');
@@ -127,7 +127,7 @@ test('table keeps rank separate from mastery and preserves sorting when changing
 
 test('column choices persist across reloads and equipment tabs without changing inventory', async ({ page, account }) => {
   await page.goto('/'); await waitForSave(page);
-  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Keep preference', 'Crafting target']);
+  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Recommended action', 'Crafting target']);
   await expect(page.getByRole('button', { name: /^(All 14 fields|Compact view)$/ })).toHaveCount(0);
   const before = JSON.stringify(await account.inventory());
   const boltor = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Boltor', exact: true }) });
@@ -141,7 +141,7 @@ test('column choices persist across reloads and equipment tabs without changing 
   await expect(columns.getByRole('checkbox', { name: 'Weapon', exact: true })).toBeChecked();
   await expect(columns.getByRole('checkbox', { name: 'Weapon', exact: true })).toBeDisabled();
   await columns.getByRole('checkbox', { name: 'Incarnon', exact: true }).uncheck();
-  await columns.getByRole('checkbox', { name: 'Keep preference', exact: true }).uncheck();
+  await columns.getByRole('checkbox', { name: 'Recommended action', exact: true }).uncheck();
   await columns.getByRole('checkbox', { name: 'Notes', exact: true }).check();
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
@@ -162,7 +162,7 @@ test('column choices persist across reloads and equipment tabs without changing 
   await columns.getByRole('button', { name: 'Reset to default' }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
-  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Keep preference', 'Crafting target']);
+  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Recommended action', 'Crafting target']);
   expect(JSON.stringify(await account.inventory())).toBe(before);
 });
 

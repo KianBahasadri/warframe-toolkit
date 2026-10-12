@@ -59,7 +59,7 @@ export function EquipmentForm({ item, existing, onSave, onClose, onDelete, weapo
       <fieldset className="checkbox-grid"><legend>Inventory & planning</legend>{fields.filter(([key]) => !entry || !catalogFields.some(field => field === key)).map(([key, title, description]) => <label className="check-row" key={key}><input type="checkbox" checked={draft[key]} onChange={event => update(key, event.target.checked)} /><span>{title}<small>{description}</small></span></label>)}</fieldset>
       <div className="form-grid">
         {!entry && <label className="span-2">Crafting target<input value={draft.craftingTarget} onChange={event => update('craftingTarget', event.target.value)} placeholder="e.g. Proboscis Cernos" maxLength={500} /></label>}
-        <label className="span-2">Keep preference override<Select label="Keep preference override" value={draft.override} onChange={value => update('override', value as Override)} options={['None', 'Keep', "Don't keep"].map(value => ({ value, label: value }))} /></label>
+        <label className="span-2">Recommended action override<Select label="Recommended action override" value={draft.override} onChange={value => update('override', value as Override)} options={['None', 'Keep', "Don't keep"].map(value => ({ value, label: value }))} /></label>
         <div className="form-field span-2"><label htmlFor="equipment-notes">Notes</label><textarea id="equipment-notes" rows={3} value={draft.notes} onChange={event => update('notes', event.target.value)} placeholder="Build ideas, Forma investment, things to remember…" maxLength={5000} /></div>
       </div>
       {entry && <p className="catalog-notice">Crafting, Incarnon, quest, and variant details are filled from the weapon catalog.</p>}
