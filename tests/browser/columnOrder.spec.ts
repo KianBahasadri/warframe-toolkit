@@ -188,3 +188,55 @@ test.describe('touch column dragging', () => {
     await session.detach();
   });
 });
+
+test('drag previews slide headers and cells, cancel without saving, and respect reduced motion', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1800, height: 900 });
+  await page.goto('/');
+  const saved = JSON.stringify(await account.inventory());
+  await page.getByRole('textbox', { name: 'Search weapons' }).fill('Boltor');
+  await page.evaluate(() => document.fonts.ready);
+  const source = header(page, 'Rank'), neighbor = header(page, 'Owned');
+  const sourceCell = page.locator('tbody tr').first().locator('[data-column-key="rank"]');
+  const neighborCell = page.locator('tbody tr').first().locator('[data-column-key="owned"]');
+  const from = (await source.boundingBox())!, to = (await neighbor.boundingBox())!;
+  const y = from.y + from.height / 2, endX = to.x + 12;
+  await page.evaluate(() => {
+    const transitions: string[] = [];
+    (window as Window & { columnTransitions: string[] }).columnTransitions = transitions;
+    document.querySelector('.inventory-grid')!.addEventListener('transitionrun', event => {
+      const cell = event.target as HTMLElement;
+      if ((event as TransitionEvent).propertyName === 'transform' && cell.dataset.columnKey === 'owned') transitions.push(cell.tagName);
+    });
+  });
+  const startDrag = async () => {
+    await page.mouse.move(from.x + from.width / 2, y);
+    await page.mouse.down();
+    await page.mouse.move(endX, y, { steps: 3 });
+    await expect(source).toHaveAttribute('data-dragging', 'true');
+  };
+  await startDrag();
+  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(to.x + from.width, 0);
+  expect((await source.boundingBox())!.x).toBeCloseTo(endX - from.width / 2, 0);
+  expect((await sourceCell.boundingBox())!.x).toBeCloseTo((await source.boundingBox())!.x, 0);
+  expect((await neighborCell.boundingBox())!.x).toBeCloseTo((await neighbor.boundingBox())!.x, 0);
+  const transitions = await page.evaluate(() => (window as Window & { columnTransitions: string[] }).columnTransitions);
+  expect(transitions).toContain('TH');
+  expect(transitions).toContain('TD');
+  expect(await order(page)).toEqual(equipmentOrder);
+  expect(await page.evaluate(() => localStorage.getItem('arsenal.inventory-columns'))).toBeNull();
+  await page.screenshot({ path: 'test-results/column-slide-preview.png' });
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await expect.poll(async () => (await source.boundingBox())!.x).toBeCloseTo(from.x, 0);
+  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(to.x, 0);
+  expect(await page.evaluate(() => localStorage.getItem('arsenal.inventory-columns'))).toBeNull();
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await startDrag();
+  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(to.x + from.width, 0);
+  expect(await neighbor.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0s');
+  await page.mouse.up();
+  await expect.poll(() => order(page)).toEqual(['name', 'rank', 'owned', ...equipmentOrder.slice(3)]);
+  expect(await page.locator('.inventory-grid').evaluate(element => element.getAnimations({ subtree: true }).some(animation => animation.playState === 'running'))).toBe(false);
+  expect(JSON.stringify(await account.inventory())).toBe(saved);
+});
