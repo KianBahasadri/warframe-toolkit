@@ -187,6 +187,7 @@ test('reward cards expose conditional rates, calculator, unknown odds, keyboard 
   const search = page.getByLabel('Search drop tables', { exact: true });
   await search.fill('pressure point');
   await page.getByRole('button', { name: 'Open Pressure Point', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Pressure Point', exact: true })).toBeFocused();
   const reward = page.getByRole('button', { name: 'Pressure Point from Example Heavy Gunner: details', exact: true });
   await reward.focus(); await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog', { name: 'Pressure Point', exact: true });
@@ -210,6 +211,8 @@ test('reward cards expose conditional rates, calculator, unknown odds, keyboard 
   await page.keyboard.press('Escape');
   await browse(page, 'item'); await search.fill('forma blueprint');
   await page.getByRole('button', { name: 'Open Forma Blueprint', exact: true }).click();
+  // Group navigation focuses its heading on the next animation frame.
+  await expect(page.getByRole('heading', { name: 'Forma Blueprint', exact: true })).toBeFocused();
   const buttons = page.locator('.drop-result-card');
   await buttons.first().focus(); await page.keyboard.press('ArrowDown'); await expect(buttons.nth(1)).toBeFocused();
   await page.keyboard.press('End'); await expect(buttons.last()).toBeFocused();
@@ -368,6 +371,7 @@ test('large lists append while scrolling, search all data, and keep the final re
   expect(requests).toBe(1);
   await browse(page, 'enemy / source');
   await page.getByRole('button', { name: 'Open Scroll Source', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Scroll Source', exact: true })).toBeFocused();
   const results = page.locator('.drop-result-card');
   await expect(results).toHaveCount(initialCount);
   await results.first().focus(); await page.keyboard.press('End');
