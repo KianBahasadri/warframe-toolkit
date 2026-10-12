@@ -273,7 +273,7 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .import-sources:not(.has-batch) .import-source-heading, .import-source.is-exiting .import-source-heading { justify-content: center; gap: 24px; }
 .import-source-heading h2 { font-size: 18px; }
 .import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-.drop-zone { width: 100%; padding: 24px 16px; min-height: 148px; border: 0; border-radius: 0; background: transparent; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; font-size: 14px; }
+.drop-zone { width: 100%; padding: 24px 16px; min-height: 148px; border: 0; border-radius: 0; background: transparent; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; font-size: 16px; }
 .import-sources:not(.has-batch) .drop-zone, .import-source.is-exiting .drop-zone { flex: 1; }
 .import-source-example { display: block; flex-shrink: 0; width: 100%; max-width: 640px; height: auto; max-height: min(42dvh, 360px); object-fit: contain; margin-bottom: 16px; transition: transform 280ms cubic-bezier(.2,.8,.2,1); }
 .import-sources:not(.has-batch) .import-source:not(.is-paste-target) .import-source-example { transform: scale(.75); }
@@ -282,7 +282,7 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .drop-zone:hover { color: var(--ink-strong); }
 .drop-zone.dragging { background: var(--surface-raised); }
 .drop-zone:active:not(:disabled) { transform: none; }
-.drop-zone small { font-size: 11px; color: var(--muted); }
+.drop-zone small { font-size: 13px; color: var(--muted); }
 .drop-zone-compact { min-height: 76px; padding: 16px; background: var(--surface); border-radius: var(--radius-sm); }
 .import-progress { display: flex; flex-direction: column; gap: 8px; margin: 20px 0; font-size: 12px; color: var(--muted); }
 .import-preview { margin: 16px 0; }
