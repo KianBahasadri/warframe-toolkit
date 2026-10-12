@@ -187,8 +187,8 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .equipment-meta { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; color: var(--table-muted); font-size: 14px; font-weight: 400; line-height: 1.4; margin-top: 2px; }
 .inventory-table .wrapping-cell { white-space: pre-wrap; overflow-wrap: anywhere; }
 .inventory-table .crafting-cell, .inventory-table .catalog-fact { color: var(--table-ink); font-size: inherit; }
-.inventory-table .table-secondary, .inventory-table .table-missing, .inventory-table .cell-note { color: var(--table-muted); }
-.inventory-table .cell-note { display: block; font-size: 14px; }
+.inventory-table .table-secondary, .inventory-table .table-missing { color: var(--table-muted); }
+.inventory-table .recommended-action { cursor: help; }
 @media (min-width: 760px) {
   .inventory-grid { scroll-padding-left: var(--first-column-width, 360px); }
   .inventory-table th:first-child, .inventory-table td:first-child { position: sticky; left: 0; z-index: 2; background: var(--canvas); }
