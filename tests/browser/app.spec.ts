@@ -32,6 +32,12 @@ async function waitForScreenshotReview(page: Page) {
   await expect(page.getByRole('progressbar', { name: 'Screenshot reading progress' })).toHaveCount(0, { timeout: 120000 });
 }
 
+async function expectImportFinished(page: Page) {
+  await expect(page).toHaveURL(/#weapons$/);
+  await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Import screenshots', exact: true })).toHaveCount(0);
+}
+
 test('inventory edits persist, full fields are available, and equipment can be added', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -340,6 +346,7 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await page.getByRole('tab', { name: 'My inventory' }).click();
   await page.getByLabel('Notes', { exact: true }).fill('Important crafting note');
   await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByRole('link', { name: 'Warframes', exact: true }).click();
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   const savedBeforeReview = JSON.stringify(await account.inventory());
   const externalRequests: string[] = [];
@@ -393,8 +400,8 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   await expect(thumbnail).toBeFocused();
   await page.screenshot({ path: 'test-results/import-review.png', fullPage: true });
   await page.getByRole('button', { name: 'Import 3 items' }).click();
-  await expect(page.getByText('1 added · 2 updated').first()).toBeVisible();
-  await page.getByRole('button', { name: 'View inventory' }).click();
+  await expectImportFinished(page);
+  expect((await account.inventory()).imports[0]).toMatchObject({ added: 1, updated: 2 });
   await page.getByRole('button', { name: 'Edit Boltor', exact: true }).click();
   await page.getByRole('tab', { name: 'My inventory' }).click();
   await expect(page.getByLabel('Notes', { exact: true })).toHaveValue('Important crafting note');
@@ -796,9 +803,9 @@ test('pointer highlights the paste destination and a batch hides the other sourc
   await expect(inventory).toHaveCount(0);
   await waitForScreenshotReview(page);
   await page.getByRole('button', { name: 'Import 1 item', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'View inventory' })).toBeVisible();
+  await expectImportFinished(page);
   await expect(inventory).toHaveCount(0);
-  await page.getByRole('button', { name: 'Import more', exact: true }).click();
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   await expect(inventory).toBeVisible();
   await expect(codex).toBeVisible();
   await page.setViewportSize({ width: 320, height: 720 });
@@ -852,6 +859,7 @@ test('real Codex OCR reads exact variants and mastery, preserving ownership, ran
   await expect(page.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(2);
   await expect(page.getByLabel('Mastered: Afuris', { exact: true })).not.toBeChecked();
   await page.getByRole('button', { name: 'Import 32 items', exact: true }).click();
+  await expectImportFinished(page);
   const saved: Inventory = await account.inventory();
   const boltor = saved.items.find(item => item.name === 'Boltor')!;
   expect(boltor).toMatchObject({ owned: true, mastered: true, rank: 7, notes: 'Keep this Forma plan', dontKeep: true, override: 'Keep' });
@@ -964,7 +972,7 @@ test('real screenshot batches merge duplicates and preserve planning, prior mast
   await page.locator('.import-preview').screenshot({ path: 'test-results/import-gallery-mobile.png' });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole('button', { name: 'Import 37 items', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'View inventory' })).toBeVisible();
+  await expectImportFinished(page);
   await waitForSave(page); await page.reload(); await waitForSave(page);
   const saved: Inventory = await account.inventory();
   expect(saved.items.length).toBe(new Set([...original.items.map(item => item.name), ...Object.keys(expected)]).size);
@@ -1092,13 +1100,13 @@ test('background reading keeps the list editable while paste and drop add screen
   await expect(page.getByRole('button', { name: 'Import 3 items', exact: true })).toBeEnabled();
   expect(JSON.stringify(await account.inventory())).toBe(savedBefore);
   await page.getByRole('button', { name: 'Import 3 items', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'View inventory' })).toBeVisible();
+  await expectImportFinished(page);
   const saved: Inventory = await account.inventory();
   expect(saved.items.find(item => item.name === 'Vasto')).toMatchObject({ rank: 0, mastered: true });
   expect(saved.items.find(item => item.name === 'Braton Vandal')).toMatchObject({ rank: 30, mastered: true });
   expect(saved.items.find(item => item.name === 'Boltor')).toEqual(JSON.parse(savedBefore!).items.find((item: { name: string }) => item.name === 'Boltor'));
   expect(saved.imports[0].files).toEqual(['first.png', 'paste.png', 'drop.png']);
-  await page.getByRole('button', { name: 'Import more', exact: true }).click();
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Review matches' })).toHaveCount(0);
   await expect(gallery).toHaveCount(0);
   await expect(page.getByLabel('Choose codex screenshots')).toBeEnabled();

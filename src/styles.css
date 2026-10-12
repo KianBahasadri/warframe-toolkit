@@ -317,7 +317,6 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .match-cell .badge { margin-top: 6px; }
 .rank-input { width: 72px; }
 .import-status { margin: 16px 0; font-size: 13px; color: var(--muted); }
-.import-result { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; font-size: 14px; }
 .screenshot-help-dialog { width: min(1040px, calc(100vw - 32px)); }
 .screenshot-help-dialog .dialog-header .icon-button { flex-shrink: 0; }
 .screenshot-instructions { margin: 0; padding-left: 24px; }
