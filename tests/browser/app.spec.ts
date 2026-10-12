@@ -782,7 +782,8 @@ test('pointer highlights the paste destination and a batch hides the other sourc
   await expect(codex.getByRole('list', { name: 'Screenshot previews' }).getByRole('img')).toHaveCount(1);
   await expect(page.locator('.import-source.is-exiting')).toHaveCount(0);
   await expect(page.locator('.import-source-example')).toHaveCount(0);
-  expect((await codex.boundingBox())!.width).toBe((await stage.boundingBox())!.width);
+  // Removing the outgoing source does not guarantee the width transition has finished.
+  await expect.poll(async () => (await codex.boundingBox())!.width - (await stage.boundingBox())!.width).toBe(0);
   await waitForScreenshotReview(page);
   await expect(codex.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
   // Once a batch starts, moving to the other side keeps pastes in that batch.
