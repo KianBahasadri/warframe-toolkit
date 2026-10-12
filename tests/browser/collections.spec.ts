@@ -31,7 +31,7 @@ test('all collections share the toolbar, column menus, responsive layout, and ad
     await expect(columns).toHaveCount(0);
   };
   let toolbarTop: number | undefined;
-  for (const [name, filterName, addName] of [['Weapons', 'Weapon filters', 'Add weapon'], ['Warframes', 'Warframe filters', 'Add equipment'], ['Relics', 'Relic filters', 'Add relic']]) {
+  for (const [name, filterName, addName] of [['Weapons', 'Weapon filters', 'Add weapon'], ['Warframes', 'Warframe filters', 'Add Warframe'], ['Relics', 'Relic filters', 'Add relic']]) {
     await page.getByRole('link', { name, exact: true }).click();
     const section = page.getByRole('region', { name, exact: true });
     await expect(section).toBeVisible();
@@ -139,8 +139,8 @@ test('relics share numeric filters, sort priorities, hidden-column filters, and 
 test('Warframes browse the full catalog and use shared filters without saving catalog entries', async ({ page, account }) => {
   await page.goto('/#warframes');
   const saved = JSON.stringify(await account.inventory());
-  await page.getByRole('button', { name: 'Browse all equipment', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Search equipment' }).fill('Wisp');
+  await page.getByRole('button', { name: 'Browse all Warframes', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Search Warframes' }).fill('Wisp');
   await expect(page.locator('.inventory-table .equipment-label')).toHaveText(['Wisp', 'Wisp Prime']);
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Weapon type', exact: true })).toHaveCount(0);

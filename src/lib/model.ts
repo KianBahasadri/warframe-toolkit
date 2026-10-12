@@ -41,6 +41,12 @@ export interface CatalogItem {
   sourceUrls?: string[];
 }
 
+export function maximumRank(item: Pick<CatalogItem, 'slot'> & Partial<Pick<CatalogItem, 'weaponType' | 'maxRank'>>): number | undefined {
+  // Necramechs are grouped with Warframes by the source, but have their own rank cap.
+  // https://www.warframe.com/en/patch-notes/xbox/29-5-5
+  return item.slot === 'Warframe' ? item.weaponType === 'Necramech' ? 40 : 30 : item.maxRank;
+}
+
 export interface Recipe {
   id: string;
   name: string;

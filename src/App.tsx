@@ -18,7 +18,7 @@ import { catalog } from './data/catalog';
 import { editableRecord, equipmentRows, toggleEquipment } from './lib/weaponCatalog';
 import { mergeObservations, normalizeName } from './lib/model';
 import type { Equipment, Inventory } from './lib/model';
-import { downloadFile, inventoryCsv, relicsCsv, STORAGE_KEY } from './lib/storage';
+import { downloadFile, inventoryCsv, relicsCsv, STORAGE_KEY, warframesCsv } from './lib/storage';
 import { MAX_RELIC_QUANTITY } from './lib/relics';
 import weaponsIcon from './assets/warframe/weapons.png';
 import warframesIcon from './assets/warframe/warframes.png';
@@ -40,7 +40,7 @@ export default function App() {
   const [accountOpen, setAccountOpen] = useState<'login' | 'register' | null>(null);
   const inventoryRef = useRef(inventory); inventoryRef.current = inventory;
   const [page, setPage] = useState<Page>(pageFromHash);
-  const equipmentLabel = page === 'weapons' ? 'weapon' : 'equipment';
+  const equipmentLabel = page === 'warframes' ? 'Warframe' : page === 'relics' ? 'relic' : 'weapon';
   const [editing, setEditing] = useState<Equipment | 'new' | null>(null);
   const [palette, setPalette] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
@@ -73,12 +73,17 @@ export default function App() {
   }, [inventory, account.user, account.dirty, account.saving, account.error, notify]);
   useEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem('arsenal.theme', theme); } catch { /* Inventory saving reports its own failures. */ } }, [theme]);
   const navigate = (destination: Page) => { setPage(destination); location.hash = destination; };
-  const exportCsv = () => { downloadFile(`grakata-inventory-${new Date().toISOString().slice(0, 10)}.csv`, inventoryCsv(equipmentRows(inventoryRef.current.items, catalog)), 'text/csv;charset=utf-8'); notify('Inventory CSV downloaded.', 'success'); };
+  const exportCsv = () => {
+    const rows = equipmentRows(inventoryRef.current.items, catalog);
+    const warframes = page === 'warframes';
+    downloadFile(`grakata-${warframes ? 'warframes' : 'inventory'}-${new Date().toISOString().slice(0, 10)}.csv`, warframes ? warframesCsv(rows) : inventoryCsv(rows), 'text/csv;charset=utf-8');
+    notify(`${warframes ? 'Warframes' : 'Inventory'} CSV downloaded.`, 'success');
+  };
   const exportRelics = () => { downloadFile(`grakata-relics-${new Date().toISOString().slice(0, 10)}.csv`, relicsCsv(inventoryRef.current.relics ?? []), 'text/csv;charset=utf-8'); notify('Relics CSV downloaded.', 'success'); };
   const commands: Command[] = [
     ...(['weapons', 'warframes', 'relics'].includes(page) ? [{ label: `Add ${page === 'relics' ? 'relic' : equipmentLabel}`, keys: ['Alt', 'N'], run: () => collectionActions.current?.add() }] : []),
     { label: 'Import screenshots', keys: ['Alt', 'I'], run: () => navigate('import') },
-    { label: page === 'droptables' ? 'Export filtered drop tables CSV' : page === 'relics' ? 'Export relics CSV' : 'Export inventory CSV', keys: ['Alt', 'E'], run: page === 'droptables' ? () => dropActions.current?.exportCsv() : page === 'relics' ? exportRelics : exportCsv },
+    { label: page === 'droptables' ? 'Export filtered drop tables CSV' : page === 'relics' ? 'Export relics CSV' : page === 'warframes' ? 'Export Warframes CSV' : 'Export inventory CSV', keys: ['Alt', 'E'], run: page === 'droptables' ? () => dropActions.current?.exportCsv() : page === 'relics' ? exportRelics : exportCsv },
     { label: 'Toggle theme', keys: ['Alt', 'Shift', 'T'], run: () => setTheme(value => value === 'dark' ? 'light' : 'dark') },
     { label: 'Keyboard shortcuts', keys: ['Alt', '/'], run: () => setShortcuts(true) },
   ];
@@ -136,7 +141,7 @@ export default function App() {
         {page === 'droptables' && <DropTables actionsRef={dropActions} savedViews={account.profile.dropViews} savedViewsError={account.viewsError} canSave={Boolean(account.user)} onSaveViews={account.commitViews} onSignIn={() => setAccountOpen('login')} />}
       </main>
     </div>
-    {editing && <EquipmentForm weapons={page === 'weapons'} item={editing === 'new' ? undefined : editing} existing={inventory.items} onClose={() => setEditing(null)} onSave={item => { const current = inventoryRef.current; const exists = current.items.some(entry => entry.id === item.id); if (commit({ ...current, items: exists ? current.items.map(entry => entry.id === item.id ? item : entry) : [...current.items, item] })) { setEditing(null); notify(`${item.name} ${exists ? 'updated' : 'added'}.`); return true; } return false; }} onDelete={id => { if (commit({ ...inventoryRef.current, items: inventoryRef.current.items.filter(item => item.id !== id) })) { setEditing(null); notify(`${page === 'weapons' ? 'Weapon' : 'Equipment'} entry removed.`); return true; } return false; }} />}
+    {editing && <EquipmentForm weapons={page === 'weapons'} item={editing === 'new' ? undefined : editing} existing={inventory.items} onClose={() => setEditing(null)} onSave={item => { const current = inventoryRef.current; const exists = current.items.some(entry => entry.id === item.id); if (commit({ ...current, items: exists ? current.items.map(entry => entry.id === item.id ? item : entry) : [...current.items, item] })) { setEditing(null); notify(`${item.name} ${exists ? 'updated' : 'added'}.`); return true; } return false; }} onDelete={id => { if (commit({ ...inventoryRef.current, items: inventoryRef.current.items.filter(item => item.id !== id) })) { setEditing(null); notify(`${page === 'weapons' ? 'Weapon' : 'Warframe'} entry removed.`); return true; } return false; }} />}
     {palette && <Commands commands={commands} destinations={destinations} onClose={() => setPalette(false)} />}
     {accountOpen && <AccountDialog initialMode={accountOpen} user={account.user} dirty={account.dirty} canIncludeCurrent={account.canIncludeCurrent} onAuthenticate={account.authenticate} onReplaceAccessKey={account.replaceAccessKey} onSignOut={account.signOut} onClose={() => setAccountOpen(null)} />}
     {shortcuts && <Dialog title="Keyboard shortcuts" onClose={() => setShortcuts(false)}><dl className="shortcut-list"><div><dt>Search and commands</dt><dd><kbd>Ctrl</kbd> + <kbd>K</kbd> / <kbd>⌘</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>Space</kbd></dd></div>{[...commands, ...destinations].map(command => <div key={command.label}><dt>{command.label}</dt><dd>{command.keys.map(key => <kbd key={key}>{key}</kbd>)}</dd></div>)}<div><dt>Column actions</dt><dd><kbd>Shift</kbd> + <kbd>F10</kbd></dd></div><div><dt>Move between {page === 'droptables' ? 'reward' : equipmentLabel} rows</dt><dd><kbd>↑</kbd><kbd>↓</kbd></dd></div><div><dt>Open selected {page === 'droptables' ? 'reward' : equipmentLabel}</dt><dd><kbd>Enter</kbd><kbd>Space</kbd></dd></div></dl></Dialog>}

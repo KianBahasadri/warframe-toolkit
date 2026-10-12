@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEquipment, mergeObservations } from '../src/lib/model.ts';
-import { inventoryCsv, parseBackup } from '../src/lib/storage.ts';
+import { inventoryCsv, parseBackup, warframesCsv } from '../src/lib/storage.ts';
 
 const item = () => createEquipment({ name: 'Boltor', slot: 'Primary', variant: 'Base' });
 
@@ -56,4 +56,21 @@ test('CSV includes spreadsheet columns, quoted cells and formula-safe notes', ()
   assert.ok(output.includes('"TRUE"'));
   assert.ok(output.includes('"Incarnon Installed","Helminth Ability Unlocked"'));
   assert.ok(output.endsWith(',"Yes","No"'));
+});
+
+test('Warframes CSV exports only Warframes with relevant facts and safe notes', () => {
+  const frame = createEquipment({ name: 'Wisp', slot: 'Warframe', variant: 'Base' }, {
+    mastered: true, hasPrimeVariant: true, helminth: 'No', notes: '=1+1\nKeep this note',
+    craftingIngredient: true, craftingTarget: 'Legacy value', incarnon: true,
+  });
+  const prime = createEquipment({ name: 'Wisp Prime', slot: 'Warframe', variant: 'Prime' }, { owned: false });
+  const items = [item(), frame, prime];
+  const before = structuredClone(items);
+  const output = warframesCsv(items);
+  assert.equal(output.split('\r\n')[0], '\uFEFF"Warframe","Type","Owned","Rank","Mastered","Variant","Upgraded","Helminth Ability Unlocked","Recommended Action","Favorite","Quest Reward","Has Prime Variant","Notes"');
+  assert.match(output, /"Wisp","Warframe","TRUE","","TRUE","Base","Unknown","No","Subsume"/);
+  assert.match(output, /"Wisp Prime","Warframe","FALSE","","FALSE","Prime","Unknown","Not applicable","Acquire & master"/);
+  assert.ok(output.includes('"\'=1+1\nKeep this note"'));
+  assert.doesNotMatch(output, /Boltor|Legacy value|Incarnon|Crafting/);
+  assert.deepEqual(items, before);
 });

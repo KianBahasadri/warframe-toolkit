@@ -1,13 +1,13 @@
 import type { Ref } from 'react';
 import { ScanLine } from 'lucide-react';
-import { recommendationFor, recommendedActions } from '../lib/recommendations';
+import { helminthStatus, recommendationFor, recommendedActions, warframeRecommendedActions } from '../lib/recommendations';
 import { normalizeName } from '../lib/model';
 import { Tooltip } from './Tooltip';
 import { TableNotes } from './TableNotes';
 import type { Equipment } from '../lib/model';
 import { catalogFields, defaultWeaponFilters, filterEquipment } from '../lib/weaponCatalog';
 import type { BooleanField, EquipmentRow } from '../lib/weaponCatalog';
-import { COLUMNS_STORAGE_KEY, defaultColumns, equipmentTableModel, inventoryColumns } from '../lib/inventoryColumns';
+import { COLUMNS_STORAGE_KEY, defaultColumns, defaultWarframeColumns, equipmentTableModel, inventoryColumns, retiredWarframeColumns, WARFRAME_COLUMNS_STORAGE_KEY, warframeColumns } from '../lib/inventoryColumns';
 import { CollectionTable } from './CollectionTable';
 import type { CollectionActions, CollectionDefinition, CollectionFilter } from './CollectionTable';
 
@@ -20,16 +20,17 @@ function equipmentFilters(items: EquipmentRow[], weapons: boolean, ownedOnlyDefa
       choice('slot', 'Filter by slot', values(items.map(item => item.slot)), 'slot', 'All slots'),
       choice('incarnon', 'Incarnon filter', [['yes', 'All Incarnon weapons'], ['native', 'Native Incarnon'], ['genesis', 'Incarnon Genesis compatible'], ['none', 'No Incarnon']], 'incarnon', 'Any Incarnon status'),
       choice('weaponType', 'Weapon type', values(items.flatMap(item => item.catalogItem?.weaponType ? [item.catalogItem.weaponType] : []))),
-    ] : []),
+    ] : [choice('weaponType', 'Type', [['Warframe', 'Warframe'], ['Necramech', 'Necramech']])]),
     choice('variant', 'Variant filter', values(items.map(item => item.variant)), 'variant'),
     choice('mastery', 'Mastery', [['yes', 'Mastered'], ['no', 'Not mastered']], 'mastered'),
-    choice('quest', 'Quest reward', [['yes', weapons ? 'Weapon or blueprint reward' : 'Equipment or blueprint reward'], ['no', 'No recorded quest reward']], 'questWeapon'),
+    choice('quest', 'Quest reward', [['yes', weapons ? 'Weapon or blueprint reward' : 'Reward or blueprint'], ['no', 'No recorded quest reward']], 'questWeapon'),
     ...(weapons ? [choice('ingredient', 'Used in crafting', [['yes', 'Crafting ingredient'], ['no', 'Not a crafting ingredient']], 'craftingIngredient')] : []),
     choice('recipe', 'Foundry recipe', [['yes', 'Recipe available'], ['no', 'No recorded recipe']]),
     choice('prime', 'Prime counterpart', [['yes', 'Has Prime variant'], ['no', 'No Prime counterpart']], 'hasPrimeVariant'),
     choice('vaulted', 'Prime vault status', [['yes', 'Vaulted'], ['no', 'Not vaulted']]),
-    choice('keep', 'Recommended action filter', recommendedActions.map(action => [action, action]), 'keep'),
-    { key: 'maxMr', label: 'Maximum required MR', kind: 'number', min: 0, max: 30 },
+    ...(!weapons ? [choice('helminth', 'Helminth ability unlocked', ['Unknown', 'Yes', 'No', 'Not applicable'].map(value => [value, value]), 'helminth')] : []),
+    choice('keep', 'Recommended action filter', (weapons ? recommendedActions.filter(action => !['Check Helminth', 'Subsume'].includes(action)) : warframeRecommendedActions).map(action => [action, action]), 'keep'),
+    ...(weapons ? [{ key: 'maxMr', label: 'Maximum required MR', kind: 'number' as const, min: 0, max: 30 }] : []),
   ];
 }
 
@@ -39,26 +40,30 @@ export function InventoryTable({ items, onEdit, onToggle, onNotesChange, onAdd, 
   onAdd: () => void; onExport: () => void; onImport: () => void; actionsRef?: Ref<CollectionActions>;
   weapons?: boolean; ownedOnlyDefault?: boolean;
 }) {
-  const noun = weapons ? 'weapons' : 'equipment';
+  const noun = weapons ? 'weapons' : 'Warframes';
   const definition: CollectionDefinition<EquipmentRow> = {
-    label: weapons ? 'Weapons' : 'Warframes', itemLabel: weapons ? 'weapon' : 'equipment', searchLabel: weapons ? 'Search weapons' : 'Search equipment',
-    regionLabel: weapons ? 'Weapon inventory' : 'Equipment inventory', filterLabel: weapons ? 'Weapon filters' : 'Warframe filters',
-    columns: inventoryColumns.map(column => weapons && column.key === 'name' ? { ...column, title: 'Weapon' } : column),
-    defaultColumns, retiredColumns: ['dontKeep', 'override'], storageKey: COLUMNS_STORAGE_KEY, model: equipmentTableModel, rowLabel: item => item.name,
+    label: weapons ? 'Weapons' : 'Warframes', itemLabel: weapons ? 'weapon' : 'Warframe', searchLabel: weapons ? 'Search weapons' : 'Search Warframes',
+    regionLabel: weapons ? 'Weapon inventory' : 'Warframe inventory', filterLabel: weapons ? 'Weapon filters' : 'Warframe filters',
+    columns: weapons ? inventoryColumns : warframeColumns,
+    defaultColumns: weapons ? defaultColumns : defaultWarframeColumns,
+    retiredColumns: weapons ? ['dontKeep', 'override'] : retiredWarframeColumns,
+    storageKey: weapons ? COLUMNS_STORAGE_KEY : WARFRAME_COLUMNS_STORAGE_KEY, legacyStorageKey: weapons ? undefined : COLUMNS_STORAGE_KEY,
+    model: equipmentTableModel, rowLabel: item => item.name,
     rowKey: item => normalizeName(item.name),
     filters: equipmentFilters(items, weapons, ownedOnlyDefault),
     applyFilters: (rows, search, filters) => filterEquipment(rows, search, { ...defaultWeaponFilters, ...filters }),
     emptyState: (rows, filters) => filters.ownedOnly && rows.length > 0 && !rows.some(item => item.owned)
-      ? { title: `No owned ${noun} yet`, description: 'Mark equipment as owned or import an inventory screenshot.', resetLabel: `Browse all ${noun}`, resetValues: { ownedOnly: false } }
-      : { title: rows.length ? `No matching ${noun}` : 'No equipment added', description: rows.length ? `Change your filters to see more ${noun}.` : `Add ${weapons ? 'a weapon' : 'an item'} or import an inventory screenshot.` },
+      ? { title: `No owned ${noun} yet`, description: `Mark ${noun} as owned or import an inventory screenshot.`, resetLabel: `Browse all ${noun}`, resetValues: { ownedOnly: false } }
+      : { title: rows.length ? `No matching ${noun}` : `No ${noun} added`, description: rows.length ? `Change your filters to see more ${noun}.` : `Add ${weapons ? 'a weapon' : 'a Warframe'} or import an inventory screenshot.` },
   };
   return <CollectionTable definition={definition} items={items} onEdit={onEdit} onAdd={onAdd} onExport={onExport} actionsRef={actionsRef}
     extraActions={<button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
     renderCell={(item, column, visibleColumns) => column.key === 'name'
-      ? <>{item.catalogItem?.image ? <img className="equipment-image" src={item.catalogItem.image} width="88" height="56" alt="" loading="lazy" /> : <span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span>}<span className="equipment-identity"><span className="equipment-label">{item.name}</span>{!visibleColumns.includes('slot') && <span className="equipment-meta">{item.slot}</span>}</span></>
+      ? <>{item.catalogItem?.image ? <img className="equipment-image" src={item.catalogItem.image} width="88" height="56" alt="" loading="lazy" /> : <span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span>}<span className="equipment-identity"><span className="equipment-label">{item.name}</span>{weapons ? !visibleColumns.includes('slot') && <span className="equipment-meta">{item.slot}</span> : <span className="equipment-meta">{item.catalogItem?.weaponType === 'Necramech' ? 'Necramech' : !visibleColumns.includes('variant') ? item.variant : null}</span>}</span></>
       : column.key === 'incarnon' && item.catalogItem ? <span className="catalog-fact" aria-label={`Incarnon: ${item.name}: ${item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}`}>{item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}</span>
       : column.kind === 'boolean' ? item.catalogItem && catalogFields.some(key => key === column.key) ? <span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item[column.key as keyof Equipment] ? 'Yes' : 'No'}`}>{item[column.key as keyof Equipment] ? 'Yes' : 'No'}</span> : <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} onChange={() => onToggle(item, column.key as BooleanField)} /></label>
       : column.key === 'keep' ? <Tooltip className="recommended-action" content={recommendationFor(item).reason}>{recommendationFor(item).action}</Tooltip>
+      : column.key === 'helminth' ? <span className={['Unknown', 'Not applicable'].includes(helminthStatus(item)) ? 'table-secondary' : ''}>{helminthStatus(item)}</span>
       : column.key === 'rank' ? item.rank === null ? <span className="table-missing" aria-label="Rank unknown">—</span> : item.rank
       : column.key === 'craftingTarget' ? <span className="crafting-cell">{item.craftingTarget || <span className="table-missing">—</span>}</span>
       : column.key === 'notes' ? <TableNotes name={item.name} value={item.notes} onChange={notes => onNotesChange(item, notes)} />

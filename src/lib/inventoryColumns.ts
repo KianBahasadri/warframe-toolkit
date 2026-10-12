@@ -1,4 +1,4 @@
-import { recommendationFor } from './recommendations.ts';
+import { helminthStatus, recommendationFor } from './recommendations.ts';
 import type { Equipment } from './model.ts';
 import type { EquipmentRow } from './weaponCatalog.ts';
 import type { TableColumn, TableModel } from './tableView.ts';
@@ -6,7 +6,7 @@ import type { TableColumn, TableModel } from './tableView.ts';
 export type Column = TableColumn & { key: keyof Equipment | 'keep' };
 
 export const inventoryColumns: Column[] = [
-  { key: 'name', title: 'Equipment', width: 360, required: true },
+  { key: 'name', title: 'Weapon', width: 360, required: true },
   { key: 'owned', title: 'Owned', width: 96, kind: 'boolean' },
   { key: 'rank', title: 'Rank', width: 84, kind: 'number', number: { min: 0, max: 40, unknown: true } },
   { key: 'mastered', title: 'Mastered', width: 124, kind: 'boolean' },
@@ -25,10 +25,20 @@ export const inventoryColumns: Column[] = [
 
 export const defaultColumns: Column['key'][] = ['name', 'owned', 'rank', 'mastered', 'incarnon', 'upgraded', 'keep', 'craftingTarget'];
 export const COLUMNS_STORAGE_KEY = 'arsenal.inventory-columns';
+export const WARFRAME_COLUMNS_STORAGE_KEY = 'grakata.warframe-columns';
+export const retiredWarframeColumns = ['dontKeep', 'override', 'incarnon', 'craftingTarget', 'craftingIngredient', 'slot'];
+export const warframeColumns: Column[] = [
+  ...inventoryColumns.filter(column => !retiredWarframeColumns.includes(column.key)).map(column => ({ ...column,
+    title: column.key === 'name' ? 'Warframe' : column.key === 'questWeapon' ? 'Quest reward' : column.key === 'powerful' ? 'Favorite' : column.title,
+  })),
+  { key: 'helminth', title: 'Helminth unlocked', width: 200, choices: ['Unknown', 'Yes', 'No', 'Not applicable'].map(value => ({ value, label: value })) },
+];
+export const defaultWarframeColumns: Column['key'][] = ['name', 'owned', 'rank', 'mastered', 'upgraded', 'keep', 'hasPrimeVariant', 'helminth'];
 
 export const equipmentTableModel: TableModel<EquipmentRow> = {
   value(item, key) {
     if (key === 'keep') return recommendationFor(item).action;
+    if (key === 'helminth') return helminthStatus(item);
     if (key === 'incarnon') return item.incarnon ? item.catalogItem?.incarnon?.type === 'genesis' ? 'genesis' : item.catalogItem?.incarnon?.type === 'native' ? 'native' : 'yes' : 'none';
     return item[key as keyof Equipment] ?? null;
   },

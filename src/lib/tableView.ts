@@ -91,9 +91,14 @@ export function parseColumnPreferences(saved: unknown, columns: TableColumn[], d
   return { order, visible: order.filter(key => visible.includes(key) || columns.some(column => column.key === key && column.required)) };
 }
 
-export function loadColumnPreferences(key: string, columns: TableColumn[], defaults: string[], retired: string[] = []): ColumnPreferences {
+export function loadColumnPreferences(key: string, columns: TableColumn[], defaults: string[], retired: string[] = [], legacyKey?: string): ColumnPreferences {
   try {
-    return parseColumnPreferences(JSON.parse(localStorage.getItem(key) ?? 'null'), columns, defaults, retired);
+    const raw = localStorage.getItem(key);
+    if (raw !== null || !legacyKey) return parseColumnPreferences(JSON.parse(raw ?? 'null'), columns, defaults, retired);
+    const migrated = parseColumnPreferences(JSON.parse(localStorage.getItem(legacyKey) ?? 'null'), columns, defaults, retired);
+    // Snapshot the old shared layout once, so later weapon changes cannot alter Warframes.
+    try { localStorage.setItem(key, JSON.stringify(migrated)); } catch { /* The current view still works without browser storage. */ }
+    return migrated;
   } catch { /* Keep unreadable preferences intact and use the default view. */ }
   return parseColumnPreferences(null, columns, defaults);
 }

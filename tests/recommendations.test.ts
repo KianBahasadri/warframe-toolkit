@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createEquipment, normalizeName } from '../src/lib/model.ts';
+import { createEquipment, maximumRank, normalizeName } from '../src/lib/model.ts';
 import type { CatalogItem, Equipment } from '../src/lib/model.ts';
-import { calculateRecommendation, recommendationFor } from '../src/lib/recommendations.ts';
+import { calculateRecommendation, helminthStatus, recommendationFor } from '../src/lib/recommendations.ts';
 import { defaultWeaponFilters, editableRecord, equipmentRows, filterEquipment } from '../src/lib/weaponCatalog.ts';
 import { equipmentTableModel } from '../src/lib/inventoryColumns.ts';
 import { filterRows, sortRows } from '../src/lib/tableView.ts';
@@ -100,6 +100,44 @@ test('Warframes check Helminth before disposal and never subsume Prime or Umbra 
   assert.equal(recommend('Dante', { helminth: 'No', dontKeep: true }).action, 'Subsume');
   assert.equal(recommend('Voidrig', { helminth: 'No', dontKeep: true }).action, 'Review');
   assert.equal(recommend('Bonewidow', { helminth: 'No' }).action, 'Keep');
+});
+
+test('Warframes ignore legacy weapon-only facts without rewriting them', () => {
+  const item = createEquipment({ name: 'Custom Warframe', slot: 'Warframe', variant: 'Base' }, {
+    mastered: true, hasPrimeVariant: true, craftingIngredient: true, craftingTarget: 'Legacy weapon target',
+    incarnon: true, incarnonInstalled: 'Yes', helminth: 'No',
+  });
+  const before = structuredClone(item);
+  assert.equal(calculateRecommendation(item).action, 'Subsume');
+  assert.equal(calculateRecommendation({ ...item, helminth: 'Yes' }).action, 'Sell');
+  assert.equal(calculateRecommendation({ ...item, hasPrimeVariant: false }).action, 'Keep');
+  assert.doesNotMatch(calculateRecommendation({ ...item, mastered: false }).reason, /crafting|Incarnon|weapon|equipment/i);
+  assert.doesNotMatch(calculateRecommendation({ ...item, helminth: 'Yes', hasPrimeVariant: false, dontKeep: true }).reason, /crafting|Incarnon|weapon|equipment/i);
+  assert.equal(filterEquipment([{ ...item }], 'Legacy weapon target', defaultWeaponFilters).length, 0);
+  assert.deepEqual(item, before);
+});
+
+test('Helminth filters distinguish unknown ability status from ineligible variants and Necramechs', () => {
+  const items = [equipment('Wisp'), equipment('Dante', { helminth: 'No' }), equipment('Wisp Prime'), equipment('Excalibur Umbra'), equipment('Voidrig')];
+  const rows = equipmentRows(items, catalog);
+  assert.equal(helminthStatus(equipment('Wisp', { helminth: 'Yes' })), 'Yes');
+  for (const [value, expected] of [['Unknown', ['Wisp']], ['No', ['Dante']], ['Not applicable', ['Excalibur Umbra', 'Voidrig', 'Wisp Prime']]] as const) {
+    assert.deepEqual(filterEquipment(rows, '', { ...defaultWeaponFilters, helminth: value }).map(item => item.name), expected);
+    assert.deepEqual(filterRows(rows, { helminth: { kind: 'choice', value } }, equipmentTableModel).map(item => item.name), expected);
+  }
+  assert.deepEqual(filterEquipment(rows, '', { ...defaultWeaponFilters, weaponType: 'Necramech' }).map(item => item.name), ['Voidrig']);
+  assert.deepEqual(filterEquipment([{ ...createEquipment({ name: 'Custom Warframe', slot: 'Warframe', variant: 'Base' }) }], '', { ...defaultWeaponFilters, weaponType: 'Warframe' }).map(item => item.name), ['Custom Warframe']);
+});
+
+test('Warframe and Necramech rank limits guide mastery without changing the catalog snapshot', () => {
+  assert.equal(maximumRank(equipment('Wisp').catalogItem), 30);
+  for (const name of ['Voidrig', 'Bonewidow']) {
+    const entry = equipment(name).catalogItem;
+    const before = structuredClone(entry);
+    assert.equal(maximumRank(entry), 40);
+    assert.match(recommend(name, { mastered: false, rank: 30 }).reason, /rank 40/);
+    assert.deepEqual(entry, before);
+  }
 });
 
 test('personal preferences, investments, quests and special variants guide completed equipment', () => {

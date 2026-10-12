@@ -28,7 +28,7 @@ async function dragColumn(page: Page, source: string, target: string, edge: 'bef
   await expect(page.locator('.column-drag-layer')).toHaveCount(0);
 }
 
-test('dragged columns keep their data, filters, and saved order across equipment tabs and relics', async ({ page, account }) => {
+test('dragged columns keep their data, filters, and independent saved order in each collection', async ({ page, account }) => {
   await page.setViewportSize({ width: 1800, height: 900 });
   await page.goto('/');
   const inventory = await account.inventory();
@@ -70,12 +70,14 @@ test('dragged columns keep their data, filters, and saved order across equipment
   await page.reload();
   await expect.poll(() => order(page)).toEqual(moved);
   await page.getByRole('link', { name: 'Warframes', exact: true }).click();
-  await expect.poll(() => order(page)).toEqual(moved);
+  const warframeMoved = moved.filter(key => !['incarnon', 'craftingTarget'].includes(key));
+  await expect.poll(() => order(page)).toEqual(warframeMoved);
   await expect(page.locator('tbody tr').first().getByRole('cell').nth(0)).toHaveText('20');
   await dragColumn(page, 'Owned', 'Rank', 'before');
-  const equipmentLayout = ['owned', 'rank', 'name', ...equipmentOrder.slice(3)];
+  const warframeLayout = ['owned', 'rank', ...warframeMoved.slice(2)];
+  await expect.poll(() => order(page)).toEqual(warframeLayout);
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
-  await expect.poll(() => order(page)).toEqual(equipmentLayout);
+  await expect.poll(() => order(page)).toEqual(moved);
 
   await page.getByRole('link', { name: 'Relics', exact: true }).click();
   await dragColumn(page, 'Quantity', 'Relic', 'before');
@@ -88,8 +90,10 @@ test('dragged columns keep their data, filters, and saved order across equipment
   await expect(header(page, 'Quantity').getByRole('button')).toBeFocused();
   await page.reload();
   await expect.poll(() => order(page)).toEqual(['name', 'quantity', 'era', 'refinement', 'notes']);
+  await page.getByRole('link', { name: 'Warframes', exact: true }).click();
+  await expect.poll(() => order(page)).toEqual(warframeLayout);
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
-  await expect.poll(() => order(page)).toEqual(equipmentLayout);
+  await expect.poll(() => order(page)).toEqual(moved);
   await page.getByRole('button', { name: 'Columns', exact: true }).click();
   await page.getByRole('button', { name: 'Reset to default' }).click();
   await page.keyboard.press('Escape');
@@ -146,7 +150,7 @@ test('column drags cancel cleanly and scroll to either end on a narrow screen', 
 test('selecting an active sort again clears only that column in every collection', async ({ page, account }) => {
   await page.goto('/');
   const saved = JSON.stringify(await account.inventory());
-  for (const [tab, primary, column] of [['Weapons', 'Weapon', 'Rank'], ['Warframes', 'Equipment', 'Rank'], ['Relics', 'Relic', 'Quantity']]) {
+  for (const [tab, primary, column] of [['Weapons', 'Weapon', 'Rank'], ['Warframes', 'Warframe', 'Rank'], ['Relics', 'Relic', 'Quantity']]) {
     await page.getByRole('link', { name: tab, exact: true }).click();
     const first = header(page, primary).getByRole('button');
     const second = header(page, column).getByRole('button');

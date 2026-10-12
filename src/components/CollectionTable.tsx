@@ -16,7 +16,7 @@ export type CollectionFilter = {
 export type CollectionActions = { add: () => void };
 export interface CollectionDefinition<Row> {
   label: string; itemLabel: string; searchLabel: string; regionLabel: string; filterLabel: string;
-  columns: TableColumn[]; defaultColumns: string[]; retiredColumns?: string[]; storageKey: string; model: TableModel<Row>;
+  columns: TableColumn[]; defaultColumns: string[]; retiredColumns?: string[]; storageKey: string; legacyStorageKey?: string; model: TableModel<Row>;
   rowLabel: (item: Row) => string;
   rowKey?: (item: Row) => string;
   filters: CollectionFilter[];
@@ -36,7 +36,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterValues>(defaults);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [preferences, setPreferences] = useState(() => loadColumnPreferences(definition.storageKey, definition.columns, definition.defaultColumns, definition.retiredColumns));
+  const [preferences, setPreferences] = useState(() => loadColumnPreferences(definition.storageKey, definition.columns, definition.defaultColumns, definition.retiredColumns, definition.legacyStorageKey));
   const visibleColumns = preferences.order.filter(key => preferences.visible.includes(key));
   const [sorting, setSorting] = useState<ColumnSort[]>(definition.initialSorting ?? []);
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({});

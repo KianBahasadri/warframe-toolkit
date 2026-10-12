@@ -62,11 +62,11 @@ test('inventory edits persist, full fields are available, and equipment can be a
   for (const option of await columnOptions.all()) if (!await option.isChecked()) await option.check();
   await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Recommended action', 'Crafting target', 'Crafting ingredient', 'Variant', 'Quest weapon', 'Meta / powerful', 'Slot', 'Has Prime variant', 'Notes']);
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
-  await page.getByLabel('Find in the weapon catalog').fill('Wisp Prime');
-  await page.getByRole('button', { name: 'Wisp Prime Warframe', exact: true }).click();
-  await page.getByRole('button', { name: 'Add weapon', exact: true }).last().click();
   await page.getByRole('link', { name: 'Warframes' }).click();
+  await page.getByRole('button', { name: 'Add Warframe', exact: true }).click();
+  await page.getByLabel('Find in the Warframe catalog').fill('Wisp Prime');
+  await page.getByRole('button', { name: 'Wisp Prime Warframe', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Add Warframe', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Edit Wisp Prime' })).toBeVisible();
   await waitForSave(page); await page.reload(); await waitForSave(page);
   await expect(page.getByRole('button', { name: 'Edit Wisp Prime' })).toBeVisible();
@@ -131,7 +131,7 @@ test('table keeps rank separate from mastery and preserves sorting when changing
   await expect(names).toHaveText(['Anku', 'Bo', 'Arca Titron', 'Atomos']);
 });
 
-test('column choices persist across reloads and equipment tabs without changing inventory', async ({ page, account }) => {
+test('column choices migrate to Warframes once and persist independently without changing inventory', async ({ page, account }) => {
   await page.goto('/'); await waitForSave(page);
   await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Recommended action', 'Crafting target']);
   await expect(page.getByRole('button', { name: /^(All 14 fields|Compact view)$/ })).toHaveCount(0);
@@ -163,12 +163,20 @@ test('column choices persist across reloads and equipment tabs without changing 
   await expect(columns).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Incarnon column options', exact: true })).toHaveAccessibleDescription('Unsorted');
   await page.getByRole('link', { name: 'Warframes', exact: true }).click();
-  await expect(page.getByRole('columnheader')).toHaveText(['Equipment', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Crafting target', 'Notes']);
+  await expect(page.getByRole('columnheader')).toHaveText(['Warframe', 'Owned', 'Rank', 'Mastered', 'Upgraded', 'Notes']);
   await trigger.click();
   await columns.getByRole('button', { name: 'Reset to default' }).click();
   await page.keyboard.press('Escape');
+  const warframeHeaders = ['Warframe', 'Owned', 'Rank', 'Mastered', 'Upgraded', 'Recommended action', 'Has Prime variant', 'Helminth unlocked'];
+  await expect(page.getByRole('columnheader')).toHaveText(warframeHeaders);
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
-  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Recommended action', 'Crafting target']);
+  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Crafting target', 'Notes']);
+  await trigger.click();
+  await columns.getByRole('button', { name: 'Reset to default' }).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('link', { name: 'Warframes', exact: true }).click();
+  await page.reload(); await waitForSave(page);
+  await expect(page.getByRole('columnheader')).toHaveText(warframeHeaders);
   expect(JSON.stringify(await account.inventory())).toBe(before);
 });
 
@@ -427,9 +435,9 @@ test('navigation, dialogs, and tables fit narrow screens and support keyboard us
   await page.setViewportSize({ width: 320, height: 720 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Open search and commands' }).click();
-  await page.getByRole('combobox', { name: 'Search commands' }).fill('Add equipment');
+  await page.getByRole('combobox', { name: 'Search commands' }).fill('Add Warframe');
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('dialog', { name: 'Add equipment' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Add Warframe' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);

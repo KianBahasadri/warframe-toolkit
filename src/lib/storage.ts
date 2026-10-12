@@ -2,6 +2,8 @@ import { slots, variants } from './model.ts';
 import type { Equipment, Inventory } from './model.ts';
 import { parseRelicName, validateRelics } from './relics.ts';
 import type { Relic } from './relics.ts';
+import { helminthStatus, recommendationFor } from './recommendations.ts';
+import type { EquipmentRow } from './weaponCatalog.ts';
 
 export const STORAGE_KEY = 'warframe-toolkit.inventory.v1';
 const booleanFields = ['owned', 'mastered', 'dontKeep', 'craftingIngredient', 'incarnon', 'questWeapon', 'powerful', 'hasPrimeVariant'] as const;
@@ -57,6 +59,12 @@ function csvCell(value: unknown): string {
 
 export function inventoryCsv(items: Equipment[]): string {
   return '\uFEFF' + [csvColumns.map(([label]) => csvCell(label)).join(','), ...items.map(item => csvColumns.map(([, key]) => csvCell(item[key])).join(','))].join('\r\n');
+}
+
+export function warframesCsv(items: EquipmentRow[]): string {
+  const rows = [['Warframe', 'Type', 'Owned', 'Rank', 'Mastered', 'Variant', 'Upgraded', 'Helminth Ability Unlocked', 'Recommended Action', 'Favorite', 'Quest Reward', 'Has Prime Variant', 'Notes'],
+    ...items.filter(item => item.slot === 'Warframe').map(item => [item.name, item.catalogItem?.weaponType ?? 'Warframe', item.owned, item.rank, item.mastered, item.variant, item.upgraded, helminthStatus(item), recommendationFor(item).action, item.powerful, item.questWeapon, item.hasPrimeVariant, item.notes])];
+  return '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n');
 }
 
 export function relicsCsv(relics: Relic[]): string {
