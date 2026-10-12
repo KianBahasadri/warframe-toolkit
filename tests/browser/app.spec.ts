@@ -60,7 +60,7 @@ test('inventory edits persist, full fields are available, and equipment can be a
   await page.getByRole('button', { name: 'Columns', exact: true }).click();
   const columnOptions = page.getByRole('group', { name: 'Table columns' }).getByRole('checkbox');
   for (const option of await columnOptions.all()) if (!await option.isChecked()) await option.check();
-  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Recommended action', 'Crafting target', "Don't keep", 'Crafting ingredient', 'Variant', 'Quest weapon', 'Meta / powerful', 'Slot', 'Has Prime variant', 'Override', 'Notes']);
+  await expect(page.getByRole('columnheader')).toHaveText(['Weapon', 'Owned', 'Rank', 'Mastered', 'Incarnon', 'Upgraded', 'Recommended action', 'Crafting target', 'Crafting ingredient', 'Variant', 'Quest weapon', 'Meta / powerful', 'Slot', 'Has Prime variant', 'Notes']);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
   await page.getByLabel('Find in the weapon catalog').fill('Wisp Prime');

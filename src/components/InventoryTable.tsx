@@ -1,6 +1,9 @@
 import type { Ref } from 'react';
 import { ScanLine } from 'lucide-react';
 import { recommendationFor, recommendedActions } from '../lib/recommendations';
+import { normalizeName } from '../lib/model';
+import { Tooltip } from './Tooltip';
+import { TableNotes } from './TableNotes';
 import type { Equipment } from '../lib/model';
 import { catalogFields, defaultWeaponFilters, filterEquipment } from '../lib/weaponCatalog';
 import type { BooleanField, EquipmentRow } from '../lib/weaponCatalog';
@@ -30,8 +33,9 @@ function equipmentFilters(items: EquipmentRow[], weapons: boolean, ownedOnlyDefa
   ];
 }
 
-export function InventoryTable({ items, onEdit, onToggle, onAdd, onExport, onImport, actionsRef, weapons = false, ownedOnlyDefault = weapons }: {
+export function InventoryTable({ items, onEdit, onToggle, onNotesChange, onAdd, onExport, onImport, actionsRef, weapons = false, ownedOnlyDefault = weapons }: {
   items: EquipmentRow[]; onEdit: (item: EquipmentRow) => void; onToggle: (item: EquipmentRow, field: BooleanField) => void;
+  onNotesChange: (item: EquipmentRow, notes: string) => void;
   onAdd: () => void; onExport: () => void; onImport: () => void; actionsRef?: Ref<CollectionActions>;
   weapons?: boolean; ownedOnlyDefault?: boolean;
 }) {
@@ -40,7 +44,8 @@ export function InventoryTable({ items, onEdit, onToggle, onAdd, onExport, onImp
     label: weapons ? 'Weapons' : 'Warframes', itemLabel: weapons ? 'weapon' : 'equipment', searchLabel: weapons ? 'Search weapons' : 'Search equipment',
     regionLabel: weapons ? 'Weapon inventory' : 'Equipment inventory', filterLabel: weapons ? 'Weapon filters' : 'Warframe filters',
     columns: inventoryColumns.map(column => weapons && column.key === 'name' ? { ...column, title: 'Weapon' } : column),
-    defaultColumns, storageKey: COLUMNS_STORAGE_KEY, model: equipmentTableModel, rowLabel: item => item.name,
+    defaultColumns, retiredColumns: ['dontKeep', 'override'], storageKey: COLUMNS_STORAGE_KEY, model: equipmentTableModel, rowLabel: item => item.name,
+    rowKey: item => normalizeName(item.name),
     filters: equipmentFilters(items, weapons, ownedOnlyDefault),
     applyFilters: (rows, search, filters) => filterEquipment(rows, search, { ...defaultWeaponFilters, ...filters }),
     emptyState: (rows, filters) => filters.ownedOnly && rows.length > 0 && !rows.some(item => item.owned)
@@ -53,10 +58,10 @@ export function InventoryTable({ items, onEdit, onToggle, onAdd, onExport, onImp
       ? <>{item.catalogItem?.image ? <img className="equipment-image" src={item.catalogItem.image} width="88" height="56" alt="" loading="lazy" /> : <span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span>}<span className="equipment-identity"><span className="equipment-label">{item.name}</span>{!visibleColumns.includes('slot') && <span className="equipment-meta">{item.slot}</span>}</span></>
       : column.key === 'incarnon' && item.catalogItem ? <span className="catalog-fact" aria-label={`Incarnon: ${item.name}: ${item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}`}>{item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}</span>
       : column.kind === 'boolean' ? item.catalogItem && catalogFields.some(key => key === column.key) ? <span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item[column.key as keyof Equipment] ? 'Yes' : 'No'}`}>{item[column.key as keyof Equipment] ? 'Yes' : 'No'}</span> : <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} onChange={() => onToggle(item, column.key as BooleanField)} /></label>
-      : column.key === 'keep' ? <span className="recommended-action" title={recommendationFor(item).reason}>{recommendationFor(item).action}</span>
+      : column.key === 'keep' ? <Tooltip className="recommended-action" content={recommendationFor(item).reason}>{recommendationFor(item).action}</Tooltip>
       : column.key === 'rank' ? item.rank === null ? <span className="table-missing" aria-label="Rank unknown">—</span> : item.rank
       : column.key === 'craftingTarget' ? <span className="crafting-cell">{item.craftingTarget || <span className="table-missing">—</span>}</span>
-      : column.key === 'notes' ? item.notes || <span className="table-missing">—</span>
+      : column.key === 'notes' ? <TableNotes name={item.name} value={item.notes} onChange={notes => onNotesChange(item, notes)} />
       : <span className={column.key === 'upgraded' && item.upgraded === 'Unknown' ? 'table-secondary' : ''}>{String(item[column.key as keyof Equipment] ?? '—')}</span>}
   />;
 }

@@ -78,22 +78,22 @@ export function filterChoices<Row>(column: TableColumn, items: Row[], model: Tab
   return undefined;
 }
 
-export function parseColumnPreferences(saved: unknown, columns: TableColumn[], defaults: string[]): ColumnPreferences {
+export function parseColumnPreferences(saved: unknown, columns: TableColumn[], defaults: string[], retired: string[] = []): ColumnPreferences {
   const keys = columns.map(column => column.key);
-  const validKeys = (value: unknown): value is string[] => Array.isArray(value) && value.every(key => typeof key === 'string' && keys.includes(key));
+  const validKeys = (value: unknown): value is string[] => Array.isArray(value) && value.every(key => typeof key === 'string' && (keys.includes(key) || retired.includes(key)));
   let order = keys, visible = defaults;
   // Older preferences store visibility alone; keep their original column layout.
   if (validKeys(saved)) visible = saved;
   else if (saved && typeof saved === 'object' && 'order' in saved && 'visible' in saved && validKeys(saved.order) && validKeys(saved.visible)) {
-    order = [...new Set([...saved.order, ...keys])];
+    order = [...new Set([...saved.order.filter(key => keys.includes(key)), ...keys])];
     visible = saved.visible;
   }
   return { order, visible: order.filter(key => visible.includes(key) || columns.some(column => column.key === key && column.required)) };
 }
 
-export function loadColumnPreferences(key: string, columns: TableColumn[], defaults: string[]): ColumnPreferences {
+export function loadColumnPreferences(key: string, columns: TableColumn[], defaults: string[], retired: string[] = []): ColumnPreferences {
   try {
-    return parseColumnPreferences(JSON.parse(localStorage.getItem(key) ?? 'null'), columns, defaults);
+    return parseColumnPreferences(JSON.parse(localStorage.getItem(key) ?? 'null'), columns, defaults, retired);
   } catch { /* Keep unreadable preferences intact and use the default view. */ }
   return parseColumnPreferences(null, columns, defaults);
 }

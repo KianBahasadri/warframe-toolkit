@@ -14,14 +14,12 @@ export const inventoryColumns: Column[] = [
   { key: 'upgraded', title: 'Upgraded', width: 112, choices: 'values' },
   { key: 'keep', title: 'Recommended action', width: 220, choices: 'values' },
   { key: 'craftingTarget', title: 'Crafting target', width: 240, wrap: true },
-  { key: 'dontKeep', title: "Don't keep", width: 112, kind: 'boolean' },
   { key: 'craftingIngredient', title: 'Crafting ingredient', width: 176, kind: 'boolean' },
   { key: 'variant', title: 'Variant', width: 144, choices: 'values' },
   { key: 'questWeapon', title: 'Quest weapon', width: 152, kind: 'boolean' },
   { key: 'powerful', title: 'Meta / powerful', width: 168, kind: 'boolean' },
   { key: 'slot', title: 'Slot', width: 160, choices: 'values' },
   { key: 'hasPrimeVariant', title: 'Has Prime variant', width: 180, kind: 'boolean' },
-  { key: 'override', title: 'Override', width: 144, choices: 'values' },
   { key: 'notes', title: 'Notes', width: 280, wrap: true },
 ];
 

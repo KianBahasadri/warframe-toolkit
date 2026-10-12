@@ -1,0 +1,82 @@
+import { test, expect } from './accountFixture';
+
+test('update and export notifications use the guide toast, pause on hover and focus, and open session history', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/'); await account.inventory();
+  await page.clock.install();
+  await page.getByRole('button', { name: 'Edit Anku', exact: true }).click();
+  await page.getByRole('tab', { name: 'My inventory', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Notes', exact: true }).fill('New build');
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  const first = page.locator('.toast').filter({ hasText: 'Anku updated.' });
+  await expect(first).toBeVisible();
+  await expect(page.getByRole('button', { name: /Dismiss.*notification/ })).toHaveCount(0);
+  await first.hover();
+  await page.clock.fastForward(6000);
+  await expect(first).not.toHaveClass(/is-archived/);
+  await first.getByRole('button').focus();
+  await page.mouse.move(0, 0);
+  await page.clock.fastForward(6000);
+  await expect(first).not.toHaveClass(/is-archived/);
+  await page.getByRole('textbox', { name: 'Search weapons', exact: true }).focus();
+  await page.clock.fastForward(5000);
+  await expect(first).toHaveClass(/is-archived/);
+  await page.clock.fastForward(650);
+  await expect(page.locator('.toast-container')).toHaveClass(/is-resting/);
+  await page.locator('.toast-container').hover();
+  await first.getByRole('button').click();
+  const history = page.getByRole('dialog', { name: 'Notification history', exact: true });
+  await expect(history).toContainText('Anku updated.');
+  await expect(history.locator('time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}T/);
+  await expect(history.locator('time')).not.toBeEmpty();
+  await page.keyboard.press('Escape');
+  await expect(first.getByRole('button')).toBeFocused();
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
+  await download;
+  const exported = page.locator('.toast').filter({ hasText: 'Inventory CSV downloaded.' });
+  await expect(exported).toBeVisible();
+  await exported.hover();
+  await expect(exported).toHaveCSS('opacity', '1');
+  await page.screenshot({ path: 'test-results/toasts-dark.png' });
+  await page.getByRole('button', { name: 'Switch to light theme', exact: true }).click();
+  await page.screenshot({ path: 'test-results/toasts-light.png' });
+  await exported.getByRole('button').click();
+  await expect(history.locator('.toast-history-message')).toHaveText(['Inventory CSV downloaded.', 'Anku updated.']);
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(exported).toHaveCSS('animation-name', 'none');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/toasts-mobile.png' });
+});
+
+test('styled recommendation tooltips stay inside narrow viewports in both themes', async ({ page, account }) => {
+  await page.addInitScript(() => localStorage.setItem('arsenal.inventory-columns', JSON.stringify(['name', 'keep'])));
+  await page.setViewportSize({ width: 1000, height: 720 });
+  await page.goto('/'); await account.inventory();
+  await page.getByRole('textbox', { name: 'Search weapons', exact: true }).fill('Boltor');
+  const action = page.locator('.recommended-action').first();
+  for (const theme of ['dark', 'light']) {
+    if (theme === 'light') await page.getByRole('button', { name: 'Switch to light theme', exact: true }).click();
+    await action.hover();
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    await page.screenshot({ path: `test-results/tooltip-${theme}.png` });
+    await page.keyboard.press('Escape');
+    await page.mouse.move(0, 0);
+  }
+  await page.setViewportSize({ width: 320, height: 720 });
+  await action.scrollIntoViewIfNeeded(); await action.focus();
+  const tooltip = page.getByRole('tooltip');
+  await expect(tooltip).toBeVisible();
+  const bounds = (await tooltip.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(12);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(308);
+  expect(bounds.y).toBeGreaterThanOrEqual(12);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(708);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/tooltip-mobile.png' });
+  await action.press('Escape');
+  await expect(tooltip).toHaveCount(0);
+});

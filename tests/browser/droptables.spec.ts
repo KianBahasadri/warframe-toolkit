@@ -242,6 +242,8 @@ test('all results are available without pagination, and exports, saved views and
   expect(csv.split('\r\n')).toHaveLength(66);
   expect(csv.split('\r\n')[0]).toContain('Table roll rate');
   expect(csv.split('\r\n')[1]).toContain('Test Reward 65'); expect(csv).not.toContain('Forma');
+  await expect(page.getByRole('region', { name: 'Notifications' })).toContainText('Exported all 65 matching entries with all fields.');
+  await expect(page.getByRole('button', { name: 'Dismiss drop table notification' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Saved views', exact: true }).click();
   await page.getByRole('textbox', { name: 'View name', exact: true }).fill('My farm');
   await page.getByRole('button', { name: 'Save current view', exact: true }).click();
@@ -256,6 +258,7 @@ test('all results are available without pagination, and exports, saved views and
   await expect(page.locator('.drop-result-summary')).toContainText('65 matching entries');
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: 'Copy view link', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Notifications' })).toContainText('View link copied. It uses the latest automatic update.');
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toContain('#droptables?view=');
   await page.goto(link); await expect(page.locator('.drop-result-summary')).toContainText('65 matching entries');

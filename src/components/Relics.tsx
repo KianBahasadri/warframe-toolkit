@@ -3,6 +3,7 @@ import type { Ref } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import { Dialog } from './Dialog';
 import { Select } from './Select';
+import { TableNotes } from './TableNotes';
 import { CollectionTable } from './CollectionTable';
 import type { CollectionActions, CollectionDefinition } from './CollectionTable';
 import { defaultRelicColumns, RELIC_COLUMNS_STORAGE_KEY, relicColumns, relicTableModel } from '../lib/relicColumns';
@@ -133,8 +134,9 @@ const relicDefinition: CollectionDefinition<Relic> = {
   emptyState: relics => ({ title: relics.length ? 'No matching relics.' : 'No relics added.', resetLabel: 'Clear filters' }),
 };
 
-export function Relics({ relics, onSave, onDelete, onQuantityChange, onExport, actionsRef }: {
+export function Relics({ relics, onSave, onDelete, onQuantityChange, onNotesChange, onExport, actionsRef }: {
   relics: Relic[]; onSave: (item: Relic) => boolean; onDelete: (id: string) => boolean;
+  onNotesChange: (item: Relic, notes: string) => void;
   onQuantityChange: (id: string, change: number) => void; onExport: () => void; actionsRef?: Ref<CollectionActions>;
 }) {
   const [editing, setEditing] = useState<Relic | 'new' | null>(null);
@@ -142,6 +144,7 @@ export function Relics({ relics, onSave, onDelete, onQuantityChange, onExport, a
     <CollectionTable definition={relicDefinition} items={relics} onEdit={setEditing} onAdd={() => setEditing('new')} onExport={onExport} actionsRef={actionsRef}
       renderCell={(relic, column) => column.key === 'name' ? <span className="equipment-label">{relic.name}</span>
         : column.key === 'quantity' ? <div className="quantity-control"><button type="button" className="icon-button" aria-label={`Decrease ${relic.name} ${relic.refinement} quantity`} title="Decrease quantity" disabled={relic.quantity === 0} onClick={() => onQuantityChange(relic.id, -1)}><Minus size={14} /></button><span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span><button type="button" className="icon-button" aria-label={`Increase ${relic.name} ${relic.refinement} quantity`} title="Increase quantity" disabled={relic.quantity === MAX_RELIC_QUANTITY} onClick={() => onQuantityChange(relic.id, 1)}><Plus size={14} /></button></div>
+        : column.key === 'notes' ? <TableNotes name={`${relic.name} ${relic.refinement}`} value={relic.notes} onChange={notes => onNotesChange(relic, notes)} />
         : relicTableModel.value(relic, column.key) || <span className="table-missing">—</span>}
     />
     {editing && <RelicForm item={editing === 'new' ? undefined : editing} existing={relics} onSave={onSave} onDelete={onDelete} onClose={() => setEditing(null)} />}

@@ -16,8 +16,9 @@ export type CollectionFilter = {
 export type CollectionActions = { add: () => void };
 export interface CollectionDefinition<Row> {
   label: string; itemLabel: string; searchLabel: string; regionLabel: string; filterLabel: string;
-  columns: TableColumn[]; defaultColumns: string[]; storageKey: string; model: TableModel<Row>;
+  columns: TableColumn[]; defaultColumns: string[]; retiredColumns?: string[]; storageKey: string; model: TableModel<Row>;
   rowLabel: (item: Row) => string;
+  rowKey?: (item: Row) => string;
   filters: CollectionFilter[];
   applyFilters: (items: Row[], search: string, filters: FilterValues) => Row[];
   initialSorting?: ColumnSort[];
@@ -35,7 +36,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterValues>(defaults);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [preferences, setPreferences] = useState(() => loadColumnPreferences(definition.storageKey, definition.columns, definition.defaultColumns));
+  const [preferences, setPreferences] = useState(() => loadColumnPreferences(definition.storageKey, definition.columns, definition.defaultColumns, definition.retiredColumns));
   const visibleColumns = preferences.order.filter(key => preferences.visible.includes(key));
   const [sorting, setSorting] = useState<ColumnSort[]>(definition.initialSorting ?? []);
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({});
@@ -135,7 +136,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
             <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" aria-label={`${column.title} column options`} aria-haspopup="menu" aria-expanded={menu?.key === column.key} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button></div>
           </th>;
         })}</tr></thead>
-        <tbody>{sorted.map((item, index) => <tr key={item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, select, a, label') && !window.getSelection()?.toString()) onEdit(item); }}>
+        <tbody>{sorted.map((item, index) => <tr key={definition.rowKey?.(item) ?? item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, textarea, select, a, label, [contenteditable]') && !window.getSelection()?.toString()) onEdit(item); }}>
           {columns.map(column => <td key={column.key} data-column-key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : column.key === primary.key ? 'equipment-cell' : column.wrap ? 'wrapping-cell' : ''}>
             {column.key === primary.key ? <button type="button" ref={node => { if (node) rowButtons.current.set(item.id, node); else rowButtons.current.delete(item.id); }} className="equipment-name" tabIndex={item.id === activeId ? 0 : -1} aria-label={`Edit ${definition.rowLabel(item)}`} onFocus={() => setActive(item.id)} onClick={() => onEdit(item)} onKeyDown={event => {
               if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;

@@ -103,12 +103,12 @@ export function useAccount() {
     return () => { window.removeEventListener('beforeunload', beforeUnload); clearTimeout(timer.current); };
   }, []);
 
-  const commit = (profile: AccountProfile): boolean => {
+  const commit = (profile: AccountProfile, saveDelay = 150): boolean => {
     if (current.current.checking) { update({ error: 'Please wait while sign-in is checked.' }); return false; }
     if (current.current.unreadable) { update({ error: 'Editing is disabled to preserve your unreadable saved inventory. Download the original data below.' }); return false; }
     update({ profile, dirty: true, error: '' });
     if (!current.current.user) guest.current = current.current;
-    else { clearTimeout(timer.current); timer.current = setTimeout(() => void save(), 150); }
+    else { clearTimeout(timer.current); timer.current = setTimeout(() => void save(), saveDelay); }
     return true;
   };
   const replaceAccessKey = async (): Promise<string> => {
@@ -133,7 +133,7 @@ export function useAccount() {
     } catch (error) { update({ error: message(error) }); }
   };
   return { ...state, authenticate, replaceAccessKey, signOut, retrySave: save, reloadSaved,
-    commitInventory: (inventory: Inventory) => commit({ ...current.current.profile, inventory }),
+    commitInventory: (inventory: Inventory, saveDelay?: number) => commit({ ...current.current.profile, inventory }, saveDelay),
     commitViews: (dropViews: SavedDropView[]) => current.current.user ? commit({ ...current.current.profile, dropViews }) : false,
     canIncludeCurrent: !state.unreadable && !state.viewsError && Boolean(state.profile.inventory.items.length || state.profile.inventory.relics.length || state.profile.inventory.imports.length || state.profile.dropViews.length),
   };

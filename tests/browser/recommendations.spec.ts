@@ -34,7 +34,17 @@ test('recommendations react to mastery and saved adapters, and drive table filte
   await expect(row(page, 'Boltor').locator('.recommended-action')).toHaveText('Use for crafting');
   await expect(row(page, 'Braton').locator('.recommended-action')).toHaveText('Sell');
   await expect(row(page, 'Phenmor').locator('.recommended-action')).toHaveText('Keep');
-  await expect(row(page, 'Boltor').locator('.recommended-action')).toHaveAttribute('title', /Boltace \(1× Boltor\)/);
+  const action = row(page, 'Boltor').locator('.recommended-action');
+  await action.hover();
+  await expect(page.getByRole('tooltip')).toContainText('Boltace (1× Boltor)');
+  await expect(action).toHaveAccessibleDescription(/Boltace/);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  await page.mouse.move(0, 0);
+  await action.focus();
+  await expect(page.getByRole('tooltip')).toBeVisible();
+  await action.press('Tab');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
 
   const header = page.getByRole('button', { name: 'Recommended action column options', exact: true });
   await header.click();
