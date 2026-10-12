@@ -13,6 +13,16 @@ release `bc6a830913f7cb83`, the homepage loaded, and the guest account endpoint
 returned `user: null`. GitHub credentials remained on the host. Automatic
 deployment is active; the original handoff below is retained as a setup record.
 
+Billing checked on 2026-10-12 UTC: the repository is public and uses standard
+GitHub-hosted Ubuntu runners, with no stored Actions artifacts or caches.
+Workflows run only on pushes to `main` or manual dispatch, one deployment at a
+time, with a 25-minute job timeout. Cloudflare's reported month-to-date R2 usage
+across the account was 34 Class A operations and 45 Class B operations; the latest
+state-bucket storage sample contained one 29,668-byte object. These reported
+amounts are below the Standard free allowances. The deployment token cannot read
+account subscriptions or the full billing statement, so this check does not
+verify unrelated account charges.
+
 The original task was to finish GitHub Actions activation for
 `KianBahasadri/warframe-toolkit` from the host. The user authorized publishing
 the workflow and deploying pushes to `main`, and explicitly requires GitHub
