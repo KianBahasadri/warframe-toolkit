@@ -1,8 +1,22 @@
 # GitHub deployment handoff for the host agent
 
-Finish GitHub Actions activation for `KianBahasadri/warframe-toolkit` from the
-host. The user has authorized publishing the workflow and deploying pushes to
-`main`, and explicitly requires GitHub credentials to remain outside `node-dev`.
+**Completed on 2026-10-12 UTC (2026-10-11 in America/New_York).** Existing host
+authentication had repository administration and workflow access. The
+`CLOUDFLARE_API_TOKEN` Actions secret was set through stdin without exposing its
+value, and all 24 queued commits were pushed normally to `main` at
+`de3aa2c2624e20f9b85bb91562a73cb7cb779504`.
+
+[Workflow run 38194984853](https://github.com/KianBahasadri/warframe-toolkit/actions/runs/38194984853)
+completed successfully, including the deployment and live release checks.
+Independent host checks confirmed `/api/health` returned `status: "ok"` and
+release `bc6a830913f7cb83`, the homepage loaded, and the guest account endpoint
+returned `user: null`. GitHub credentials remained on the host. Automatic
+deployment is active; the original handoff below is retained as a setup record.
+
+The original task was to finish GitHub Actions activation for
+`KianBahasadri/warframe-toolkit` from the host. The user authorized publishing
+the workflow and deploying pushes to `main`, and explicitly requires GitHub
+credentials to remain outside `node-dev`.
 
 The host checkout is `/home/kian/warframe-toolkit`. It shares files with
 `/home/dev/warframe-toolkit` inside the box, including Git history and the ignored
@@ -15,7 +29,7 @@ shared checkout, `.env`, a remote URL, or repository Git configuration. Host-sid
 work here is Git/GitHub administration. Dependency installs, project scripts,
 tests and builds stay inside the box or run in GitHub Actions.
 
-Current state at handoff:
+Original state at handoff:
 
 - Repository: `https://github.com/KianBahasadri/warframe-toolkit.git`; branch `main`.
   Implementation is committed through `6007405`, followed by this documentation
@@ -35,7 +49,7 @@ Current state at handoff:
   required Cloudflare and R2 permissions. R2 credentials are derived internally;
   do not add separate AWS/R2 secrets.
 
-Complete these steps in order:
+Activation steps, completed in order:
 
 1. Verify host GitHub access to this repository, including setting Actions
    secrets, pushing workflow changes, and reading workflow runs. Reuse existing

@@ -84,16 +84,12 @@ coordinates with local Terraform runs. Multiple queued pushes can coalesce to
 the latest pending commit, so intermediate commits are not guaranteed a separate
 deployment. Local commits alone do not trigger a deployment.
 
-**R2 is active. GitHub activation is pending:** the workflow has not been pushed
-or run on GitHub. Perform GitHub setup on the host; GitHub credentials must stay
-outside `node-dev` and the shared checkout. See the [host-side agent handoff](GITHUB-HANDOFF.md).
-The remaining steps are:
-
-1. Use the host's existing GitHub authentication, or authenticate
-   `gh auth login --scopes workflow` on the host.
-2. Set the repository secret `CLOUDFLARE_API_TOKEN` from private input. This is
-   the only deployment secret required. Never paste it into a workflow or Git.
-3. Push to `main` and check the first workflow run and production verification.
+**R2 and GitHub Actions are active.** The `CLOUDFLARE_API_TOKEN` repository secret
+is configured, and pushes to `main` deploy through the workflow. This is the only
+deployment secret required. Perform GitHub administration and secret rotation
+on the host; GitHub credentials must stay outside `node-dev` and the shared
+checkout. Never paste deployment credentials into a workflow or Git. See the
+[completed host-side agent handoff](GITHUB-HANDOFF.md).
 
 The workflow declares the `production` environment and limits deployments to
 `main` in the public repository. `state.tf` manages the private Standard-storage
@@ -217,4 +213,11 @@ state. All 73 Node tests, the Cloudflare production build, Actionlint, and
 Terraform formatting/validation passed. The automated deployment command ran
 successfully against R2 using only the Cloudflare token: its plan had no changes
 and live checks verified the release, frontend, and guest account endpoint.
-A real GitHub workflow run remains pending the activation steps above.
+
+GitHub activation completed on 2026-10-12 UTC (2026-10-11 in America/New_York).
+The [first workflow run](https://github.com/KianBahasadri/warframe-toolkit/actions/runs/38194984853)
+for `de3aa2c2624e20f9b85bb91562a73cb7cb779504` passed the Node and Cloudflare
+runtime tests, all 14 local account browser tests, all 53 D1 browser tests, and
+the production build. Terraform applied one in-place change, with no resources
+added or destroyed. The deployment step and independent host checks verified
+release `bc6a830913f7cb83`, the homepage, and the guest account endpoint.
