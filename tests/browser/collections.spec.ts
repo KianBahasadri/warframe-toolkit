@@ -89,7 +89,8 @@ test('relics share numeric filters, sort priorities, hidden-column filters, and 
   await expect(names).toHaveText(['Lith A1', 'Neo N1']);
   await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Owned only', exact: true })).toBeVisible();
-  await page.getByRole('checkbox', { name: 'Owned only', exact: true }).uncheck();
+  // Resetting an active filter removes its control, so verify that result after a click.
+  await page.getByRole('checkbox', { name: 'Owned only', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Owned only', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Filters', exact: true })).toBeFocused();
   await expect(names).toHaveCount(3);

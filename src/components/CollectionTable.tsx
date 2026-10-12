@@ -1,5 +1,5 @@
 import { useId, useImperativeHandle, useRef, useState } from 'react';
-import type { MouseEvent, ReactNode, Ref } from 'react';
+import type { CSSProperties, MouseEvent, ReactNode, Ref } from 'react';
 import { ArrowDown, ArrowDownToLine, ArrowUp, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { filterChoices, filterLabel, filterRows, loadColumnPreferences, moveColumnSort, setColumnSort, sortRows } from '../lib/tableView';
 import type { ColumnFilter, ColumnFilters, ColumnSort, FilterChoice, TableColumn, TableModel } from '../lib/tableView';
@@ -103,7 +103,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       <button type="button" onClick={event => openMenu(column.key, event.currentTarget, undefined, 'filter')}><Filter size={14} aria-hidden="true" />{column.title}: {filterLabel(columnFilters[column.key]!, filterChoices(column, items, definition.model))}</button>
       <button type="button" className="icon-button" aria-label={`Remove ${column.title} filter`} title={`Remove ${column.title} filter`} onClick={() => { changeColumnFilter(column.key); filterButton.current?.focus(); }}><X size={14} aria-hidden="true" /></button>
     </div>)}</div>}
-    <div className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} tabIndex={0} style={{ scrollPaddingLeft: primary.width }}>
+    <div className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} tabIndex={0} style={{ '--identity-column-width': `${primary.width}px` } as CSSProperties}>
       <table className="inventory-table" style={{ minWidth: columns.reduce((width, column) => width + column.width, 0) }}>
         <caption className="sr-only">{definition.label}. Changes save automatically when signed in. Select a name to view or edit an entry. Click or right-click a header, or press Shift+F10, for column actions.</caption>
         <colgroup>{columns.map(column => <col key={column.key} style={{ width: column.width }} />)}</colgroup>

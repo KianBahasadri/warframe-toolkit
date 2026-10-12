@@ -177,7 +177,7 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .inventory-table .table-secondary, .inventory-table .table-missing, .inventory-table .cell-note { color: var(--table-muted); }
 .inventory-table .cell-note { display: block; font-size: 14px; }
 @media (min-width: 760px) {
-  .inventory-grid { scroll-padding-left: 360px; }
+  .inventory-grid { scroll-padding-left: var(--identity-column-width, 360px); }
   .inventory-table th:first-child, .inventory-table td:first-child { position: sticky; left: 0; z-index: 2; background: var(--canvas); }
   .inventory-table th:first-child { z-index: 3; }
   .inventory-table tr:hover td:first-child, .inventory-table tr:focus-within td:first-child { background: var(--surface); }
