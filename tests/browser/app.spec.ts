@@ -408,13 +408,13 @@ test('navigation, dialogs, and tables fit narrow screens and support keyboard us
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/mobile.png', fullPage: true });
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Warframes' }).click();
-  await expect(page.getByRole('heading', { name: 'Warframes', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Warframes', exact: true })).toBeVisible();
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Weapons' }).click();
   await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Open search and commands' }).click();
   await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
   await page.getByRole('option', { name: 'Warframes', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Warframes', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Warframes', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 720 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Open search and commands' }).click();
@@ -425,7 +425,7 @@ test('navigation, dialogs, and tables fit narrow screens and support keyboard us
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('link', { name: 'Relics', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Relics 0' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Relics', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('button', { name: 'Add relic', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Add relic' })).toBeVisible();
@@ -568,7 +568,7 @@ test('relic refinements and quantity edits persist without changing an older equ
   await chooseOption(page, 'Refinement', 'Radiant');
   await dialog.getByLabel('Quantity').fill('2');
   await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Relics 6' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Relics', exact: true }).getByRole('status')).toHaveText('2 of 2 stacks · 6 relics');
 
   await page.getByRole('button', { name: 'Add relic', exact: true }).click();
   dialog = page.getByRole('dialog', { name: 'Add relic' });
@@ -576,6 +576,7 @@ test('relic refinements and quantity edits persist without changing an older equ
   await dialog.getByRole('button', { name: 'Add relic', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('already tracked');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
   await chooseOption(page, 'Filter by refinement', 'Radiant');
   await expect(page.getByRole('button', { name: 'Edit Lith A1 Intact' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Edit Lith A1 Radiant' })).toBeVisible();

@@ -188,14 +188,8 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .inventory-section .filter-result { margin-left: 4px; font: 13px var(--ui); font-variant-numeric: tabular-nums; }
 .inventory-section .inventory-actions { margin-left: auto; }
 .form-field { display: flex; flex-direction: column; gap: 8px; }
-.relics-section { padding-top: 0; }
-.relics-section .heading-actions { flex-direction: row; width: auto; }
-.relic-table { min-width: 720px; }
-.relic-table .quantity-cell { text-align: right; width: 160px; }
 .quantity-control { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .relic-quantity { min-width: 48px; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.relic-table .relic-notes { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 400px; color: var(--muted); }
-.owned-relics { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; white-space: nowrap; }
 .relic-form-error { margin-top: 20px; }
 .empty-state { text-align: center; padding: 56px 24px; color: var(--muted); }.empty-state > svg { margin-bottom: 16px; color: var(--faint); }.empty-state h3 { font-size: 18px; }.empty-state p { font-size: 13px; }
 
@@ -203,14 +197,14 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .inventory-toolbar > .button { font-size: 12px; height: 40px; }
 .owned-filter { display: inline-flex; align-items: center; gap: 8px; padding: 0 8px; min-height: 40px; white-space: nowrap; cursor: pointer; }
 .filter-result { color: var(--muted); font: 11px var(--mono); white-space: nowrap; margin-left: auto; }
-.weapon-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 16px; margin-bottom: 20px; }
-.weapon-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
-.weapon-filters .select-trigger, .weapon-filters input[type="number"] { width: 100%; font-size: 14px; color: var(--ink); }
-.weapon-filters .owned-filter { flex-direction: row; align-self: end; }
-.weapon-active-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 20px; }
-.weapon-active-filters > label:not(.owned-filter) { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 14px; color: var(--muted); }
-.weapon-active-filters .select-trigger { max-width: 100%; font-size: 14px; }
-.weapon-active-filters input[type="number"] { width: 140px; }
+.inventory-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+.inventory-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
+.inventory-filters .select-trigger, .inventory-filters input[type="number"] { width: 100%; font-size: 14px; color: var(--ink); }
+.inventory-filters .owned-filter { flex-direction: row; align-self: end; }
+.inventory-active-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 20px; }
+.inventory-active-filters > label:not(.owned-filter) { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 14px; color: var(--muted); }
+.inventory-active-filters .select-trigger { max-width: 100%; font-size: 14px; }
+.inventory-active-filters input[type="number"] { width: 140px; }
 .equipment-image { width: 64px; height: 44px; object-fit: contain; flex-shrink: 0; }
 .catalog-yes { font-size: 12px; color: var(--derived); }
 .equipment-dialog { width: min(760px, calc(100vw - 32px)); }
@@ -346,13 +340,13 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
   .import-page > .callout { margin: 16px 16px 0; }
 }
 @media (pointer: coarse) { .column-menu-action { min-height: 44px; } }
-@media (max-width: 1000px) { .weapon-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .inventory-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 600px) {
   .inventory-section .inventory-search { width: 100%; margin: 0; }
   .inventory-section .inventory-actions { width: 100%; justify-content: flex-start; }
   .inventory-section .inventory-actions .button { padding-left: 10px; padding-right: 10px; }
   .inventory-section .filter-result { margin-left: auto; }
-  .weapon-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 12px; }
+  .inventory-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 12px; }
   .weapon-overview { flex-direction: column; align-items: stretch; gap: 8px; }
   .weapon-overview img { align-self: center; }
   .weapon-stats { grid-template-columns: minmax(0, 1fr); }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownToLine, Moon, Plus, ScanLine, Search, Sun, Table2, UserRound, X } from 'lucide-react';
+import { Moon, Search, Sun, Table2, UserRound, X } from 'lucide-react';
 import { InventoryTable } from './components/InventoryTable';
+import type { CollectionActions } from './components/CollectionTable';
 import { EquipmentForm } from './components/EquipmentForm';
 import { ScreenshotImport } from './components/ScreenshotImport';
 import { Relics } from './components/Relics';
@@ -39,13 +40,13 @@ export default function App() {
   const inventoryRef = useRef(inventory); inventoryRef.current = inventory;
   const [page, setPage] = useState<Page>(pageFromHash);
   const equipmentLabel = page === 'weapons' ? 'weapon' : 'equipment';
-  const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Equipment | 'new' | null>(null);
   const [palette, setPalette] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem('arsenal.theme') || 'dark'; } catch { return 'dark'; } });
   const [notice, setNotice] = useState('');
   const dropActions = useRef<DropTableActions>(null);
+  const collectionActions = useRef<CollectionActions>(null);
 
   useEffect(() => {
     const hashChange = () => setPage(pageFromHash());
@@ -53,13 +54,13 @@ export default function App() {
     window.addEventListener('hashchange', hashChange);
     return () => window.removeEventListener('hashchange', hashChange);
   }, []);
-  useEffect(() => { setEditing(null); setSearch(''); }, [account.user?.id]);
+  useEffect(() => { setEditing(null); }, [account.user?.id]);
   useEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem('arsenal.theme', theme); } catch { /* Inventory saving reports its own failures. */ } }, [theme]);
-  const navigate = (destination: Page) => { setPage(destination); location.hash = destination; setSearch(''); };
+  const navigate = (destination: Page) => { setPage(destination); location.hash = destination; };
   const exportCsv = () => { downloadFile(`grakata-inventory-${new Date().toISOString().slice(0, 10)}.csv`, inventoryCsv(equipmentRows(inventoryRef.current.items, catalog)), 'text/csv;charset=utf-8'); setNotice('Inventory CSV downloaded.'); };
   const exportRelics = () => { downloadFile(`grakata-relics-${new Date().toISOString().slice(0, 10)}.csv`, relicsCsv(inventoryRef.current.relics ?? []), 'text/csv;charset=utf-8'); setNotice('Relics CSV downloaded.'); };
   const commands: Command[] = [
-    ...(page === 'droptables' ? [] : [{ label: `Add ${equipmentLabel}`, keys: ['Alt', 'N'], run: () => setEditing('new') }]),
+    ...(['weapons', 'warframes', 'relics'].includes(page) ? [{ label: `Add ${page === 'relics' ? 'relic' : equipmentLabel}`, keys: ['Alt', 'N'], run: () => collectionActions.current?.add() }] : []),
     { label: 'Import screenshots', keys: ['Alt', 'I'], run: () => navigate('import') },
     { label: page === 'droptables' ? 'Export filtered drop tables CSV' : page === 'relics' ? 'Export relics CSV' : 'Export inventory CSV', keys: ['Alt', 'E'], run: page === 'droptables' ? () => dropActions.current?.exportCsv() : page === 'relics' ? exportRelics : exportCsv },
     { label: 'Toggle theme', keys: ['Alt', 'Shift', 'T'], run: () => setTheme(value => value === 'dark' ? 'light' : 'dark') },
@@ -81,7 +82,7 @@ export default function App() {
   const nav = <nav className="collection-nav" aria-label="Main navigation"><ul>
     {collectionTabs.map(({ key, icon }, index) => <li key={key}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={key === 'droptables' ? { background: 'none' } : { maskImage: `url(${icon})` }}>{key === 'droptables' && <Table2 size={20} />}</span><span>{pageNames[key]}</span></a></li>)}
     </ul></nav>;
-  const visibleItems = useMemo(() => equipmentRows(inventory.items, catalog, page === 'weapons').filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe'), [inventory.items, page]);
+  const visibleItems = useMemo(() => equipmentRows(inventory.items, catalog, true).filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe'), [inventory.items, page]);
   const isInventory = page === 'weapons' || page === 'warframes';
   return <div className="app-shell">
     <div className="content-shell"><header className="topbar">{nav}<div className="topbar-right"><div className="page-utilities"><button type="button" className="search-launcher" aria-label="Open search and commands" aria-keyshortcuts="Control+k Meta+k Control+Space" onClick={() => setPalette(true)}><Search size={15} /></button><button type="button" className="icon-button theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button><div className="account-actions"><button type="button" className={`button account-button ${account.user ? 'secondary' : 'account-sign-in'}`} aria-label={account.user ? `Account: ${account.user.username}` : 'Sign in'} aria-haspopup="dialog" disabled={account.checking} onClick={() => setAccountOpen('login')}><UserRound size={16} /><span>{account.user?.username ?? 'Sign in'}</span></button>{!account.user && <button type="button" className="button secondary" aria-haspopup="dialog" disabled={account.checking} onClick={() => setAccountOpen('register')}>Create account</button>}</div></div></div></header>
@@ -89,17 +90,8 @@ export default function App() {
         {account.user && <div className="account-save-status" role="status" aria-label="Save status">{account.error && account.dirty ? 'Unsaved changes' : account.saving || account.dirty ? 'Saving…' : 'Saved'}</div>}
         {account.error && <div className="callout danger" role="alert">{account.error}<div className="account-error-actions">{account.unreadable && <button type="button" className="button secondary" onClick={() => { try { downloadFile('grakata-original-data.txt', localStorage.getItem(STORAGE_KEY) || '', 'text/plain'); } catch { setNotice('Browser storage is unavailable.'); } }}>Download original data</button>}{account.user && <><button type="button" className="button secondary" disabled={account.saving} onClick={() => void account.retrySave()}>Try saving again</button><button type="button" className="button secondary" onClick={() => downloadFile('grakata-unsaved-profile.json', JSON.stringify(account.profile, null, 2), 'application/json')}>Download changes</button><button type="button" className="button quiet" disabled={account.saving} onClick={() => void account.reloadSaved()}>Discard changes and reload saved data</button></>}</div></div>}
         {notice && <div className="callout info inline-notice" role="status"><span>{notice}</span><button type="button" className="icon-button" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => setNotice('')}><X size={16} /></button></div>}
-        {isInventory && <>
-          <section className="inventory-section" aria-label={pageNames[page]}>
-            {page !== 'weapons' && <div className="section-heading"><h1>{pageNames[page]}</h1></div>}
-            <InventoryTable key={`${page}:${account.user?.id ?? 'guest'}`} weapons={page === 'weapons'} ownedOnlyDefault={page === 'weapons' && Boolean(account.user)} items={visibleItems} search={search} setSearch={setSearch} onEdit={row => setEditing(editableRecord(row))} onToggle={(item, field) => commit({ ...inventoryRef.current, items: toggleEquipment(inventoryRef.current.items, item, field) })} actions={<>
-              <button type="button" className="button secondary" onClick={() => setEditing('new')}><Plus size={16} />Add {equipmentLabel}</button>
-              <button type="button" className="button primary" onClick={() => navigate('import')}><ScanLine size={16} />Import screenshots</button>
-              <button type="button" className="button quiet" onClick={exportCsv}><ArrowDownToLine size={15} />Export CSV</button>
-            </>} />
-          </section>
-        </>}
-        {page === 'relics' && <Relics key={account.user?.id ?? 'guest'} relics={relics} onExport={exportRelics} onSave={relic => {
+        {isInventory && <InventoryTable key={`${page}:${account.user?.id ?? 'guest'}`} weapons={page === 'weapons'} ownedOnlyDefault={Boolean(account.user)} items={visibleItems} onEdit={row => setEditing(editableRecord(row))} onToggle={(item, field) => commit({ ...inventoryRef.current, items: toggleEquipment(inventoryRef.current.items, item, field) })} onAdd={() => setEditing('new')} onImport={() => navigate('import')} onExport={exportCsv} actionsRef={collectionActions} />}
+        {page === 'relics' && <Relics key={account.user?.id ?? 'guest'} relics={relics} onExport={exportRelics} actionsRef={collectionActions} onSave={relic => {
           const current = inventoryRef.current;
           const existing = current.relics ?? [];
           return commit({ ...current, relics: existing.some(entry => entry.id === relic.id) ? existing.map(entry => entry.id === relic.id ? relic : entry) : [...existing, relic] });

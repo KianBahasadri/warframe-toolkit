@@ -1,15 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, Columns3, EyeOff, Filter, ListOrdered, X } from 'lucide-react';
-import type { Column } from '../lib/inventoryColumns';
-import type { EquipmentRow } from '../lib/weaponCatalog';
-import { filterChoices } from '../lib/tableView';
-import type { ColumnFilter, ColumnKey, ColumnSort } from '../lib/tableView';
+import type { TableColumn, FilterChoice, ColumnFilter, ColumnKey, ColumnSort } from '../lib/tableView';
 import { ColumnOptions } from './ColumnPicker';
 import { Select } from './Select';
 import { TablePopover } from './TablePopover';
 
-export function ColumnMenu({ column, columns, selected, items, sorting, filter, anchor, point, initialView = 'actions', onVisibility, onReset, onSort, onPriority, onFilter, onHide, onClose }: {
-  column: Column; columns: Column[]; selected: ColumnKey[]; items: EquipmentRow[]; sorting: ColumnSort[]; filter?: ColumnFilter;
+export function ColumnMenu({ column, columns, selected, choices, sorting, filter, anchor, point, initialView = 'actions', onVisibility, onReset, onSort, onPriority, onFilter, onHide, onClose }: {
+  column: TableColumn; columns: TableColumn[]; selected: ColumnKey[]; choices?: FilterChoice[]; sorting: ColumnSort[]; filter?: ColumnFilter;
   anchor: HTMLElement; point?: { x: number; y: number }; initialView?: 'actions' | 'filter';
   onVisibility: (key: ColumnKey, visible: boolean) => void; onReset: () => void;
   onSort: (direction: 1 | -1 | 0) => void; onPriority: (index: number) => void;
@@ -39,23 +36,22 @@ export function ColumnMenu({ column, columns, selected, items, sorting, filter, 
       </>}
       {view === 'priority' && sorting.map((sort, index) => <button key={sort.key} type="button" role="menuitemradio" aria-checked={index === sortIndex} className="column-menu-action" onClick={() => finish(() => onPriority(index))}><span className="menu-priority">{index + 1}</span><span>{columns.find(option => option.key === sort.key)?.title}</span>{sort.direction === 1 ? <ArrowUp size={14} aria-label="Ascending" /> : <ArrowDown size={14} aria-label="Descending" />}</button>)}
       {view === 'columns' && <ColumnOptions options={columns} selected={selected} onChange={onVisibility} onReset={onReset} />}
-      {view === 'filter' && <ColumnFilterForm column={column} items={items} filter={filter} onApply={next => finish(() => onFilter(next))} />}
+      {view === 'filter' && <ColumnFilterForm column={column} choices={choices} filter={filter} onApply={next => finish(() => onFilter(next))} />}
     </div>
   </TablePopover>;
 }
 
-function ColumnFilterForm({ column, items, filter, onApply }: { column: Column; items: EquipmentRow[]; filter?: ColumnFilter; onApply: (filter?: ColumnFilter) => void }) {
+function ColumnFilterForm({ column, choices, filter, onApply }: { column: TableColumn; choices?: FilterChoice[]; filter?: ColumnFilter; onApply: (filter?: ColumnFilter) => void }) {
   const [value, setValue] = useState(filter ? String(filter.value) : '');
-  const [operator, setOperator] = useState(filter?.kind === 'rank' ? filter.operator : 'equals');
-  const choices = filterChoices(column, items);
+  const [operator, setOperator] = useState(filter?.kind === 'number' ? filter.operator : 'equals');
   return <form className="column-filter-form" onSubmit={event => {
     event.preventDefault();
-    if (column.key === 'rank') onApply(operator === 'unknown' || value !== '' ? { kind: 'rank', operator, value: Number(value) } : undefined);
+    if (column.kind === 'number') onApply(operator === 'unknown' || value !== '' ? { kind: 'number', operator, value: Number(value) } : undefined);
     else onApply(value.trim() ? { kind: choices ? 'choice' : 'text', value: value.trim() } : undefined);
   }}>
-    {column.key === 'rank' ? <>
-      <label>Condition<Select label="Rank condition" value={operator} onChange={next => setOperator(next as typeof operator)} options={[{ value: 'equals', label: 'Equals' }, { value: 'atLeast', label: 'At least' }, { value: 'atMost', label: 'At most' }, { value: 'unknown', label: 'Unknown' }]} /></label>
-      {operator !== 'unknown' && <label>Rank<input aria-label="Filter rank" type="number" min="0" max="40" step="1" value={value} onChange={event => setValue(event.target.value)} /></label>}
+    {column.kind === 'number' ? <>
+      <label>Condition<Select label={`${column.title} condition`} value={operator} onChange={next => setOperator(next as typeof operator)} options={[{ value: 'equals', label: 'Equals' }, { value: 'atLeast', label: 'At least' }, { value: 'atMost', label: 'At most' }, ...(column.number?.unknown ? [{ value: 'unknown', label: 'Unknown' }] : [])]} /></label>
+      {operator !== 'unknown' && <label>{column.title}<input aria-label={`Filter ${column.title.toLowerCase()}`} type="number" min={column.number?.min} max={column.number?.max} step="1" value={value} onChange={event => setValue(event.target.value)} /></label>}
     </> : choices ? <label>Value<Select label={`${column.title} filter value`} value={value} onChange={setValue} options={[{ value: '', label: 'Any' }, ...choices]} /></label>
       : <label>Contains<input aria-label={`${column.title} contains`} value={value} onChange={event => setValue(event.target.value)} /></label>}
     <div className="column-filter-actions"><button type="button" className="button quiet" disabled={!filter} onClick={() => onApply()}>Clear filter</button><button type="submit" className="button primary">Apply filter</button></div>

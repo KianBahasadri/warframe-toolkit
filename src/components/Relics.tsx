@@ -1,7 +1,11 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowDownToLine, ArrowUp, Minus, Plus, Search } from 'lucide-react';
+import type { Ref } from 'react';
+import { Minus, Plus } from 'lucide-react';
 import { Dialog } from './Dialog';
 import { Select } from './Select';
+import { CollectionTable } from './CollectionTable';
+import type { CollectionActions, CollectionDefinition } from './CollectionTable';
+import { defaultRelicColumns, RELIC_COLUMNS_STORAGE_KEY, relicColumns, relicTableModel } from '../lib/relicColumns';
 import relicCatalog from '../data/relics.json';
 import { createRelic, MAX_RELIC_QUANTITY, parseRelicName, refinements, relicEras, relicKey } from '../lib/relics';
 import type { Relic, Refinement } from '../lib/relics';
@@ -106,60 +110,40 @@ function RelicForm({ item, existing, onSave, onDelete, onClose }: { item?: Relic
   </Dialog>;
 }
 
-type SortKey = 'name' | 'era' | 'refinement' | 'quantity' | 'notes';
-const columns: { key: SortKey; label: string }[] = [{ key: 'name', label: 'Relic' }, { key: 'era', label: 'Era' }, { key: 'refinement', label: 'Refinement' }, { key: 'quantity', label: 'Quantity' }, { key: 'notes', label: 'Notes' }];
+const relicDefinition: CollectionDefinition<Relic> = {
+  label: 'Relics', itemLabel: 'relic', searchLabel: 'Search relics', regionLabel: 'Relic inventory', filterLabel: 'Relic filters',
+  columns: relicColumns, defaultColumns: defaultRelicColumns, storageKey: RELIC_COLUMNS_STORAGE_KEY, model: relicTableModel,
+  rowLabel: relic => `${relic.name} ${relic.refinement}`, initialSorting: [{ key: 'name', direction: 1 }],
+  filters: [
+    { key: 'ownedOnly', label: 'Owned only', kind: 'checkbox', column: 'quantity' },
+    { key: 'era', label: 'Filter by era', kind: 'select', column: 'era', placeholder: 'All eras', choices: relicEras.map(value => ({ value, label: value })) },
+    { key: 'refinement', label: 'Filter by refinement', kind: 'select', column: 'refinement', placeholder: 'All refinements', choices: refinements.map(value => ({ value, label: value })) },
+  ],
+  applyFilters: (relics, search, filters) => {
+    const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return relics.filter(relic => {
+      const text = `${relic.name} ${relic.notes}`.toLowerCase();
+      return words.every(word => text.includes(word))
+        && (!filters.era || parseRelicName(relic.name)?.era === filters.era)
+        && (!filters.refinement || relic.refinement === filters.refinement)
+        && (!filters.ownedOnly || relic.quantity > 0);
+    });
+  },
+  summary: (count, relics) => `${count} of ${relics.length} stacks · ${relics.reduce((total, relic) => total + relic.quantity, 0)} relics`,
+  emptyState: relics => ({ title: relics.length ? 'No matching relics.' : 'No relics added.', resetLabel: 'Clear filters' }),
+};
 
-export function Relics({ relics, onSave, onDelete, onQuantityChange, onExport }: { relics: Relic[]; onSave: (item: Relic) => boolean; onDelete: (id: string) => boolean; onQuantityChange: (id: string, change: number) => void; onExport: () => void }) {
-  const [search, setSearch] = useState('');
-  const [era, setEra] = useState('All eras');
-  const [refinement, setRefinement] = useState('All refinements');
-  const [ownedOnly, setOwnedOnly] = useState(false);
+export function Relics({ relics, onSave, onDelete, onQuantityChange, onExport, actionsRef }: {
+  relics: Relic[]; onSave: (item: Relic) => boolean; onDelete: (id: string) => boolean;
+  onQuantityChange: (id: string, change: number) => void; onExport: () => void; actionsRef?: Ref<CollectionActions>;
+}) {
   const [editing, setEditing] = useState<Relic | 'new' | null>(null);
-  const [sorting, setSorting] = useState<{ key: SortKey; direction: 1 | -1 }[]>([{ key: 'name', direction: 1 }]);
-  const [active, setActive] = useState('');
-  const buttons = useRef(new Map<string, HTMLButtonElement>());
-  const total = relics.reduce((sum, relic) => sum + relic.quantity, 0);
-  const filtered = relics.filter(relic => `${relic.name} ${relic.notes}`.toLowerCase().includes(search.toLowerCase()) && (era === 'All eras' || parseRelicName(relic.name)?.era === era) && (refinement === 'All refinements' || relic.refinement === refinement) && (!ownedOnly || relic.quantity > 0));
-  const sorted = [...filtered].sort((a, b) => {
-    for (const sort of sorting) {
-      const compare = sort.key === 'era' ? relicEras.indexOf(parseRelicName(a.name)!.era) - relicEras.indexOf(parseRelicName(b.name)!.era)
-        : sort.key === 'quantity' ? a.quantity - b.quantity
-        : sort.key === 'refinement' ? refinements.indexOf(a.refinement) - refinements.indexOf(b.refinement)
-        : a[sort.key].localeCompare(b[sort.key], undefined, { numeric: true, sensitivity: 'base' });
-      if (compare) return compare * sort.direction;
-    }
-    return 0;
-  });
-  const activeId = sorted.some(relic => relic.id === active) ? active : sorted[0]?.id;
-  const sortBy = (key: SortKey) => setSorting(current => {
-    const existing = current.find(sort => sort.key === key);
-    return !existing ? [...current, { key, direction: 1 }] : existing.direction === 1 ? current.map(sort => sort.key === key ? { key, direction: -1 } : sort) : current.filter(sort => sort.key !== key);
-  });
-  return <section className="inventory-section relics-section" aria-labelledby="relics-title">
-    <div className="section-heading"><h1 id="relics-title">Relics <span className="count">{total}</span></h1><div className="heading-actions"><button type="button" className="button quiet" onClick={onExport}><ArrowDownToLine size={15} />Export CSV</button><button type="button" className="button primary" onClick={() => setEditing('new')}><Plus size={16} />Add relic</button></div></div>
-    <div className="inventory-toolbar relic-toolbar">
-      <div className="search-field inventory-search"><Search size={16} /><input aria-label="Search relics" placeholder="Search relics…" value={search} onChange={event => setSearch(event.target.value)} /></div>
-      <Select label="Filter by era" value={era} onChange={setEra} options={['All eras', ...relicEras].map(value => ({ value, label: value }))} />
-      <Select label="Filter by refinement" value={refinement} onChange={setRefinement} options={['All refinements', ...refinements].map(value => ({ value, label: value }))} />
-      <label className="owned-relics"><input type="checkbox" checked={ownedOnly} onChange={event => setOwnedOnly(event.target.checked)} />Owned only</label>
-    </div>
-    <div className="table-scroll" role="region" aria-label="Relic inventory" tabIndex={0}>
-      <table className="relic-table"><caption className="sr-only">Relics by refinement and quantity. Select a name to edit its entry.</caption><thead><tr>{columns.map(column => {
-        const index = sorting.findIndex(sort => sort.key === column.key); const sort = sorting[index];
-        return <th scope="col" key={column.key} className={column.key === 'quantity' ? 'quantity-cell' : ''} aria-sort={index === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}><button type="button" className="sort-button" onClick={() => sortBy(column.key)} aria-label={`Sort ${column.label}${sort ? `, priority ${index + 1}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : ', unsorted'}`}>{column.label}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}{index + 1}</>}</span></button></th>;
-      })}</tr></thead><tbody>{sorted.map((relic, index) => <tr key={relic.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, select, a, label') && !window.getSelection()?.toString()) setEditing(relic); }}>
-        <td><button type="button" className="equipment-name" aria-label={`Edit ${relic.name} ${relic.refinement}`} tabIndex={relic.id === activeId ? 0 : -1} ref={node => { if (node) buttons.current.set(relic.id, node); else buttons.current.delete(relic.id); }} onFocus={() => setActive(relic.id)} onClick={() => setEditing(relic)} onKeyDown={event => {
-          if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
-          event.preventDefault();
-          const next = sorted[Math.max(0, Math.min(sorted.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
-          buttons.current.get(next.id)?.focus({ preventScroll: true }); buttons.current.get(next.id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-        }}>{relic.name}</button></td>
-        <td>{parseRelicName(relic.name)?.era}</td><td><span className="badge">{relic.refinement}</span></td>
-        <td className="quantity-cell"><div className="quantity-control"><button type="button" className="icon-button" aria-label={`Decrease ${relic.name} ${relic.refinement} quantity`} title="Decrease quantity" disabled={relic.quantity === 0} onClick={() => onQuantityChange(relic.id, -1)}><Minus size={14} /></button><span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span><button type="button" className="icon-button" aria-label={`Increase ${relic.name} ${relic.refinement} quantity`} title="Increase quantity" disabled={relic.quantity === MAX_RELIC_QUANTITY} onClick={() => onQuantityChange(relic.id, 1)}><Plus size={14} /></button></div></td>
-        <td className="relic-notes">{relic.notes || <span className="faint">—</span>}</td>
-      </tr>)}</tbody></table>
-      {!sorted.length && <div className="empty-state"><p>{relics.length ? 'No matching relics.' : 'No relics added.'}</p>{relics.length > 0 && <button type="button" className="button secondary" onClick={() => { setSearch(''); setEra('All eras'); setRefinement('All refinements'); setOwnedOnly(false); }}>Clear filters</button>}</div>}
-    </div>
+  return <>
+    <CollectionTable definition={relicDefinition} items={relics} onEdit={setEditing} onAdd={() => setEditing('new')} onExport={onExport} actionsRef={actionsRef}
+      renderCell={(relic, column) => column.key === 'name' ? <span className="equipment-label">{relic.name}</span>
+        : column.key === 'quantity' ? <div className="quantity-control"><button type="button" className="icon-button" aria-label={`Decrease ${relic.name} ${relic.refinement} quantity`} title="Decrease quantity" disabled={relic.quantity === 0} onClick={() => onQuantityChange(relic.id, -1)}><Minus size={14} /></button><span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span><button type="button" className="icon-button" aria-label={`Increase ${relic.name} ${relic.refinement} quantity`} title="Increase quantity" disabled={relic.quantity === MAX_RELIC_QUANTITY} onClick={() => onQuantityChange(relic.id, 1)}><Plus size={14} /></button></div>
+        : relicTableModel.value(relic, column.key) || <span className="table-missing">—</span>}
+    />
     {editing && <RelicForm item={editing === 'new' ? undefined : editing} existing={relics} onSave={onSave} onDelete={onDelete} onClose={() => setEditing(null)} />}
-  </section>;
+  </>;
 }

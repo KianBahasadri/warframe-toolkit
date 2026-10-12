@@ -1,0 +1,138 @@
+import { useId, useImperativeHandle, useRef, useState } from 'react';
+import type { MouseEvent, ReactNode, Ref } from 'react';
+import { ArrowDown, ArrowDownToLine, ArrowUp, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { filterChoices, filterLabel, filterRows, loadColumnPreferences, moveColumnSort, setColumnSort, sortRows } from '../lib/tableView';
+import type { ColumnFilter, ColumnFilters, ColumnSort, FilterChoice, TableColumn, TableModel } from '../lib/tableView';
+import { ColumnMenu } from './ColumnMenu';
+import { ColumnPicker } from './ColumnPicker';
+import { Select } from './Select';
+
+export type FilterValues = Record<string, string | boolean>;
+export type CollectionFilter = {
+  key: string; label: string; kind: 'checkbox' | 'select' | 'number'; column?: string;
+  defaultValue?: string | boolean; choices?: FilterChoice[]; placeholder?: string; min?: number; max?: number;
+};
+export type CollectionActions = { add: () => void };
+export interface CollectionDefinition<Row> {
+  label: string; itemLabel: string; searchLabel: string; regionLabel: string; filterLabel: string;
+  columns: TableColumn[]; defaultColumns: string[]; storageKey: string; model: TableModel<Row>;
+  rowLabel: (item: Row) => string;
+  filters: CollectionFilter[];
+  applyFilters: (items: Row[], search: string, filters: FilterValues) => Row[];
+  initialSorting?: ColumnSort[];
+  summary?: (count: number, items: Row[]) => string;
+  emptyState: (items: Row[], filters: FilterValues) => { title: string; description?: string; resetLabel?: string; resetValues?: FilterValues };
+}
+
+// A definition supplies domain data; this module owns the shared browsing and table behavior.
+export function CollectionTable<Row extends { id: string }>({ definition, items, onEdit, onAdd, onExport, actionsRef, extraActions, renderCell }: {
+  definition: CollectionDefinition<Row>; items: Row[];
+  onEdit: (item: Row) => void; onAdd: () => void; onExport: () => void; actionsRef?: Ref<CollectionActions>;
+  extraActions?: ReactNode; renderCell: (item: Row, column: TableColumn, visibleColumns: string[]) => ReactNode;
+}) {
+  const defaults = Object.fromEntries(definition.filters.map(field => [field.key, field.defaultValue ?? (field.kind === 'checkbox' ? false : '')]));
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<FilterValues>(defaults);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState(() => loadColumnPreferences(definition.storageKey, definition.columns, definition.defaultColumns));
+  const [sorting, setSorting] = useState<ColumnSort[]>(definition.initialSorting ?? []);
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({});
+  const [menu, setMenu] = useState<{ id: number; key: string; anchor: HTMLElement; point?: { x: number; y: number }; initialView?: 'filter' } | null>(null);
+  const [active, setActive] = useState('');
+  const menuSequence = useRef(0);
+  const headerButtons = useRef(new Map<string, HTMLButtonElement>());
+  const rowButtons = useRef(new Map<string, HTMLButtonElement>());
+  const filterButton = useRef<HTMLButtonElement>(null);
+  const filtersId = useId();
+  useImperativeHandle(actionsRef, () => ({ add: onAdd }), [onAdd]);
+  const columns = definition.columns.filter(column => visibleColumns.includes(column.key));
+  const primary = definition.columns.find(column => column.required) ?? definition.columns[0];
+  const openMenu = (key: string, anchor: HTMLElement, point?: { x: number; y: number }, initialView?: 'filter') => setMenu({ id: ++menuSequence.current, key, anchor, point, initialView });
+  const openHeaderMenu = (key: string, event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    openMenu(key, headerButtons.current.get(key)!, event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : undefined);
+  };
+  const changeColumns = (next: string[]) => {
+    setVisibleColumns(next);
+    setSorting(current => current.filter(sort => next.includes(sort.key)));
+    try { localStorage.setItem(definition.storageKey, JSON.stringify(next)); }
+    catch { /* Column changes still work for this view if preferences cannot be saved. */ }
+  };
+  const changeVisibility = (key: string, visible: boolean) => changeColumns(definition.columns.filter(column => column.required || (column.key === key ? visible : visibleColumns.includes(column.key))).map(column => column.key));
+  const changeFilter = (field: CollectionFilter, value: string | boolean) => {
+    if (field.column) setColumnFilters(current => { const next = { ...current }; delete next[field.column!]; return next; });
+    setFilters(current => ({ ...current, [field.key]: value }));
+    if (!filtersOpen && value === defaults[field.key]) requestAnimationFrame(() => filterButton.current?.focus());
+  };
+  const changeColumnFilter = (key: string, filter?: ColumnFilter) => {
+    setColumnFilters(current => { const next = { ...current }; if (filter) next[key] = filter; else delete next[key]; return next; });
+    const field = definition.filters.find(field => field.column === key);
+    if (field) setFilters(current => ({ ...current, [field.key]: field.kind === 'checkbox' ? false : '' }));
+  };
+  const clearFilters = (overrides: FilterValues = {}) => {
+    setSearch(''); setFilters({ ...defaults, ...overrides }); setColumnFilters({}); filterButton.current?.focus();
+  };
+  const filterCount = definition.filters.filter(field => filters[field.key] !== defaults[field.key]).length;
+  const changed = Boolean(search || Object.keys(columnFilters).length || filterCount);
+  const filtered = filterRows(definition.applyFilters(items, search, filters), columnFilters, definition.model);
+  const sorted = sortRows(filtered, sorting, definition.model);
+  const activeId = sorted.some(item => item.id === active) ? active : sorted[0]?.id;
+  const menuColumn = menu && definition.columns.find(column => column.key === menu.key)!;
+  const empty = definition.emptyState(items, filters);
+  return <section className="inventory-section" aria-label={definition.label}>
+    <div className="inventory-toolbar">
+      <div className="search-field inventory-search"><Search size={16} /><input aria-label={definition.searchLabel} placeholder={`${definition.searchLabel}…`} value={search} onChange={event => setSearch(event.target.value)} /></div>
+      <button ref={filterButton} type="button" className={`button secondary ${filtersOpen ? 'selected' : ''}`} aria-label="Filters" aria-expanded={filtersOpen} aria-controls={filtersId} onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />Filters{filterCount > 0 ? ` (${filterCount})` : ''}</button>
+      <ColumnPicker options={definition.columns} selected={visibleColumns} onChange={changeVisibility} onReset={() => changeColumns(definition.defaultColumns)} />
+      {changed && <button type="button" className="button quiet" onClick={() => clearFilters()}>Reset filters</button>}
+      <span className="filter-result" role="status">{definition.summary?.(filtered.length, items) ?? `${filtered.length} of ${items.length}`}</span>
+      <div className="inventory-actions">
+        <button type="button" className="button secondary" onClick={onAdd}><Plus size={16} />Add {definition.itemLabel}</button>
+        {extraActions}
+        <button type="button" className="button quiet" onClick={onExport}><ArrowDownToLine size={15} />Export CSV</button>
+      </div>
+    </div>
+    {(filtersOpen || filterCount > 0) && <div id={filtersId} className={filtersOpen ? 'inventory-filters' : 'inventory-active-filters'} role="group" aria-label={filtersOpen ? definition.filterLabel : `Active ${definition.filterLabel.toLowerCase()}`}>
+      {definition.filters.filter(field => filtersOpen || filters[field.key] !== defaults[field.key]).map(field => field.kind === 'checkbox'
+        ? <label key={field.key} className="owned-filter"><input type="checkbox" checked={Boolean(filters[field.key])} onChange={event => changeFilter(field, event.target.checked)} />{field.label}</label>
+        : <label key={field.key}>{field.label}{field.kind === 'select'
+          ? <Select label={field.label} value={String(filters[field.key])} onChange={value => changeFilter(field, value)} options={[{ value: '', label: field.placeholder ?? 'Any' }, ...field.choices ?? []]} />
+          : <input type="number" min={field.min} max={field.max} step="1" placeholder={field.placeholder ?? 'Any'} value={String(filters[field.key])} onChange={event => changeFilter(field, event.target.value)} />}</label>)}
+    </div>}
+    {Object.keys(columnFilters).length > 0 && <div className="column-filter-list" role="group" aria-label="Column filters">{definition.columns.filter(column => columnFilters[column.key]).map(column => <div className="column-filter-chip" key={column.key}>
+      <button type="button" onClick={event => openMenu(column.key, event.currentTarget, undefined, 'filter')}><Filter size={14} aria-hidden="true" />{column.title}: {filterLabel(columnFilters[column.key]!, filterChoices(column, items, definition.model))}</button>
+      <button type="button" className="icon-button" aria-label={`Remove ${column.title} filter`} title={`Remove ${column.title} filter`} onClick={() => { changeColumnFilter(column.key); filterButton.current?.focus(); }}><X size={14} aria-hidden="true" /></button>
+    </div>)}</div>}
+    <div className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} tabIndex={0} style={{ scrollPaddingLeft: primary.width }}>
+      <table className="inventory-table" style={{ minWidth: columns.reduce((width, column) => width + column.width, 0) }}>
+        <caption className="sr-only">{definition.label}. Changes save automatically when signed in. Select a name to view or edit an entry. Click or right-click a header, or press Shift+F10, for column actions.</caption>
+        <colgroup>{columns.map(column => <col key={column.key} style={{ width: column.width }} />)}</colgroup>
+        <thead><tr>{columns.map(column => {
+          const sortIndex = sorting.findIndex(sort => sort.key === column.key);
+          const sort = sorting[sortIndex];
+          return <th scope="col" key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : ''} aria-sort={sortIndex === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}
+            onClick={event => openHeaderMenu(column.key, event)} onContextMenu={event => openHeaderMenu(column.key, event)}
+            onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { event.preventDefault(); event.stopPropagation(); openMenu(column.key, event.target as HTMLElement); } }}>
+            <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" aria-label={`${column.title} column options`} aria-haspopup="menu" aria-expanded={menu?.key === column.key} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button></div>
+          </th>;
+        })}</tr></thead>
+        <tbody>{sorted.map((item, index) => <tr key={item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, select, a, label') && !window.getSelection()?.toString()) onEdit(item); }}>
+          {columns.map(column => <td key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : column.key === primary.key ? 'equipment-cell' : column.wrap ? 'wrapping-cell' : ''}>
+            {column.key === primary.key ? <button type="button" ref={node => { if (node) rowButtons.current.set(item.id, node); else rowButtons.current.delete(item.id); }} className="equipment-name" tabIndex={item.id === activeId ? 0 : -1} aria-label={`Edit ${definition.rowLabel(item)}`} onFocus={() => setActive(item.id)} onClick={() => onEdit(item)} onKeyDown={event => {
+              if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+              event.preventDefault();
+              const next = sorted[event.key === 'Home' ? 0 : event.key === 'End' ? sorted.length - 1 : Math.max(0, Math.min(sorted.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
+              rowButtons.current.get(next.id)?.focus({ preventScroll: true }); rowButtons.current.get(next.id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }}>{renderCell(item, column, visibleColumns)}</button> : renderCell(item, column, visibleColumns)}
+          </td>)}
+        </tr>)}</tbody>
+      </table>
+      {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{empty.title}</h3>{empty.description && <p>{empty.description}</p>}{items.length > 0 && <button type="button" className="button secondary" onClick={() => clearFilters(empty.resetValues)}>{empty.resetLabel ?? 'Reset filters'}</button>}</div>}
+    </div>
+    {menu && menuColumn && <ColumnMenu key={menu.id} anchor={menu.anchor} point={menu.point} initialView={menu.initialView} column={menuColumn} columns={definition.columns} selected={visibleColumns} choices={filterChoices(menuColumn, items, definition.model)} sorting={sorting} filter={columnFilters[menu.key]}
+      onVisibility={changeVisibility} onReset={() => changeColumns(definition.defaultColumns)} onSort={direction => setSorting(current => setColumnSort(current, menu.key, direction))} onPriority={index => setSorting(current => moveColumnSort(current, menu.key, index))} onFilter={filter => changeColumnFilter(menu.key, filter)} onClose={() => {
+        setMenu(null);
+        requestAnimationFrame(() => { if (!menu.anchor.isConnected && document.activeElement === document.body) headerButtons.current.get(primary.key)?.focus({ preventScroll: true }); });
+      }} onHide={() => { changeVisibility(menu.key, false); setMenu(null); headerButtons.current.get(primary.key)?.focus({ preventScroll: true }); }} />}
+  </section>;
+}

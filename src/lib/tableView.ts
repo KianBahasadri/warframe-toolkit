@@ -1,39 +1,42 @@
-import { disposition } from './model.ts';
-import type { Column } from './inventoryColumns.ts';
-import type { EquipmentRow } from './weaponCatalog.ts';
-
-export type ColumnKey = Column['key'];
+export type ColumnKey = string;
+export type TableValue = string | number | boolean | null;
+export type FilterChoice = { value: string; label: string };
+export type TableColumn = {
+  key: ColumnKey; title: string; width: number; kind?: 'boolean' | 'number'; required?: boolean; wrap?: boolean;
+  choices?: 'values' | FilterChoice[];
+  number?: { min: number; max: number; unknown?: boolean };
+};
+export interface TableModel<Row> {
+  value: (item: Row, key: ColumnKey) => TableValue;
+  compare?: (a: Row, b: Row, key: ColumnKey) => number | undefined;
+  matchesChoice?: (item: Row, key: ColumnKey, choice: string) => boolean | undefined;
+}
 export type ColumnSort = { key: ColumnKey; direction: 1 | -1 };
-export type ColumnFilter = { kind: 'text'; value: string } | { kind: 'choice'; value: string } | { kind: 'rank'; operator: 'equals' | 'atLeast' | 'atMost' | 'unknown'; value: number };
+export type ColumnFilter = { kind: 'text'; value: string } | { kind: 'choice'; value: string } | { kind: 'number'; operator: 'equals' | 'atLeast' | 'atMost' | 'unknown'; value: number };
 export type ColumnFilters = Partial<Record<ColumnKey, ColumnFilter>>;
 
-export function columnValue(item: EquipmentRow, key: ColumnKey) {
-  if (key === 'keep') return disposition(item);
-  if (key === 'incarnon') return item.incarnon ? item.catalogItem?.incarnon?.type === 'genesis' ? 'genesis' : item.catalogItem?.incarnon?.type === 'native' ? 'native' : 'yes' : 'none';
-  return item[key];
-}
-
-export function sortRows(items: EquipmentRow[], sorting: ColumnSort[]): EquipmentRow[] {
+export function sortRows<Row>(items: Row[], sorting: ColumnSort[], model: TableModel<Row>): Row[] {
   return [...items].sort((a, b) => {
     for (const sort of sorting) {
-      const av = columnValue(a, sort.key), bv = columnValue(b, sort.key);
+      const av = model.value(a, sort.key), bv = model.value(b, sort.key);
       if (av === null || bv === null) {
         if (av !== bv) return av === null ? 1 : -1;
         continue;
       }
-      const result = (typeof av === 'boolean' && typeof bv === 'boolean') || (typeof av === 'number' && typeof bv === 'number')
-        ? Number(av) - Number(bv) : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base', numeric: true });
+      const result = model.compare?.(a, b, sort.key) ?? (((typeof av === 'boolean' && typeof bv === 'boolean') || (typeof av === 'number' && typeof bv === 'number'))
+        ? Number(av) - Number(bv) : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base', numeric: true }));
       if (result) return result * sort.direction;
     }
     return 0;
   });
 }
 
-export function filterRows(items: EquipmentRow[], filters: ColumnFilters): EquipmentRow[] {
+export function filterRows<Row>(items: Row[], filters: ColumnFilters, model: TableModel<Row>): Row[] {
   return items.filter(item => Object.entries(filters).every(([key, filter]) => {
-    const value = columnValue(item, key as ColumnKey);
+    if (!filter) return true;
+    const value = model.value(item, key);
     if (filter.kind === 'text') return String(value ?? '').toLocaleLowerCase().includes(filter.value.trim().toLocaleLowerCase());
-    if (filter.kind === 'choice') return key === 'incarnon' && filter.value === 'yes' ? value !== 'none' : String(value) === filter.value;
+    if (filter.kind === 'choice') return model.matchesChoice?.(item, key, filter.value) ?? String(value) === filter.value;
     if (filter.operator === 'unknown') return value === null;
     if (typeof value !== 'number') return false;
     return filter.operator === 'atLeast' ? value >= filter.value : filter.operator === 'atMost' ? value <= filter.value : value === filter.value;
@@ -53,16 +56,25 @@ export function moveColumnSort(sorting: ColumnSort[], key: ColumnKey, priority: 
   return remaining;
 }
 
-const choiceLabels: Record<string, string> = { true: 'Yes', false: 'No', genesis: 'Genesis compatible', native: 'Native', none: 'No Incarnon', yes: 'All Incarnon' };
-export function filterLabel(filter: ColumnFilter): string {
+export function filterLabel(filter: ColumnFilter, choices?: FilterChoice[]): string {
   if (filter.kind === 'text') return `Contains “${filter.value}”`;
-  if (filter.kind === 'choice') return choiceLabels[filter.value] ?? filter.value;
+  if (filter.kind === 'choice') return choices?.find(choice => choice.value === filter.value)?.label ?? filter.value;
   return filter.operator === 'unknown' ? 'Unknown' : `${filter.operator === 'atLeast' ? 'At least' : filter.operator === 'atMost' ? 'At most' : 'Equals'} ${filter.value}`;
 }
 
-export function filterChoices(column: Column, items: EquipmentRow[]) {
-  if (column.key === 'incarnon') return ['yes', 'native', 'genesis', 'none'].map(value => ({ value, label: choiceLabels[value] }));
-  if (column.kind === 'boolean') return ['true', 'false'].map(value => ({ value, label: choiceLabels[value] }));
-  if (['upgraded', 'keep', 'variant', 'slot', 'override'].includes(column.key)) return [...new Set(items.map(item => String(columnValue(item, column.key))))].sort().map(value => ({ value, label: value }));
+export function filterChoices<Row>(column: TableColumn, items: Row[], model: TableModel<Row>): FilterChoice[] | undefined {
+  if (Array.isArray(column.choices)) return column.choices;
+  if (column.kind === 'boolean') return [{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }];
+  if (column.choices === 'values') return [...new Set(items.map(item => String(model.value(item, column.key))))].sort().map(value => ({ value, label: value }));
   return undefined;
+}
+
+export function loadColumnPreferences(key: string, columns: TableColumn[], defaults: string[]): string[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
+    if (Array.isArray(saved) && saved.every(value => columns.some(column => column.key === value))) {
+      return columns.filter(column => column.required || saved.includes(column.key)).map(column => column.key);
+    }
+  } catch { /* Keep unreadable preferences intact and use the default view. */ }
+  return defaults;
 }
