@@ -18,5 +18,6 @@ Read `README.md` for setup, data semantics, and the code map.
 
 - Future sessions may already be inside the Incus dev box (`node-dev`), as user `dev` in `/home/dev/warframe-toolkit`. Check `hostname`, `id`, and `pwd` before assuming host paths or entering the box again.
 - The dev box provides isolation to protect the host from untrusted npm packages, install scripts, and other development tools. Run dependency installs, tests, builds, and development servers inside it as `dev`. If access fails, report the problem instead of silently running these commands on the host or weakening the isolation.
+- Keep GitHub authentication on the host. Do not log in to GitHub inside `node-dev`, forward GitHub credentials into it, or put GitHub tokens in the shared checkout or `.env`. GitHub secret setup and authenticated pushes are performed by the user or a host-side agent; see `infra/cloudflare/GITHUB-HANDOFF.md`.
 - From the host checkout, use the `dev` shortcut to enter and verify the project directory is available. Configuration and access documentation live in `~/dev-box` on the host.
 - Once mounted, `/home/kian/warframe-toolkit` on the host and `/home/dev/warframe-toolkit` in the box share the same writable files. The box protects the host environment; changes to the shared checkout still affect the host copy.

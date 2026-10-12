@@ -84,11 +84,13 @@ coordinates with local Terraform runs. Multiple queued pushes can coalesce to
 the latest pending commit, so intermediate commits are not guaranteed a separate
 deployment. Local commits alone do not trigger a deployment.
 
-**R2 is active. GitHub activation is pending:** GitHub CLI authentication is not
-available in this development box, so the workflow has not been pushed or run
-on GitHub. The remaining steps are:
+**R2 is active. GitHub activation is pending:** the workflow has not been pushed
+or run on GitHub. Perform GitHub setup on the host; GitHub credentials must stay
+outside `node-dev` and the shared checkout. See the [host-side agent handoff](GITHUB-HANDOFF.md).
+The remaining steps are:
 
-1. Authenticate `gh auth login --scopes workflow` inside `node-dev`.
+1. Use the host's existing GitHub authentication, or authenticate
+   `gh auth login --scopes workflow` on the host.
 2. Set the repository secret `CLOUDFLARE_API_TOKEN` from private input. This is
    the only deployment secret required. Never paste it into a workflow or Git.
 3. Push to `main` and check the first workflow run and production verification.
