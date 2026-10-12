@@ -14,6 +14,15 @@ export interface TableModel<Row> {
 export type ColumnSort = { key: ColumnKey; direction: 1 | -1 };
 export type ColumnFilter = { kind: 'text'; value: string } | { kind: 'choice'; value: string } | { kind: 'number'; operator: 'equals' | 'atLeast' | 'atMost' | 'unknown'; value: number };
 export type ColumnFilters = Partial<Record<ColumnKey, ColumnFilter>>;
+export type ColumnPreferences = { order: ColumnKey[]; visible: ColumnKey[] };
+export type ColumnDropTarget = { key: ColumnKey; edge: 'before' | 'after' };
+
+export function moveColumn(order: ColumnKey[], key: ColumnKey, target: ColumnDropTarget): ColumnKey[] {
+  if (key === target.key || !order.includes(key) || !order.includes(target.key)) return order;
+  const next = order.filter(column => column !== key);
+  next.splice(next.indexOf(target.key) + (target.edge === 'after' ? 1 : 0), 0, key);
+  return next;
+}
 
 export function sortRows<Row>(items: Row[], sorting: ColumnSort[], model: TableModel<Row>): Row[] {
   return [...items].sort((a, b) => {
@@ -69,12 +78,22 @@ export function filterChoices<Row>(column: TableColumn, items: Row[], model: Tab
   return undefined;
 }
 
-export function loadColumnPreferences(key: string, columns: TableColumn[], defaults: string[]): string[] {
+export function parseColumnPreferences(saved: unknown, columns: TableColumn[], defaults: string[]): ColumnPreferences {
+  const keys = columns.map(column => column.key);
+  const validKeys = (value: unknown): value is string[] => Array.isArray(value) && value.every(key => typeof key === 'string' && keys.includes(key));
+  let order = keys, visible = defaults;
+  // Older preferences store visibility alone; keep their original column layout.
+  if (validKeys(saved)) visible = saved;
+  else if (saved && typeof saved === 'object' && 'order' in saved && 'visible' in saved && validKeys(saved.order) && validKeys(saved.visible)) {
+    order = [...new Set([...saved.order, ...keys])];
+    visible = saved.visible;
+  }
+  return { order, visible: order.filter(key => visible.includes(key) || columns.some(column => column.key === key && column.required)) };
+}
+
+export function loadColumnPreferences(key: string, columns: TableColumn[], defaults: string[]): ColumnPreferences {
   try {
-    const saved: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
-    if (Array.isArray(saved) && saved.every(value => columns.some(column => column.key === value))) {
-      return columns.filter(column => column.required || saved.includes(column.key)).map(column => column.key);
-    }
+    return parseColumnPreferences(JSON.parse(localStorage.getItem(key) ?? 'null'), columns, defaults);
   } catch { /* Keep unreadable preferences intact and use the default view. */ }
-  return defaults;
+  return parseColumnPreferences(null, columns, defaults);
 }

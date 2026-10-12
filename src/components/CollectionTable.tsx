@@ -1,11 +1,12 @@
 import { useId, useImperativeHandle, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent, ReactNode, Ref } from 'react';
 import { ArrowDown, ArrowDownToLine, ArrowUp, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
-import { filterChoices, filterLabel, filterRows, loadColumnPreferences, moveColumnSort, setColumnSort, sortRows } from '../lib/tableView';
-import type { ColumnFilter, ColumnFilters, ColumnSort, FilterChoice, TableColumn, TableModel } from '../lib/tableView';
+import { filterChoices, filterLabel, filterRows, loadColumnPreferences, moveColumn, moveColumnSort, parseColumnPreferences, setColumnSort, sortRows } from '../lib/tableView';
+import type { ColumnDropTarget, ColumnFilter, ColumnFilters, ColumnPreferences, ColumnSort, FilterChoice, TableColumn, TableModel } from '../lib/tableView';
 import { ColumnMenu } from './ColumnMenu';
 import { ColumnPicker } from './ColumnPicker';
 import { Select } from './Select';
+import { useColumnDrag } from './useColumnDrag';
 
 export type FilterValues = Record<string, string | boolean>;
 export type CollectionFilter = {
@@ -34,31 +35,48 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterValues>(defaults);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState(() => loadColumnPreferences(definition.storageKey, definition.columns, definition.defaultColumns));
+  const [preferences, setPreferences] = useState(() => loadColumnPreferences(definition.storageKey, definition.columns, definition.defaultColumns));
+  const visibleColumns = preferences.order.filter(key => preferences.visible.includes(key));
   const [sorting, setSorting] = useState<ColumnSort[]>(definition.initialSorting ?? []);
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({});
   const [menu, setMenu] = useState<{ id: number; key: string; anchor: HTMLElement; point?: { x: number; y: number }; initialView?: 'filter' } | null>(null);
   const [active, setActive] = useState('');
+  const [columnAnnouncement, setColumnAnnouncement] = useState('');
   const menuSequence = useRef(0);
   const headerButtons = useRef(new Map<string, HTMLButtonElement>());
   const rowButtons = useRef(new Map<string, HTMLButtonElement>());
   const filterButton = useRef<HTMLButtonElement>(null);
+  const tableScroll = useRef<HTMLDivElement>(null);
   const filtersId = useId();
   useImperativeHandle(actionsRef, () => ({ add: onAdd }), [onAdd]);
-  const columns = definition.columns.filter(column => visibleColumns.includes(column.key));
+  const columns = visibleColumns.map(key => definition.columns.find(column => column.key === key)!);
   const primary = definition.columns.find(column => column.required) ?? definition.columns[0];
   const openMenu = (key: string, anchor: HTMLElement, point?: { x: number; y: number }, initialView?: 'filter') => setMenu({ id: ++menuSequence.current, key, anchor, point, initialView });
   const openHeaderMenu = (key: string, event: MouseEvent<HTMLElement>) => {
     event.preventDefault();
     openMenu(key, headerButtons.current.get(key)!, event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : undefined);
   };
-  const changeColumns = (next: string[]) => {
-    setVisibleColumns(next);
-    setSorting(current => current.filter(sort => next.includes(sort.key)));
+  const changeColumns = (next: ColumnPreferences) => {
+    setPreferences(next);
+    setSorting(current => current.filter(sort => next.visible.includes(sort.key)));
     try { localStorage.setItem(definition.storageKey, JSON.stringify(next)); }
     catch { /* Column changes still work for this view if preferences cannot be saved. */ }
   };
-  const changeVisibility = (key: string, visible: boolean) => changeColumns(definition.columns.filter(column => column.required || (column.key === key ? visible : visibleColumns.includes(column.key))).map(column => column.key));
+  const changeVisibility = (key: string, visible: boolean) => changeColumns({ ...preferences, visible: preferences.order.filter(candidate => definition.columns.some(column => column.key === candidate && column.required) || (candidate === key ? visible : visibleColumns.includes(candidate))) });
+  const resetColumns = () => changeColumns(parseColumnPreferences(null, definition.columns, definition.defaultColumns));
+  const reorderColumn = (key: string, target: ColumnDropTarget) => {
+    const order = moveColumn(preferences.order, key, target);
+    if (order.every((column, index) => column === preferences.order[index])) return;
+    changeColumns({ ...preferences, order });
+    const position = order.filter(column => visibleColumns.includes(column)).indexOf(key) + 1;
+    setColumnAnnouncement(`${definition.columns.find(column => column.key === key)!.title} moved to column ${position} of ${columns.length}.`);
+    requestAnimationFrame(() => {
+      const button = headerButtons.current.get(key);
+      button?.focus({ preventScroll: true });
+      button?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  };
+  const columnDrag = useColumnDrag(tableScroll, reorderColumn, () => setMenu(null));
   const changeFilter = (field: CollectionFilter, value: string | boolean) => {
     if (field.column) setColumnFilters(current => { const next = { ...current }; delete next[field.column!]; return next; });
     setFilters(current => ({ ...current, [field.key]: value }));
@@ -83,7 +101,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
     <div className="inventory-toolbar">
       <div className="search-field inventory-search"><Search size={16} /><input aria-label={definition.searchLabel} placeholder={`${definition.searchLabel}…`} value={search} onChange={event => setSearch(event.target.value)} /></div>
       <button ref={filterButton} type="button" className={`button secondary ${filtersOpen ? 'selected' : ''}`} aria-label="Filters" aria-expanded={filtersOpen} aria-controls={filtersId} onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />Filters{filterCount > 0 ? ` (${filterCount})` : ''}</button>
-      <ColumnPicker options={definition.columns} selected={visibleColumns} onChange={changeVisibility} onReset={() => changeColumns(definition.defaultColumns)} />
+      <ColumnPicker options={definition.columns} selected={visibleColumns} onChange={changeVisibility} onReset={resetColumns} />
       {changed && <button type="button" className="button quiet" onClick={() => clearFilters()}>Reset filters</button>}
       <span className="filter-result" role="status">{definition.summary?.(filtered.length, items) ?? `${filtered.length} of ${items.length}`}</span>
       <div className="inventory-actions">
@@ -103,14 +121,15 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       <button type="button" onClick={event => openMenu(column.key, event.currentTarget, undefined, 'filter')}><Filter size={14} aria-hidden="true" />{column.title}: {filterLabel(columnFilters[column.key]!, filterChoices(column, items, definition.model))}</button>
       <button type="button" className="icon-button" aria-label={`Remove ${column.title} filter`} title={`Remove ${column.title} filter`} onClick={() => { changeColumnFilter(column.key); filterButton.current?.focus(); }}><X size={14} aria-hidden="true" /></button>
     </div>)}</div>}
-    <div className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} tabIndex={0} style={{ '--identity-column-width': `${primary.width}px` } as CSSProperties}>
+    <span className="sr-only" aria-live="polite">{columnAnnouncement}</span>
+    <div ref={tableScroll} className="table-scroll inventory-grid" data-dragging={columnDrag.dragging || undefined} role="region" aria-label={definition.regionLabel} tabIndex={0} style={{ '--first-column-width': `${columns[0].width}px` } as CSSProperties}>
       <table className="inventory-table" style={{ minWidth: columns.reduce((width, column) => width + column.width, 0) }}>
-        <caption className="sr-only">{definition.label}. Changes save automatically when signed in. Select a name to view or edit an entry. Click or right-click a header, or press Shift+F10, for column actions.</caption>
+        <caption className="sr-only">{definition.label}. Changes save automatically when signed in. Select a name to view or edit an entry. Drag a header to move its column. Click or right-click a header, or press Shift+F10, for column actions, including Move left and Move right.</caption>
         <colgroup>{columns.map(column => <col key={column.key} style={{ width: column.width }} />)}</colgroup>
         <thead><tr>{columns.map(column => {
           const sortIndex = sorting.findIndex(sort => sort.key === column.key);
           const sort = sorting[sortIndex];
-          return <th scope="col" key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : ''} aria-sort={sortIndex === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}
+          return <th scope="col" key={column.key} data-column-key={column.key} data-dragging={columnDrag.dragging === column.key || undefined} data-drop-edge={columnDrag.target?.key === column.key ? columnDrag.target.edge : undefined} {...columnDrag.headerProps(column.key)} title="Drag to move; click for column options" className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : ''} aria-sort={sortIndex === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}
             onClick={event => openHeaderMenu(column.key, event)} onContextMenu={event => openHeaderMenu(column.key, event)}
             onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { event.preventDefault(); event.stopPropagation(); openMenu(column.key, event.target as HTMLElement); } }}>
             <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" aria-label={`${column.title} column options`} aria-haspopup="menu" aria-expanded={menu?.key === column.key} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button></div>
@@ -130,7 +149,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{empty.title}</h3>{empty.description && <p>{empty.description}</p>}{items.length > 0 && <button type="button" className="button secondary" onClick={() => clearFilters(empty.resetValues)}>{empty.resetLabel ?? 'Reset filters'}</button>}</div>}
     </div>
     {menu && menuColumn && <ColumnMenu key={menu.id} anchor={menu.anchor} point={menu.point} initialView={menu.initialView} column={menuColumn} columns={definition.columns} selected={visibleColumns} choices={filterChoices(menuColumn, items, definition.model)} sorting={sorting} filter={columnFilters[menu.key]}
-      onVisibility={changeVisibility} onReset={() => changeColumns(definition.defaultColumns)} onSort={direction => setSorting(current => setColumnSort(current, menu.key, direction))} onPriority={index => setSorting(current => moveColumnSort(current, menu.key, index))} onFilter={filter => changeColumnFilter(menu.key, filter)} onClose={() => {
+      onVisibility={changeVisibility} onReset={resetColumns} onMove={direction => { const target = visibleColumns[visibleColumns.indexOf(menu.key) + direction]; if (target) reorderColumn(menu.key, { key: target, edge: direction === -1 ? 'before' : 'after' }); }} onSort={direction => setSorting(current => setColumnSort(current, menu.key, direction))} onPriority={index => setSorting(current => moveColumnSort(current, menu.key, index))} onFilter={filter => changeColumnFilter(menu.key, filter)} onClose={() => {
         setMenu(null);
         requestAnimationFrame(() => { if (!menu.anchor.isConnected && document.activeElement === document.body) headerButtons.current.get(primary.key)?.focus({ preventScroll: true }); });
       }} onHide={() => { changeVisibility(menu.key, false); setMenu(null); headerButtons.current.get(primary.key)?.focus({ preventScroll: true }); }} />}

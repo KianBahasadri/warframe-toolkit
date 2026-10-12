@@ -4,7 +4,7 @@ import { equipmentTableModel } from '../src/lib/inventoryColumns.ts';
 import { relicTableModel } from '../src/lib/relicColumns.ts';
 import { createRelic } from '../src/lib/relics.ts';
 import { createEquipment } from '../src/lib/model.ts';
-import { filterRows, moveColumnSort, setColumnSort, sortRows } from '../src/lib/tableView.ts';
+import { filterRows, moveColumn, moveColumnSort, parseColumnPreferences, setColumnSort, sortRows } from '../src/lib/tableView.ts';
 import type { ColumnSort } from '../src/lib/tableView.ts';
 import type { EquipmentRow } from '../src/lib/weaponCatalog.ts';
 
@@ -15,6 +15,35 @@ const rows: EquipmentRow[] = [
   createEquipment({ name: 'Bo', slot: 'Melee', variant: 'Base' }, { rank: 20, mastered: true }),
   createEquipment({ name: 'Boltor', slot: 'Primary', variant: 'Base' }, { rank: null, mastered: true, owned: false }),
 ];
+
+test('column preferences migrate visibility, preserve custom order, and retain required and newly added columns', () => {
+  const columns = [
+    { key: 'name', title: 'Name', width: 300, required: true },
+    { key: 'owned', title: 'Owned', width: 100 },
+    { key: 'rank', title: 'Rank', width: 100 },
+    { key: 'notes', title: 'Notes', width: 200 },
+  ];
+  const defaults = ['name', 'owned', 'rank'];
+  assert.deepEqual(parseColumnPreferences(['rank', 'rank'], columns, defaults), { order: ['name', 'owned', 'rank', 'notes'], visible: ['name', 'rank'] });
+  const saved = { order: ['rank', 'name', 'owned', 'rank'], visible: ['rank', 'owned'] };
+  assert.deepEqual(parseColumnPreferences(saved, columns, defaults), { order: ['rank', 'name', 'owned', 'notes'], visible: ['rank', 'name', 'owned'] });
+  for (const malformed of [{ order: ['missing'], visible: ['name'] }, { order: ['rank'], visible: null }, 'broken', null]) {
+    assert.deepEqual(parseColumnPreferences(malformed, columns, defaults), { order: ['name', 'owned', 'rank', 'notes'], visible: defaults });
+  }
+  assert.deepEqual(saved, { order: ['rank', 'name', 'owned', 'rank'], visible: ['rank', 'owned'] });
+});
+
+test('moving a column supports either end and retains hidden columns without changing the original order', () => {
+  const order = ['name', 'owned', 'rank', 'notes'];
+  assert.deepEqual(moveColumn(order, 'name', { key: 'notes', edge: 'after' }), ['owned', 'rank', 'notes', 'name']);
+  assert.deepEqual(moveColumn(order, 'rank', { key: 'name', edge: 'before' }), ['rank', 'name', 'owned', 'notes']);
+  assert.deepEqual(moveColumn(order, 'rank', { key: 'name', edge: 'after' }), ['name', 'rank', 'owned', 'notes']);
+  assert.deepEqual(moveColumn(order, 'owned', { key: 'rank', edge: 'after' }), ['name', 'rank', 'owned', 'notes']);
+  assert.deepEqual(moveColumn(order, 'rank', { key: 'rank', edge: 'before' }), order);
+  assert.deepEqual(moveColumn(order, 'rank', { key: 'missing', edge: 'before' }), order);
+  assert.deepEqual(moveColumn(order, 'missing', { key: 'name', edge: 'before' }), order);
+  assert.deepEqual(order, ['name', 'owned', 'rank', 'notes']);
+});
 
 test('sort directions retain priority, priority changes reorder ties, and removing then adding appends', () => {
   let sorts: ColumnSort[] = [];

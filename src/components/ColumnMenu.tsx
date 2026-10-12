@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Columns3, EyeOff, Filter, ListOrdered, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Columns3, EyeOff, Filter, ListOrdered, X } from 'lucide-react';
 import type { TableColumn, FilterChoice, ColumnFilter, ColumnKey, ColumnSort } from '../lib/tableView';
 import { ColumnOptions } from './ColumnPicker';
 import { Select } from './Select';
 import { TablePopover } from './TablePopover';
 
-export function ColumnMenu({ column, columns, selected, choices, sorting, filter, anchor, point, initialView = 'actions', onVisibility, onReset, onSort, onPriority, onFilter, onHide, onClose }: {
+export function ColumnMenu({ column, columns, selected, choices, sorting, filter, anchor, point, initialView = 'actions', onVisibility, onReset, onMove, onSort, onPriority, onFilter, onHide, onClose }: {
   column: TableColumn; columns: TableColumn[]; selected: ColumnKey[]; choices?: FilterChoice[]; sorting: ColumnSort[]; filter?: ColumnFilter;
   anchor: HTMLElement; point?: { x: number; y: number }; initialView?: 'actions' | 'filter';
-  onVisibility: (key: ColumnKey, visible: boolean) => void; onReset: () => void;
+  onVisibility: (key: ColumnKey, visible: boolean) => void; onReset: () => void; onMove: (direction: -1 | 1) => void;
   onSort: (direction: 1 | -1 | 0) => void; onPriority: (index: number) => void;
   onFilter: (filter?: ColumnFilter) => void; onHide: () => void; onClose: () => void;
 }) {
@@ -16,6 +16,7 @@ export function ColumnMenu({ column, columns, selected, choices, sorting, filter
   const content = useRef<HTMLDivElement>(null);
   const sortIndex = sorting.findIndex(sort => sort.key === column.key);
   const direction = sorting[sortIndex]?.direction;
+  const columnIndex = selected.indexOf(column.key);
   const finish = (action: () => void) => { action(); onClose(); if (anchor.isConnected) anchor.focus({ preventScroll: true }); };
   useEffect(() => { content.current?.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)')?.focus({ preventScroll: true }); }, [view]);
   const title = view === 'columns' ? 'Columns' : view === 'priority' ? `${column.title} sort priority` : view === 'filter' ? `Filter ${column.title}` : column.title;
@@ -23,14 +24,15 @@ export function ColumnMenu({ column, columns, selected, choices, sorting, filter
     <div className="column-menu-heading">{view !== 'actions' && <button type="button" className="icon-button" aria-label="Back to column actions" title="Back to column actions" onClick={() => setView('actions')}><ArrowLeft size={16} aria-hidden="true" /></button>}<span>{title}</span></div>
     <div ref={content} className={`column-menu-content ${view === 'columns' ? 'column-menu-content-options' : ''}`}>
       {view === 'actions' && <>
-        <button type="button" role="menuitemradio" aria-checked={direction === 1} className="column-menu-action" onClick={() => finish(() => onSort(1))}><ArrowUp size={16} aria-hidden="true" />Sort ascending</button>
-        <button type="button" role="menuitemradio" aria-checked={direction === -1} className="column-menu-action" onClick={() => finish(() => onSort(-1))}><ArrowDown size={16} aria-hidden="true" />Sort descending</button>
-        <button type="button" role="menuitem" className="column-menu-action" disabled={!direction} onClick={() => finish(() => onSort(0))}><X size={16} aria-hidden="true" />Remove sort</button>
+        <button type="button" role="menuitemradio" aria-checked={direction === 1} className="column-menu-action" onClick={() => finish(() => onSort(direction === 1 ? 0 : 1))}><ArrowUp size={16} aria-hidden="true" />Sort ascending</button>
+        <button type="button" role="menuitemradio" aria-checked={direction === -1} className="column-menu-action" onClick={() => finish(() => onSort(direction === -1 ? 0 : -1))}><ArrowDown size={16} aria-hidden="true" />Sort descending</button>
         <button type="button" role="menuitem" className="column-menu-action" disabled={sortIndex < 0 || sorting.length < 2} onClick={() => setView('priority')}><ListOrdered size={16} aria-hidden="true" />Sort priority{sortIndex >= 0 && <span className="menu-value">{sortIndex + 1} of {sorting.length}</span>}</button>
         <div className="column-menu-divider" role="separator" />
         <button type="button" role="menuitem" className="column-menu-action" onClick={() => setView('filter')}><Filter size={16} aria-hidden="true" />{filter ? 'Edit filter' : 'Set filter'}</button>
         {filter && <button type="button" role="menuitem" className="column-menu-action" onClick={() => finish(() => onFilter())}><X size={16} aria-hidden="true" />Clear filter</button>}
         <div className="column-menu-divider" role="separator" />
+        <button type="button" role="menuitem" className="column-menu-action" disabled={columnIndex <= 0} onClick={() => finish(() => onMove(-1))}><ArrowLeft size={16} aria-hidden="true" />Move left</button>
+        <button type="button" role="menuitem" className="column-menu-action" disabled={columnIndex < 0 || columnIndex === selected.length - 1} onClick={() => finish(() => onMove(1))}><ArrowRight size={16} aria-hidden="true" />Move right</button>
         <button type="button" role="menuitem" className="column-menu-action" disabled={column.required || !selected.includes(column.key)} onClick={onHide}><EyeOff size={16} aria-hidden="true" />Hide column</button>
         <button type="button" role="menuitem" className="column-menu-action" onClick={() => setView('columns')}><Columns3 size={16} aria-hidden="true" />Add or remove columns</button>
       </>}

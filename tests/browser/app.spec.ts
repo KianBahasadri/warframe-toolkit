@@ -94,7 +94,7 @@ test('table keeps rank separate from mastery and preserves sorting when changing
   await menu.getByRole('menuitemradio', { name: 'Sort descending', exact: true }).click();
   await expect(names).toHaveText(['Arca Titron', 'Bo', 'Anku', 'Atomos']);
   await rankHeader.click();
-  await menu.getByRole('menuitem', { name: 'Remove sort', exact: true }).click();
+  await menu.getByRole('menuitemradio', { name: 'Sort descending', exact: true }).click();
   await page.getByRole('button', { name: 'Owned column options', exact: true }).click();
   await menu.getByRole('menuitemradio', { name: 'Sort ascending', exact: true }).click();
   await rankHeader.click();
@@ -217,7 +217,7 @@ test('column context menus sort by multiple priorities and add or hide columns',
   await expect(names).toHaveText(['Arca Titron', 'Anku', 'Atomos', 'Bo']);
   await expect(page.getByRole('button', { name: 'Mastered column options', exact: true })).toHaveAccessibleDescription('Sort priority 2 of 2, ascending');
   await page.getByRole('button', { name: 'Rank column options', exact: true }).click({ button: 'right' });
-  await menu.getByRole('menuitem', { name: 'Remove sort', exact: true }).click();
+  await menu.getByRole('menuitemradio', { name: 'Sort descending', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mastered column options', exact: true })).toHaveAccessibleDescription('Sort priority 1 of 1, ascending');
   await page.getByRole('button', { name: 'Mastered column options', exact: true }).click({ button: 'right' });
   await menu.getByRole('menuitem', { name: 'Hide column', exact: true }).click();
