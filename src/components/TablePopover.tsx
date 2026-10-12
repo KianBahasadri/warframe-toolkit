@@ -59,7 +59,8 @@ export function TablePopover({ anchor, point, label, role = 'group', className =
     return () => document.removeEventListener('pointerdown', outside);
   }, [anchor]);
 
-  return createPortal(<div ref={panel} className={`table-popover ${className}`} role={role} aria-label={label} onBlur={event => {
+  // Label clicks need a focusable ancestor until the browser focuses the input.
+  return createPortal(<div ref={panel} tabIndex={-1} className={`table-popover ${className}`} role={role} aria-label={label} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget) && event.relatedTarget !== anchor) close.current();
   }} onKeyDown={event => {
     if (event.key === 'Escape') {

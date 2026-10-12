@@ -11,6 +11,25 @@ test('all collections share the toolbar, column menus, responsive layout, and ad
   await account.setInventory(inventory);
   await page.reload();
   const saved = JSON.stringify(await account.inventory());
+  const checkColumnLabels = async () => {
+    const columns = page.getByRole('group', { name: 'Table columns', exact: true });
+    const notes = columns.getByRole('checkbox', { name: 'Notes', exact: true });
+    const initiallyVisible = await notes.isChecked();
+    const notesLabel = columns.getByText('Notes', { exact: true });
+    await notesLabel.click();
+    await expect(columns).toBeVisible();
+    await expect(notes).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Notes column options', exact: true })).toHaveCount(initiallyVisible ? 0 : 1);
+    await notesLabel.click();
+    await expect(columns).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Notes column options', exact: true })).toHaveCount(initiallyVisible ? 1 : 0);
+    // The required name column cannot toggle, and clicking its label stays inside.
+    await columns.locator('label:has(input:disabled) span').click({ force: true });
+    await expect(columns).toBeVisible();
+    await expect(columns.locator('input:disabled')).toBeChecked();
+    await page.keyboard.press('Escape');
+    await expect(columns).toHaveCount(0);
+  };
   let toolbarTop: number | undefined;
   for (const [name, filterName, addName] of [['Weapons', 'Weapon filters', 'Add weapon'], ['Warframes', 'Warframe filters', 'Add equipment'], ['Relics', 'Relic filters', 'Add relic']]) {
     await page.getByRole('link', { name, exact: true }).click();
@@ -20,6 +39,9 @@ test('all collections share the toolbar, column menus, responsive layout, and ad
     await expect(section.getByRole('button', { name: 'Columns', exact: true })).toBeVisible();
     await expect(section.getByRole('button', { name: addName, exact: true })).toBeVisible();
     await expect(section.getByRole('button', { name: 'Export CSV', exact: true })).toBeVisible();
+    await section.getByRole('button', { name: 'Columns', exact: true }).click();
+    await checkColumnLabels();
+    await expect(section.getByRole('button', { name: 'Columns', exact: true })).toBeFocused();
     const bounds = (await section.locator('.inventory-toolbar').boundingBox())!;
     toolbarTop ??= bounds.y;
     expect(bounds.y).toBe(toolbarTop);
@@ -33,7 +55,8 @@ test('all collections share the toolbar, column menus, responsive layout, and ad
     await expect(menu.getByRole('menuitem', { name: 'Set filter', exact: true })).toBeVisible();
     await expect(menu.getByRole('menuitem', { name: 'Add or remove columns' })).toBeVisible();
     await expect(menu.getByRole('menuitem', { name: 'Hide column' })).toBeDisabled();
-    await page.keyboard.press('Escape');
+    await menu.getByRole('menuitem', { name: 'Add or remove columns' }).click();
+    await checkColumnLabels();
     await page.keyboard.press('Alt+n');
     await expect(page.getByRole('dialog', { name: addName, exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
