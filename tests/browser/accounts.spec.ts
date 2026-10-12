@@ -219,7 +219,7 @@ test('failed account saves retain edits, block sign-out until saved, and retry t
   await page.keyboard.press('Escape');
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download changes', exact: true }).click();
-  expect((await download).suggestedFilename()).toBe('arsenal-unsaved-profile.json');
+  expect((await download).suggestedFilename()).toBe('grakata-unsaved-profile.json');
   fail = false;
   await page.getByRole('button', { name: 'Try saving again', exact: true }).click();
   const inventory = await account.inventory();
@@ -315,7 +315,7 @@ test.describe('generated keys and personal bookmarks', () => {
     const downloadPromise = page.waitForEvent('download');
     await dialog.getByRole('button', { name: 'Download key', exact: true }).click();
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toBe('arsenal-access-key.txt');
+    expect(download.suggestedFilename()).toBe('grakata-access-key.txt');
     const contents = await readFile((await download.path())!, 'utf8');
     expect(contents).toContain(key); expect(contents).toContain(link); expect(contents).toContain('BookmarkTenno#123');
     await page.setViewportSize({ width: 320, height: 720 });

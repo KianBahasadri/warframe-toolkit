@@ -54,7 +54,7 @@ export function AccountDialog({ user, initialMode, canIncludeCurrent, dirty, onA
       <label>Access key<input ref={keyInput} className="account-secret" readOnly autoComplete="off" spellCheck={false} value={issuedKey} onFocus={event => event.target.select()} /></label>
       <div className="account-key-actions">
         <button type="button" className="button secondary" onClick={() => void copy(issuedKey, 'Access key')}><Copy size={15} />Copy key</button>
-        <button type="button" className="button secondary" onClick={() => downloadFile('arsenal-access-key.txt', `Warframe Toolkit\nUsername: ${user?.username ?? username}\nAccess key: ${issuedKey}\nSign-in link: ${signInLink}\n\nKeep this file private. Anyone with this key or link can access your account.\n`, 'text/plain;charset=utf-8')}><Download size={15} />Download key</button>
+        <button type="button" className="button secondary" onClick={() => downloadFile('grakata-access-key.txt', `Grakata\nUsername: ${user?.username ?? username}\nAccess key: ${issuedKey}\nSign-in link: ${signInLink}\n\nKeep this file private. Anyone with this key or link can access your account.\n`, 'text/plain;charset=utf-8')}><Download size={15} />Download key</button>
       </div>
       <label>Personal sign-in link<input className="account-secret" readOnly autoComplete="off" spellCheck={false} value={signInLink} onFocus={event => event.target.select()} /></label>
       <div className="account-key-actions">

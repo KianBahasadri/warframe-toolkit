@@ -611,7 +611,7 @@ test('relic CSV exports records and deletions persist without changing equipment
   const csvPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
   const csv = await csvPromise;
-  expect(csv.suggestedFilename()).toMatch(/^arsenal-relics-.*\.csv$/);
+  expect(csv.suggestedFilename()).toMatch(/^grakata-relics-.*\.csv$/);
   expect(await readFile((await csv.path())!, 'utf8')).toContain('"Neo N1","Neo","Flawless","5"');
   await page.getByRole('button', { name: 'Edit Neo N1 Flawless' }).click();
   await page.getByRole('button', { name: 'Remove entry', exact: true }).click();
@@ -638,7 +638,7 @@ test('old backups links open weapons without changing saved data and CSV still e
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^arsenal-inventory-.*\.csv$/);
+  expect(download.suggestedFilename()).toMatch(/^grakata-inventory-.*\.csv$/);
   expect(await readFile((await download.path())!, 'utf8')).toContain('"Boltor"');
   expect(JSON.stringify(await account.inventory())).toBe(saved);
 });

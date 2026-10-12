@@ -32,7 +32,7 @@ export function validateInventory(value: unknown): Inventory {
 
 export function parseBackup(text: string): Inventory {
   let parsed: unknown;
-  try { parsed = JSON.parse(text); } catch { throw new Error('Could not read this JSON file. Choose an Arsenal backup.'); }
+  try { parsed = JSON.parse(text); } catch { throw new Error('Could not read this JSON file. Choose a Grakata backup.'); }
   return validateInventory(parsed);
 }
 

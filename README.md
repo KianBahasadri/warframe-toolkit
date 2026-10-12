@@ -1,4 +1,4 @@
-# Arsenal · Warframe Toolkit
+# Grakata
 
 A browser app for tracking Warframe equipment using the fields from your spreadsheet, relic quantities, and searching the official drop tables. Built with React, TypeScript, and Vite. Browse and try the app without an account; sign in to save your inventory and views. Accounts use your Warframe username and a generated access key, with no password or email. A personal bookmark link can sign you in automatically. No paid service or API key is required. Catalog browsing and screenshot recognition work offline, and account saves work through the running local server without internet access. Drop-table updates need an internet connection; the most recent successful copy remains available through the local server while offline.
 
