@@ -64,7 +64,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   };
   const changeVisibility = (key: string, visible: boolean) => changeColumns({ ...preferences, visible: preferences.order.filter(candidate => definition.columns.some(column => column.key === candidate && column.required) || (candidate === key ? visible : visibleColumns.includes(candidate))) });
   const resetColumns = () => changeColumns(parseColumnPreferences(null, definition.columns, definition.defaultColumns));
-  const reorderColumn = (key: string, target: ColumnDropTarget) => {
+  const reorderColumn = (key: string, target: ColumnDropTarget, reveal = true) => {
     const order = moveColumn(preferences.order, key, target);
     if (order.every((column, index) => column === preferences.order[index])) return;
     changeColumns({ ...preferences, order });
@@ -73,10 +73,10 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
     requestAnimationFrame(() => {
       const button = headerButtons.current.get(key);
       button?.focus({ preventScroll: true });
-      button?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      if (reveal) button?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
   };
-  const columnDrag = useColumnDrag(tableScroll, reorderColumn, () => setMenu(null));
+  const columnDrag = useColumnDrag(tableScroll, (key, target) => reorderColumn(key, target, false), () => setMenu(null));
   const changeFilter = (field: CollectionFilter, value: string | boolean) => {
     if (field.column) setColumnFilters(current => { const next = { ...current }; delete next[field.column!]; return next; });
     setFilters(current => ({ ...current, [field.key]: value }));
@@ -122,21 +122,21 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       <button type="button" className="icon-button" aria-label={`Remove ${column.title} filter`} title={`Remove ${column.title} filter`} onClick={() => { changeColumnFilter(column.key); filterButton.current?.focus(); }}><X size={14} aria-hidden="true" /></button>
     </div>)}</div>}
     <span className="sr-only" aria-live="polite">{columnAnnouncement}</span>
-    <div ref={tableScroll} className="table-scroll inventory-grid" data-dragging={columnDrag.dragging || undefined} role="region" aria-label={definition.regionLabel} tabIndex={0} style={{ '--first-column-width': `${columns[0].width}px` } as CSSProperties}>
+    <div ref={tableScroll} className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} tabIndex={0} style={{ '--first-column-width': `${columns[0].width}px` } as CSSProperties}>
       <table className="inventory-table" style={{ minWidth: columns.reduce((width, column) => width + column.width, 0) }}>
         <caption className="sr-only">{definition.label}. Changes save automatically when signed in. Select a name to view or edit an entry. Drag a header to move its column. Click or right-click a header, or press Shift+F10, for column actions, including Move left and Move right.</caption>
         <colgroup>{columns.map(column => <col key={column.key} style={{ width: column.width }} />)}</colgroup>
-        <thead><tr>{columns.map((column, index) => {
+        <thead><tr>{columns.map(column => {
           const sortIndex = sorting.findIndex(sort => sort.key === column.key);
           const sort = sorting[sortIndex];
-          return <th scope="col" key={column.key} data-column-key={column.key} data-dragging={columnDrag.dragging === column.key || undefined} style={columnDrag.cellStyle(index)} data-drop-edge={columnDrag.target?.key === column.key ? columnDrag.target.edge : undefined} {...columnDrag.headerProps(column.key)} title="Drag to move; click for column options" className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : ''} aria-sort={sortIndex === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}
+          return <th scope="col" key={column.key} data-column-key={column.key} {...columnDrag.headerProps(column.key)} title="Drag to move; click for column options" className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : ''} aria-sort={sortIndex === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}
             onClick={event => openHeaderMenu(column.key, event)} onContextMenu={event => openHeaderMenu(column.key, event)}
             onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { event.preventDefault(); event.stopPropagation(); openMenu(column.key, event.target as HTMLElement); } }}>
             <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" aria-label={`${column.title} column options`} aria-haspopup="menu" aria-expanded={menu?.key === column.key} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button></div>
           </th>;
         })}</tr></thead>
         <tbody>{sorted.map((item, index) => <tr key={item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, select, a, label') && !window.getSelection()?.toString()) onEdit(item); }}>
-          {columns.map((column, columnIndex) => <td key={column.key} data-column-key={column.key} data-dragging={columnDrag.dragging === column.key || undefined} style={columnDrag.cellStyle(columnIndex)} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : column.key === primary.key ? 'equipment-cell' : column.wrap ? 'wrapping-cell' : ''}>
+          {columns.map(column => <td key={column.key} data-column-key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : column.key === primary.key ? 'equipment-cell' : column.wrap ? 'wrapping-cell' : ''}>
             {column.key === primary.key ? <button type="button" ref={node => { if (node) rowButtons.current.set(item.id, node); else rowButtons.current.delete(item.id); }} className="equipment-name" tabIndex={item.id === activeId ? 0 : -1} aria-label={`Edit ${definition.rowLabel(item)}`} onFocus={() => setActive(item.id)} onClick={() => onEdit(item)} onKeyDown={event => {
               if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
               event.preventDefault();

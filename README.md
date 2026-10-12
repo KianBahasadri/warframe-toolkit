@@ -150,7 +150,8 @@ While signed in, the save status distinguishes saved data and pending changes. G
 - `src/components/CollectionTable.tsx`: shared collection toolbar, filter panel, table, column preferences, row navigation, and add/export actions. Definitions supply columns, data access, filters, and cell rendering.
 - `src/components/InventoryTable.tsx` and `src/components/Relics.tsx`: equipment and relic definitions and editing controls for the shared collection table.
 - `src/components/`: also equipment details and editor, import review, and command palette.
-- `src/components/useColumnDrag.ts`: shared pointer dragging, animated column previews, drop targets, cancellation, and horizontal edge scrolling.
+- `src/components/useColumnDrag.ts`: shared pointer dragging, cancellation, and horizontal edge scrolling. Dragging updates the preview without rendering the collection; only release commits the column order.
+- `src/components/columnDragPreview.ts` and `src/lib/columnDrag.ts`: inert previews of visible rows, column sliding, and stable insertion positions for columns of different widths.
 - `src/components/ColumnPicker.tsx`, `src/lib/inventoryColumns.ts`, and `src/lib/relicColumns.ts`: column definitions, default layouts, and separate display preference namespaces.
 - `src/components/ColumnMenu.tsx`, `src/components/TablePopover.tsx`, and `src/lib/tableView.ts`: shared column actions, bounded keyboard-accessible popovers, data-driven filter matching, and sorting priorities.
 - `src/components/Select.tsx`: shared custom dropdowns with keyboard navigation, type-to-select, and viewport positioning; no native select popup or experimental picker CSS.

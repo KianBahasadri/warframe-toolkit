@@ -4,20 +4,28 @@ import { createEquipment } from '../../src/lib/model';
 import { createRelic } from '../../src/lib/relics';
 
 const header = (page: Page, name: string) => page.getByRole('columnheader').filter({ has: page.getByRole('button', { name: `${name} column options`, exact: true }) });
-const order = (page: Page) => page.locator('.inventory-table th').evaluateAll(cells => cells.map(cell => (cell as HTMLElement).dataset.columnKey));
+const order = (page: Page) => page.locator('.inventory-section .inventory-table th').evaluateAll(cells => cells.map(cell => (cell as HTMLElement).dataset.columnKey));
 const menu = (page: Page) => page.getByRole('menu', { name: /Column actions for/ });
 const equipmentOrder = ['name', 'owned', 'rank', 'mastered', 'incarnon', 'upgraded', 'keep', 'craftingTarget'];
 
 async function dragColumn(page: Page, source: string, target: string, edge: 'before' | 'after') {
+  await expect(page.locator('.column-drag-layer')).toHaveCount(0);
   const from = (await header(page, source).boundingBox())!;
-  const to = (await header(page, target).boundingBox())!;
+  const sourceKey = await header(page, source).getAttribute('data-column-key');
+  const targetKey = await header(page, target).getAttribute('data-column-key');
+  const geometry = await page.locator('.inventory-section th').evaluateAll(cells => cells.map(cell => ({ key: (cell as HTMLElement).dataset.columnKey, width: cell.getBoundingClientRect().width })));
+  const remaining = geometry.filter(column => column.key !== sourceKey);
+  const index = remaining.findIndex(column => column.key === targetKey) + (edge === 'after' ? 1 : 0);
+  const tableLeft = (await page.locator('.inventory-section table').boundingBox())!.x;
+  const x = tableLeft + remaining.slice(0, index).reduce((sum, column) => sum + column.width, 0) + from.width / 2;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(to.x + (edge === 'before' ? 8 : to.width - 8), to.y + to.height / 2, { steps: 12 });
+  await page.mouse.move(x, from.y + from.height / 2, { steps: 12 });
   await expect(header(page, source)).toHaveAttribute('data-dragging', 'true');
   await expect(header(page, target)).toHaveAttribute('data-drop-edge', edge);
   await page.mouse.up();
   await expect(menu(page)).toHaveCount(0);
+  await expect(page.locator('.column-drag-layer')).toHaveCount(0);
 }
 
 test('dragged columns keep their data, filters, and saved order across equipment tabs and relics', async ({ page, account }) => {
@@ -95,11 +103,11 @@ test('column drags cancel cleanly and scroll to either end on a narrow screen', 
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto('/');
   const saved = JSON.stringify(await account.inventory());
-  const grid = page.locator('.inventory-grid');
+  const grid = page.locator('.inventory-section .inventory-grid');
   const bounds = (await grid.boundingBox())!;
   const first = (await header(page, 'Weapon').boundingBox())!;
   const y = first.y + first.height / 2;
-  const begin = async () => { await page.mouse.move(bounds.x + 80, y); await page.mouse.down(); await page.mouse.move(bounds.x + 110, y); };
+  const begin = async () => { await expect(page.locator('.column-drag-layer')).toHaveCount(0); await page.mouse.move(bounds.x + 80, y); await page.mouse.down(); await page.mouse.move(bounds.x + 110, y); };
   await begin();
   await expect(grid).toHaveAttribute('data-dragging', 'name');
   await page.keyboard.press('Escape');
@@ -120,6 +128,7 @@ test('column drags cancel cleanly and scroll to either end on a narrow screen', 
   await page.mouse.up();
   await expect.poll(() => order(page)).toEqual([...equipmentOrder.slice(1), 'name']);
   await expect(menu(page)).toHaveCount(0);
+  await expect(page.locator('.column-drag-layer')).toHaveCount(0);
   await page.screenshot({ path: 'test-results/reordered-columns-mobile.png' });
   await page.mouse.move(bounds.x + bounds.width - 60, y);
   await page.mouse.down();
@@ -162,6 +171,106 @@ test('selecting an active sort again clears only that column in every collection
   expect(JSON.stringify(await account.inventory())).toBe(saved);
 });
 
+test('drag previews preserve cell geometry and never scroll away from a stationary pointer', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await page.goto('/');
+  const saved = JSON.stringify(await account.inventory());
+  const grid = page.locator('.inventory-section .inventory-grid');
+  await grid.evaluate(element => { element.scrollLeft = 350; });
+  const extent = await grid.evaluate(element => element.scrollWidth);
+  const from = (await header(page, 'Weapon').boundingBox())!;
+  const x = from.x + 100, y = from.y + from.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 20, y);
+  const layer = page.locator('.column-drag-layer');
+  await expect(layer).toHaveAttribute('aria-hidden', 'true');
+  expect(await layer.evaluate(element => element.inert)).toBe(true);
+  const positions = await grid.evaluate(async element => {
+    const samples = [];
+    for (let frame = 0; frame < 15; frame++) {
+      await new Promise(requestAnimationFrame);
+      samples.push({ scroll: element.scrollLeft, extent: element.scrollWidth, target: element.querySelector('[data-drop-edge]')?.getAttribute('data-column-key') ?? null });
+    }
+    return samples;
+  });
+  expect(positions.every(sample => sample.scroll === 350 && sample.extent === extent && sample.target === null)).toBe(true);
+  const geometry = await layer.evaluate(element => [...element.querySelectorAll<HTMLElement>('.column-drag-preview')].map(group => {
+    const real = document.querySelector<HTMLTableElement>('.inventory-section table')!;
+    const index = [...real.tHead!.rows[0].cells].findIndex(cell => cell.dataset.columnKey === group.dataset.columnKey);
+    const source = real.tHead!.rows[0].cells[index].getBoundingClientRect();
+    const heading = group.querySelector('th')!.getBoundingClientRect();
+    return {
+      widthError: Math.abs(heading.width - source.width), topError: Math.abs(heading.top - source.top),
+      rows: [...group.querySelectorAll('td')].map((cell, row) => {
+        const original = real.tBodies[0].rows[row].cells[index], bounds = cell.getBoundingClientRect(), originalBounds = original.getBoundingClientRect();
+        return { topError: Math.abs(bounds.top - originalBounds.top), heightError: Math.abs(bounds.height - originalBounds.height), widthError: Math.abs(bounds.width - source.width), contentMatches: cell.textContent === original.textContent };
+      }),
+      total: real.tBodies[0].rows.length,
+    };
+  }));
+  for (const column of geometry) {
+    expect(column.widthError).toBeLessThan(1);
+    expect(column.topError).toBeLessThan(1);
+    expect(column.rows.length).toBeLessThan(column.total);
+    expect(column.rows.every(row => row.topError < 1 && row.heightError < 1 && row.widthError < 1 && row.contentMatches)).toBe(true);
+  }
+  for (const distance of [80, 400, 220, 80, 20, 400]) {
+    await page.mouse.move(x + distance, y);
+    expect((await page.locator('.column-drag-preview[data-lifted]').boundingBox())!.x).toBeCloseTo(from.x + distance, 0);
+    expect(await grid.evaluate(element => element.scrollLeft)).toBe(350);
+  }
+  expect(await page.evaluate(() => localStorage.getItem('arsenal.inventory-columns'))).toBeNull();
+  await expect(header(page, 'Recommended action')).toHaveAttribute('data-drop-edge', 'after');
+  await page.mouse.up();
+  await expect(layer).toHaveCount(0);
+  expect(await grid.evaluate(element => element.scrollLeft)).toBe(350);
+  await expect.poll(() => order(page)).toEqual([...equipmentOrder.slice(1, 7), 'name', 'craftingTarget']);
+  expect(JSON.stringify(await account.inventory())).toBe(saved);
+});
+
+test('neighbor columns slide smoothly, reverse on cancellation, and honor reduced motion', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1800, height: 900 });
+  await page.goto('/');
+  const saved = JSON.stringify(await account.inventory());
+  const from = (await header(page, 'Weapon').boundingBox())!;
+  const owned = (await header(page, 'Owned').boundingBox())!;
+  const x = from.x + 100, y = from.y + from.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 20, y);
+  const neighbor = page.locator('.column-drag-preview[data-column-key="owned"]');
+  const samples = neighbor.evaluate(async element => {
+    const positions: number[] = [], start = performance.now();
+    while (performance.now() - start < 250) {
+      positions.push(element.getBoundingClientRect().left);
+      await new Promise(requestAnimationFrame);
+    }
+    return positions;
+  });
+  await page.mouse.move(x + owned.width + 10, y);
+  expect((await samples).some(left => left > from.x + 2 && left < owned.x - 2)).toBe(true);
+  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(from.x, 0);
+  await page.mouse.move(x + 20, y);
+  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(owned.x, 0);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await expect(page.locator('.column-drag-layer')).toHaveCount(0);
+  await expect.poll(() => order(page)).toEqual(equipmentOrder);
+  expect(await page.evaluate(() => localStorage.getItem('arsenal.inventory-columns'))).toBeNull();
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + owned.width + 10, y);
+  expect(await neighbor.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0s');
+  expect((await neighbor.boundingBox())!.x).toBeCloseTo(from.x, 0);
+  await page.mouse.up();
+  await expect(page.locator('.column-drag-layer')).toHaveCount(0);
+  await expect.poll(() => order(page)).toEqual(['owned', 'name', ...equipmentOrder.slice(2)]);
+  expect(JSON.stringify(await account.inventory())).toBe(saved);
+});
+
 test.describe('touch column dragging', () => {
   test.use({ hasTouch: true });
   test('dragging from header text keeps capture and does not open the menu on release', async ({ page, context, browserName, account }) => {
@@ -183,60 +292,9 @@ test.describe('touch column dragging', () => {
     await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect.poll(() => order(page)).toEqual(['name', 'rank', 'owned', ...equipmentOrder.slice(3)]);
     await expect(menu(page)).toHaveCount(0);
+    await expect(page.locator('.column-drag-layer')).toHaveCount(0);
     await header(page, 'Rank').getByRole('button').tap();
     await expect(menu(page)).toBeVisible();
     await session.detach();
   });
-});
-
-test('drag previews slide headers and cells, cancel without saving, and respect reduced motion', async ({ page, account }) => {
-  await page.setViewportSize({ width: 1800, height: 900 });
-  await page.goto('/');
-  const saved = JSON.stringify(await account.inventory());
-  await page.getByRole('textbox', { name: 'Search weapons' }).fill('Boltor');
-  await page.evaluate(() => document.fonts.ready);
-  const source = header(page, 'Rank'), neighbor = header(page, 'Owned');
-  const sourceCell = page.locator('tbody tr').first().locator('[data-column-key="rank"]');
-  const neighborCell = page.locator('tbody tr').first().locator('[data-column-key="owned"]');
-  const from = (await source.boundingBox())!, to = (await neighbor.boundingBox())!;
-  const y = from.y + from.height / 2, endX = to.x + 12;
-  await page.evaluate(() => {
-    const transitions: string[] = [];
-    (window as Window & { columnTransitions: string[] }).columnTransitions = transitions;
-    document.querySelector('.inventory-grid')!.addEventListener('transitionrun', event => {
-      const cell = event.target as HTMLElement;
-      if ((event as TransitionEvent).propertyName === 'transform' && cell.dataset.columnKey === 'owned') transitions.push(cell.tagName);
-    });
-  });
-  const startDrag = async () => {
-    await page.mouse.move(from.x + from.width / 2, y);
-    await page.mouse.down();
-    await page.mouse.move(endX, y, { steps: 3 });
-    await expect(source).toHaveAttribute('data-dragging', 'true');
-  };
-  await startDrag();
-  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(to.x + from.width, 0);
-  expect((await source.boundingBox())!.x).toBeCloseTo(endX - from.width / 2, 0);
-  expect((await sourceCell.boundingBox())!.x).toBeCloseTo((await source.boundingBox())!.x, 0);
-  expect((await neighborCell.boundingBox())!.x).toBeCloseTo((await neighbor.boundingBox())!.x, 0);
-  const transitions = await page.evaluate(() => (window as Window & { columnTransitions: string[] }).columnTransitions);
-  expect(transitions).toContain('TH');
-  expect(transitions).toContain('TD');
-  expect(await order(page)).toEqual(equipmentOrder);
-  expect(await page.evaluate(() => localStorage.getItem('arsenal.inventory-columns'))).toBeNull();
-  await page.screenshot({ path: 'test-results/column-slide-preview.png' });
-  await page.keyboard.press('Escape');
-  await page.mouse.up();
-  await expect.poll(async () => (await source.boundingBox())!.x).toBeCloseTo(from.x, 0);
-  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(to.x, 0);
-  expect(await page.evaluate(() => localStorage.getItem('arsenal.inventory-columns'))).toBeNull();
-
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await startDrag();
-  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(to.x + from.width, 0);
-  expect(await neighbor.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0s');
-  await page.mouse.up();
-  await expect.poll(() => order(page)).toEqual(['name', 'rank', 'owned', ...equipmentOrder.slice(3)]);
-  expect(await page.locator('.inventory-grid').evaluate(element => element.getAnimations({ subtree: true }).some(animation => animation.playState === 'running'))).toBe(false);
-  expect(JSON.stringify(await account.inventory())).toBe(saved);
 });
