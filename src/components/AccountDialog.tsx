@@ -7,6 +7,7 @@ import { downloadFile } from '../lib/storage';
 
 type Props = {
   user: AccountUser | null;
+  initialMode: 'login' | 'register';
   canIncludeCurrent: boolean;
   dirty: boolean;
   onAuthenticate: (mode: 'login' | 'register', username: string, accessKey: string, includeCurrent: boolean) => Promise<string | undefined>;
@@ -15,8 +16,8 @@ type Props = {
   onClose: () => void;
 };
 
-export function AccountDialog({ user, canIncludeCurrent, dirty, onAuthenticate, onReplaceAccessKey, onSignOut, onClose }: Props) {
-  const [mode, setMode] = useState<'account' | 'login' | 'register' | 'key' | 'replace'>(user ? 'account' : 'login');
+export function AccountDialog({ user, initialMode, canIncludeCurrent, dirty, onAuthenticate, onReplaceAccessKey, onSignOut, onClose }: Props) {
+  const [mode, setMode] = useState<'account' | 'login' | 'register' | 'key' | 'replace'>(user ? 'account' : initialMode);
   const [username, setUsername] = useState(user?.username ?? ''), [credential, setCredential] = useState('');
   const [issuedKey, setIssuedKey] = useState(''), [keySaved, setKeySaved] = useState(false);
   const [includeCurrent, setIncludeCurrent] = useState(canIncludeCurrent);
@@ -88,7 +89,6 @@ export function AccountDialog({ user, canIncludeCurrent, dirty, onAuthenticate, 
       <label>Warframe username<input ref={usernameInput} name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={64} required value={username} readOnly={Boolean(user && dirty)} onChange={event => setUsername(event.target.value)} disabled={busy} /></label>
       {mode === 'login' ? <>
         <label>Access key<input name="accessKey" type="password" autoComplete="current-password" autoCapitalize="none" spellCheck={false} maxLength={128} required value={credential} onChange={event => setCredential(event.target.value)} disabled={busy} /></label>
-        <details className="account-legacy"><summary>Created an account with a password?</summary><p className="muted small">Enter your previous toolkit password in the access key field once to receive a generated key.</p></details>
       </> : <>
         <p className="muted small">We’ll generate an access key for you to save. No password or email is needed. If you lose your key and sign-in link, there is no email recovery.</p>
         {canIncludeCurrent && <label className="check-row"><input type="checkbox" checked={includeCurrent} onChange={event => setIncludeCurrent(event.target.checked)} disabled={busy} /><span>Save my current inventory and views to this account</span></label>}

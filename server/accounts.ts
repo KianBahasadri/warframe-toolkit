@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -8,29 +8,35 @@ import type { AccountProfile, AccountSession } from '../src/lib/account.ts';
 
 const cookieName = 'warframe_toolkit_session';
 const lifetime = 30 * 24 * 60 * 60 * 1000;
-const hashOptions = { N: 131072, r: 8, p: 1, maxmem: 160 * 1024 * 1024 };
-type AccountRow = { id: string; username: string; salt: string; password_hash: string; access_key_hash: string | null; profile: string; revision: number };
+type AccountRow = { id: string; username: string; access_key_hash: string | null; profile: string; revision: number };
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const newAccessKey = () => `wft_${randomBytes(32).toString('base64url')}`;
-// Only used to migrate accounts created before generated access keys were introduced.
-const passwordHash = (password: string, salt: string) => new Promise<Buffer>((resolve, reject) => scrypt(password, salt, 64, hashOptions, (error, result) => error ? reject(error) : resolve(result)));
 
 export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlite'), origin, now = Date.now }: { databasePath?: string; origin?: string; now?: () => number } = {}) {
-  let db: DatabaseSync | undefined, storageError = false, hashing = 0;
+  let db: DatabaseSync | undefined, storageError = false;
   const limits = new Map<string, { attempts: number; until: number }>();
   try {
     if (databasePath !== ':memory:') mkdirSync(dirname(databasePath), { recursive: true, mode: 0o700 });
     db = new DatabaseSync(databasePath);
     if (databasePath !== ':memory:') chmodSync(databasePath, 0o600);
     db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, salt TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL DEFAULT '', access_key_hash TEXT, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, access_key_hash TEXT NOT NULL, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS sessions_account ON sessions(account_id);`);
-    if (!db.prepare('PRAGMA table_info(accounts)').all().some(column => column.name === 'access_key_hash')) db.exec('ALTER TABLE accounts ADD COLUMN access_key_hash TEXT');
+    const columns = new Set(db.prepare('PRAGMA table_info(accounts)').all().map(column => column.name));
+    if (!columns.has('access_key_hash')) throw new Error('Account storage requires access keys.');
+    const retired = ['salt', 'password_hash'].filter(column => columns.has(column));
+    if (retired.length) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        for (const column of retired) db.exec(`ALTER TABLE accounts DROP COLUMN ${column}`);
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
+    }
   } catch { storageError = true; }
 
   function json(res: ServerResponse, status: number, value: unknown) {
@@ -65,17 +71,12 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
     if (limits.size > 10000 || keys.some(([key, max]) => (limits.get(key)?.attempts ?? 0) >= max)) throw new ApiError(429, 'Too many sign-in attempts. Try again in 15 minutes.');
     for (const [key] of keys) { const limit = limits.get(key) ?? { attempts: 0, until: now() + 15 * 60_000 }; limit.attempts++; limits.set(key, limit); }
   }
-  async function derive(password: string, salt: string) {
-    if (hashing >= 2) throw new ApiError(429, 'Sign-in is busy. Please try again shortly.');
-    hashing++;
-    try { return await passwordHash(password, salt); } finally { hashing--; }
-  }
   function replaceAccessKey(account: AccountRow, keepSession: string) {
     snapshot(account);
     const accessKey = newAccessKey();
     db!.exec('BEGIN IMMEDIATE');
     try {
-      db!.prepare("UPDATE accounts SET access_key_hash = ?, salt = '', password_hash = '' WHERE id = ?").run(digest(accessKey), account.id);
+      db!.prepare('UPDATE accounts SET access_key_hash = ? WHERE id = ?').run(digest(accessKey), account.id);
       db!.prepare('DELETE FROM sessions WHERE account_id = ? AND token_hash != ?').run(account.id, digest(keepSession));
       db!.exec('COMMIT');
     } catch (error) { db!.exec('ROLLBACK'); throw error; }
@@ -108,27 +109,18 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
         if (value.accessKey !== undefined || value.password !== undefined) throw new ApiError(400, 'Access keys are generated when you create an account.');
         const savedProfile = value.profile === undefined ? emptyProfile() : profile(value.profile);
         const accessKey = newAccessKey(), id = randomUUID();
-        const result = db.prepare("INSERT OR IGNORE INTO accounts (id, username, username_key, salt, password_hash, access_key_hash, profile) VALUES (?, ?, ?, '', '', ?, ?)").run(id, name.username, name.key, digest(accessKey), JSON.stringify(savedProfile));
+        const result = db.prepare('INSERT OR IGNORE INTO accounts (id, username, username_key, access_key_hash, profile) VALUES (?, ?, ?, ?, ?)').run(id, name.username, name.key, digest(accessKey), JSON.stringify(savedProfile));
         if (!result.changes) throw new ApiError(409, 'That username is already registered. Sign in instead.');
         json(res, 201, { ...signIn(req, res, db.prepare('SELECT * FROM accounts WHERE id = ?').get(id) as AccountRow), accessKey }); return;
       }
       const credential = value.accessKey;
       if (typeof credential !== 'string' || !credential.length || [...credential].length > 128) throw new ApiError(400, 'Enter your saved access key.');
       const account = db.prepare('SELECT * FROM accounts WHERE username_key = ?').get(name.key) as AccountRow | undefined;
-      let accessKey: string | undefined;
-      if (account && account.access_key_hash === null && /^[a-f0-9]{128}$/.test(account.password_hash) && /^[a-f0-9]{32}$/.test(account.salt)) {
-        const hash = await derive(credential, account.salt);
-        if (!timingSafeEqual(hash, Buffer.from(account.password_hash, 'hex'))) throw new ApiError(401, 'Username or access key is incorrect.');
-        const latest = db.prepare('SELECT access_key_hash, password_hash FROM accounts WHERE id = ?').get(account.id);
-        if (latest?.access_key_hash !== null || latest.password_hash !== account.password_hash) throw new ApiError(401, 'Username or access key is incorrect.');
-        accessKey = replaceAccessKey(account, '');
-      } else {
-        const hash = Buffer.from(digest(credential.trim()), 'hex');
-        const expected = account?.access_key_hash && /^[a-f0-9]{64}$/.test(account.access_key_hash) ? Buffer.from(account.access_key_hash, 'hex') : Buffer.alloc(32);
-        if (!timingSafeEqual(hash, expected) || !account || !isAccessKey(credential.trim())) throw new ApiError(401, 'Username or access key is incorrect.');
-      }
+      const hash = Buffer.from(digest(credential.trim()), 'hex');
+      const expected = account?.access_key_hash && /^[a-f0-9]{64}$/.test(account.access_key_hash) ? Buffer.from(account.access_key_hash, 'hex') : Buffer.alloc(32);
+      if (!timingSafeEqual(hash, expected) || !account || !isAccessKey(credential.trim())) throw new ApiError(401, 'Username or access key is incorrect.');
       limits.delete(`user:${name.key}`);
-      json(res, 200, { ...signIn(req, res, account!), ...(accessKey ? { accessKey } : {}) }); return;
+      json(res, 200, signIn(req, res, account)); return;
     }
     const account = session(req);
     if (account && value.accountId !== account.id) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');

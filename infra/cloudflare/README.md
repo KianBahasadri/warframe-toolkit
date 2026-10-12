@@ -99,8 +99,7 @@ the provider does not remove schedules when just deleting its cron resource.
 Local development still uses `.data/accounts.sqlite` and `.cache/drop-tables.json`.
 It needs no Cloudflare token. Local and hosted accounts are separate databases;
 local accounts are not silently uploaded or merged. The first deployment found
-no local accounts to migrate. Legacy password conversion remains available only
-on the local Node server; hosted accounts use generated access keys.
+no local accounts to migrate. Both local and hosted accounts use generated access keys.
 
 Cloudflare regression tests use isolated Miniflare D1/object storage and never
 touch the production database. Run `npm run test:cloudflare` for API, concurrency,

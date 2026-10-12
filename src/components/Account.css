@@ -1,3 +1,4 @@
+.account-actions { display: flex; align-items: center; gap: 8px; }
 .account-button { max-width: 220px; gap: 8px; }
 .account-button span { overflow: hidden; text-overflow: ellipsis; }
 .account-button svg { flex-shrink: 0; }
@@ -14,10 +15,8 @@
 .account-key-actions { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .account-key-actions .button { font-size: 12px; padding: 9px 12px; }
 .account-bookmark { font-size: 12px; color: var(--ink); text-underline-offset: 3px; }
-.account-legacy { color: var(--muted); font-size: 12px; }
-.account-legacy summary { cursor: pointer; }
-.account-legacy p { padding-top: 8px; }
 .account-username { font-size: 18px; overflow-wrap: anywhere; }
 .account-error-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .account-error-actions:empty { display: none; }
 @media (max-width: 700px) { .account-button { max-width: 180px; }.account-save-status { margin-bottom: 16px; } }
+@media (max-width: 600px) { .page-utilities .search-launcher { width: 36px; }.account-actions .button { font-size: 12px; padding: 9px 10px; } }

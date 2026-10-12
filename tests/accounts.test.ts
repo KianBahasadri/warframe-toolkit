@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { createHash, scryptSync } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -48,9 +48,9 @@ test('accounts use normalized usernames and generated access keys, with private 
     assert.equal(login.status, 200); assert.notEqual(cookieOf(login), cookie);
     assert.deepEqual(await (await api.request('session', undefined, cookie)).json(), { user: null });
     const db = new DatabaseSync(path);
-    const stored = db.prepare('SELECT salt, password_hash, access_key_hash FROM accounts').get()!;
+    const stored = db.prepare('SELECT access_key_hash FROM accounts').get()!;
     assert.equal(stored.access_key_hash, digest(accessKey));
-    assert.equal(stored.password_hash, ''); assert.equal(stored.salt, '');
+    assert.equal(db.prepare('PRAGMA table_info(accounts)').all().some(row => ['salt', 'password_hash'].includes(String(row.name))), false);
     assert.equal(JSON.stringify(db.prepare('SELECT * FROM accounts').all()).includes(accessKey), false);
     assert.equal((await api.request('login', { username: 'MyTenno#123', accessKey: digest(accessKey) })).status, 401);
     assert.equal((await login.json()).accessKey, undefined);
@@ -158,30 +158,30 @@ test('replacing an access key preserves saves and revokes the old key and other 
   } finally { await api.close(); }
 });
 
-test('old password accounts migrate once without resetting their profile or revision', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'warframe-legacy-auth-'));
+test('removing retired credential columns preserves access keys, profiles, revisions and sessions', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'warframe-schema-'));
   const path = join(directory, 'accounts.sqlite');
-  const password = 'a previous toolkit password', salt = 'a'.repeat(32);
-  const passwordHash = scryptSync(password, salt, 64, { N: 131072, r: 8, p: 1, maxmem: 160 * 1024 * 1024 }).toString('hex');
+  const accessKey = `wft_${'x'.repeat(43)}`, sessionToken = 's'.repeat(43);
   const profile = emptyProfile();
-  profile.inventory.items.push(createEquipment({ name: 'Boltor Prime', slot: 'Primary', variant: 'Prime' }, { owned: true, rank: 7, notes: 'Preserve old account' }));
+  profile.inventory.items.push(createEquipment({ name: 'Boltor Prime', slot: 'Primary', variant: 'Prime' }, { owned: true, rank: 7, notes: 'Preserve existing account' }));
   const db = new DatabaseSync(path);
-  db.exec('CREATE TABLE accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, salt TEXT NOT NULL, password_hash TEXT NOT NULL, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0)');
-  db.prepare('INSERT INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?)').run('old-id', 'OldTenno', 'oldtenno', salt, passwordHash, JSON.stringify(profile), 9);
+  db.exec(`CREATE TABLE accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, salt TEXT NOT NULL, password_hash TEXT NOT NULL, access_key_hash TEXT, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL)`);
+  db.prepare('INSERT INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('existing-id', 'ExistingTenno', 'existingtenno', 'retired salt', 'retired hash', digest(accessKey), JSON.stringify(profile), 9);
+  db.prepare('INSERT INTO sessions VALUES (?, ?, ?)').run(digest(sessionToken), 'existing-id', Date.now() + 60_000);
   db.close();
   const api = await serve(path);
   try {
-    assert.equal((await api.request('login', { username: 'OldTenno', accessKey: 'wrong' })).status, 401);
-    const results = await Promise.all([api.request('login', { username: 'OldTenno', accessKey: password }), api.request('login', { username: 'OldTenno', accessKey: password })]);
-    assert.deepEqual(results.map(result => result.status).sort(), [200, 401]);
-    const migrated = await results.find(result => result.status === 200)!.json();
-    assert.equal(isAccessKey(migrated.accessKey), true);
-    assert.deepEqual(migrated.profile, profile); assert.equal(migrated.revision, 9); assert.equal(migrated.user.id, 'old-id');
-    assert.equal((await api.request('login', { username: 'OldTenno', accessKey: password })).status, 401);
-    assert.equal((await api.request('login', { username: 'OldTenno', accessKey: migrated.accessKey })).status, 200);
+    const expected = { user: { id: 'existing-id', username: 'ExistingTenno' }, profile, revision: 9 };
+    assert.deepEqual(await (await api.request('session', undefined, `warframe_toolkit_session=${sessionToken}`)).json(), expected);
+    const login = await api.request('login', { username: 'ExistingTenno', accessKey });
+    assert.equal(login.status, 200); assert.deepEqual(await login.json(), expected);
+    assert.equal((await api.request('login', { username: 'ExistingTenno', accessKey: 'a previous toolkit password' })).status, 401);
+    assert.equal((await api.request('register', { username: 'NewTenno' })).status, 201);
     const read = new DatabaseSync(path);
-    const row = read.prepare('SELECT * FROM accounts').get()!;
-    assert.equal(row.password_hash, ''); assert.equal(row.salt, ''); assert.equal(row.access_key_hash, digest(migrated.accessKey));
+    assert.equal(read.prepare('PRAGMA table_info(accounts)').all().some(row => ['salt', 'password_hash'].includes(String(row.name))), false);
+    assert.equal(read.prepare('SELECT access_key_hash FROM accounts WHERE id = ?').get('existing-id')!.access_key_hash, digest(accessKey));
+    assert.equal(read.prepare('PRAGMA foreign_key_check').all().length, 0);
     read.close();
   } finally { await api.close(); await rm(directory, { recursive: true }); }
 });

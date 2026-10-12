@@ -64,11 +64,11 @@ export function useAccount() {
     try {
       const response = await request(mode, { username, ...(mode === 'login' ? { accessKey } : includeCurrent ? { profile: before.profile } : {}) });
       const result = checkedSession(response);
-      if ((mode === 'register' || response.accessKey !== undefined) && !isAccessKey(response.accessKey)) throw new Error('Could not read your new access key. Reopen the app and replace the key from Account.');
+      if (mode === 'register' && !isAccessKey(response.accessKey)) throw new Error('Could not read your new access key. Reopen the app and replace the key from Account.');
       if (!before.user) guest.current = before;
       if (before.user?.id === result.user.id && before.dirty) { update({ user: result.user, error: '', checking: false }); await save(); }
       else update({ ...result, checking: false, dirty: false, saving: false, error: '', viewsError: '', unreadable: false });
-      return response.accessKey;
+      return mode === 'register' ? response.accessKey : undefined;
     } finally { authenticating.current = false; update({ checking: false }); }
   }, [save, update]);
 

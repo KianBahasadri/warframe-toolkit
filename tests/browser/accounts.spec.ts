@@ -9,16 +9,18 @@ const status = (page: Page) => page.getByRole('status', { name: 'Save status', e
 async function openGuest(page: Page) {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Create account', exact: true })).toBeEnabled();
   await expect(status(page)).toHaveCount(0);
 }
 async function register(page: Page, username: string, open = true) {
-  if (open) await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Create account', exact: true }).click();
+  if (open) await page.getByRole('button', { name: 'Create account', exact: true }).click();
+  else await page.getByRole('dialog').getByRole('button', { name: 'Create account', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Create account', exact: true });
   await dialog.getByLabel('Warframe username', { exact: true }).fill(username);
   await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
   const credentials = await saveKey(page);
   await expect(status(page)).toHaveText('Saved');
+  await expect(page.getByRole('button', { name: 'Create account', exact: true })).toHaveCount(0);
   return credentials;
 }
 async function saveKey(page: Page) {
@@ -75,6 +77,7 @@ test.describe('guest accounts', () => {
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Sign in', exact: true })).toBeVisible();
     await expect(page.locator('input[type=email]')).toHaveCount(0);
+    await expect(page.getByText('Created an account with a password?')).toHaveCount(0);
   });
 
   test('signup copies reviewed legacy data, preserves originals, and keeps access keys out of browser storage', async ({ page, context, account }) => {
@@ -150,6 +153,7 @@ test.describe('guest accounts', () => {
     });
     await page.goto('/#droptables');
     await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Create account', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Saved views', exact: true }).click();
     await page.getByRole('button', { name: 'Sign in to save view', exact: true }).click();
     await register(page, 'SlowSessionTenno', false);
@@ -168,6 +172,16 @@ test.describe('guest accounts', () => {
     await openGuest(page);
     const trigger = page.getByRole('button', { name: 'Sign in', exact: true });
     for (const theme of ['dark', 'light']) {
+      const create = page.getByRole('button', { name: 'Create account', exact: true });
+      const signInBounds = (await trigger.boundingBox())!, createBounds = (await create.boundingBox())!;
+      expect(createBounds.x).toBeGreaterThan(signInBounds.x + signInBounds.width);
+      expect(createBounds.y).toBe(signInBounds.y);
+      expect(createBounds.x + createBounds.width).toBeLessThanOrEqual(320);
+      await create.focus(); await page.keyboard.press('Enter');
+      await expect(page.getByRole('dialog')).toHaveAccessibleName('Create account');
+      await expect(page.getByLabel('Warframe username', { exact: true })).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(create).toBeFocused();
       await trigger.focus(); await page.keyboard.press('Enter');
       const dialog = page.getByRole('dialog');
       await expect(dialog.getByLabel('Warframe username', { exact: true })).toBeFocused();
