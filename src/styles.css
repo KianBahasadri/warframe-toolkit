@@ -189,10 +189,10 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .inventory-table .crafting-cell, .inventory-table .catalog-fact { color: var(--table-ink); font-size: inherit; }
 .inventory-table .table-secondary, .inventory-table .table-missing { color: var(--table-muted); }
 .inventory-table .recommended-action { cursor: help; }
-.table-notes { display: block; width: 100%; min-height: 44px; padding: 8px 0; border: 0; border-radius: 4px; background: transparent; font: inherit; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; }
-.table-notes:hover { color: var(--ink-strong); }
-.inventory-table .table-notes-input { display: block; width: 100%; min-height: 96px; margin: 8px 0; border-color: transparent; background: var(--surface); }
-.inventory-table .table-notes-input:hover { background: var(--surface-raised); border-color: transparent; }
+.table-notes { display: block; width: 100%; min-height: 44px; margin: 4px 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font: 400 14px/1.5 var(--ui); text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.table-notes:active:not(:disabled) { transform: none; }
+.inventory-table .table-notes-input { display: block; width: 100%; min-height: 96px; margin: 8px 0; border-color: var(--line); background: var(--surface); cursor: text; }
+.table-notes:hover, .inventory-table .table-notes-input:hover { background: var(--surface-raised); border-color: var(--line-strong); }
 @media (min-width: 760px) {
   .inventory-grid { scroll-padding-left: var(--first-column-width, 360px); }
   .inventory-table th:first-child, .inventory-table td:first-child { position: sticky; left: 0; z-index: 2; background: var(--canvas); }
