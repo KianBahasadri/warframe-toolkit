@@ -53,6 +53,8 @@ export const test = base.extend<{ account: TestAccount; signedIn: boolean }>({
       });
     } finally {
       await page.close();
+      // A route.fetch can outlive the page. Finish it before stopping its backend.
+      await context.unrouteAll({ behavior: 'wait' });
       if (server) {
         server.closeAllConnections();
         await new Promise<void>(resolve => server.close(() => resolve()));

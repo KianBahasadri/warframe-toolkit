@@ -62,6 +62,8 @@ test('inventory edits persist, full fields are available, and equipment can be a
   await page.getByRole('button', { name: 'Add weapon', exact: true }).last().click();
   await page.getByRole('link', { name: 'Warframes' }).click();
   await expect(page.getByRole('button', { name: 'Edit Wisp Prime' })).toBeVisible();
+  await waitForSave(page); await page.reload(); await waitForSave(page);
+  await expect(page.getByRole('button', { name: 'Edit Wisp Prime' })).toBeVisible();
   await page.screenshot({ path: 'test-results/warframes.png', fullPage: true });
   expect(errors).toEqual([]);
 });
