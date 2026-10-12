@@ -48,6 +48,83 @@ temporary Wrangler config and applies pending migrations with rollback on error.
 Wrangler only executes SQL here. It does not create infrastructure or deploy code.
 Changes to schema files or the migration runner retrigger this step.
 
+The two SQLite Durable Object namespaces were created in migration `v1`.
+Normal updates send `old_tag = "v1"` and `new_tag = "v1"` without creation
+steps. The provider replays the migrations block on every Worker upload, so
+leaving initial `new_sqlite_classes` declarations there breaks subsequent
+deployments. Treat future namespace changes as explicit Terraform migrations;
+never recreate a namespace to fix a migration-tag error.
+
+## Automatic deployment
+
+`.github/workflows/deploy.yml` runs on every push to `main` and can also be run
+manually from that branch. It uses a standard `ubuntu-24.04` runner, pinned
+checkout/setup actions, Node 26.11.1, and `npm ci`. Unit tests, Cloudflare runtime
+tests, local account browser tests, the full D1 browser suite, and the production
+build must all pass before deployment credentials are provided to the deploy
+step. No build artifacts, state, or plans are uploaded to GitHub storage.
+
+`scripts/deploy.mjs` initializes the remote backend, checks that state contains
+the existing production identities, validates Terraform, then plans and applies
+the exact saved plan. Infrastructure deletion or replacement stops automatic
+deployment; SQL migration runner replacements are allowed. It checks the live
+release, frontend, and guest account endpoint after applying. GitHub serializes
+deployments without interrupting an active apply; the remote state lock also
+coordinates with local Terraform runs. Multiple queued pushes can coalesce to
+the latest pending commit, so intermediate commits are not guaranteed a separate
+deployment. Local commits alone do not trigger a deployment.
+
+**Activation is pending:** GitHub CLI authentication is not available in this
+development box, the current Cloudflare token lacks R2 access, and state is still
+local. The workflow and R2 configuration are prepared, but automatic production
+deployment has not been enabled or run on GitHub. Do not push an active deployment
+workflow expecting it to work until the following state migration is complete.
+
+The R2 option is defined in `state.tf.example` and `backend.tf.example`. It uses
+one private Standard-storage bucket, with public `r2.dev` access disabled and
+Terraform `prevent_destroy`. All infrastructure is created through Terraform.
+No paid Workers or D1 subscription is enabled by these files.
+
+1. Accept R2's possible overage billing and enable R2 on the Cloudflare account.
+   Add Account **Workers R2 Storage: Edit** to the scoped Cloudflare token in
+   `.env`. Do not create the bucket manually.
+2. Copy `state.tf.example` to `state.tf`, review a normal Terraform plan, and apply
+   it using the existing local state. This creates the private state bucket.
+3. Create R2 **Object Read & Write** credentials scoped only to
+   `warframe-toolkit-terraform`. Add the access key ID as `AWS_ACCESS_KEY_ID` and
+   secret access key as `AWS_SECRET_ACCESS_KEY` to private `.env`. These variable
+   names come from Terraform's S3 backend; no Amazon account is involved.
+4. Keep a private backup of the existing local state. Copy `backend.tf.example`
+   to `backend.tf`, then run `npm run infra -- init -migrate-state` and confirm
+   migration of that existing state to the new bucket. Do not use `-reconfigure`
+   to migrate and do not start from empty state. Run a plan to verify no changes.
+   Commit both activated `.tf` files. Never commit credentials, state or plans.
+5. Authenticate `gh auth login --scopes workflow` inside `node-dev`. The workflow
+   declares the `production` environment and limits deployments to `main` in
+   the public repository. Set these repository secrets from private input:
+   `CLOUDFLARE_API_TOKEN`, `TERRAFORM_STATE_ACCESS_KEY_ID` (the R2 access key ID),
+   and `TERRAFORM_STATE_SECRET_ACCESS_KEY` (the R2 secret access key).
+6. Push to `main` and check the first workflow run and production verification.
+
+The R2 S3 backend uses `use_lockfile = true`; do not disable locking to bypass a
+failed deployment. Only force-unlock after confirming that the owning Terraform
+process has stopped. R2 does not provide S3 object versioning: retain a private
+state backup before manual infrastructure changes or recovery. Never store state
+in a public repository, GitHub Actions artifact, or dependency cache.
+
+**Costs:** this repository is public, so standard GitHub-hosted Actions runners
+are [free](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+The workflow stops if the repository becomes private, since private repositories
+have different billing. It does not configure paid runners or artifact/cache storage. R2
+Standard includes 10 GB-month storage, 1 million Class A operations and 10 million
+Class B operations monthly; this roughly 28 KB state should use a small fraction.
+However, [R2 bills usage beyond its free allowance](https://developers.cloudflare.com/r2/pricing/)
+and the allowance is shared across the account. It is not an unconditional
+zero-billing guarantee. The existing app's Free-plan quotas are listed below.
+
+See [Cloudflare's Terraform backend guide](https://developers.cloudflare.com/terraform/advanced-topics/remote-backend/)
+and [Terraform state locking](https://developer.hashicorp.com/terraform/language/backend/s3#state-locking).
+
 ## Runtime and limits
 
 Static assets use Workers Static Assets, with only `/api/*` invoking the Worker.
@@ -115,3 +192,12 @@ first scheduled production fetch loaded 43,367 entries at 22:21:11 UTC, and
 conditional reads returned 304. Live desktop/mobile browsing, game artwork and
 timezone display passed without JavaScript errors. A final Terraform plan
 reported no changes.
+
+The subsequent account cleanup passed 70 Node tests, 4 Cloudflare runtime tests,
+53 D1 browser tests and 14 local account browser tests, plus the production build.
+The account changes are live; desktop/mobile checks confirmed both guest account
+buttons and direct signup, with no page errors. Terraform updated the Worker
+without changing either Durable Object namespace ID, and a final plan reported
+no changes. Actionlint, deployment-guard tests, and validation of the proposed
+R2 configuration passed locally. A real GitHub workflow run remains pending the
+activation steps above.

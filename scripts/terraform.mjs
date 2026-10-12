@@ -21,6 +21,9 @@ try { await access(binary); } catch {
 }
 const args = process.argv.slice(2);
 if (!args.length) throw new Error('Usage: npm run infra -- init|validate|plan|apply|output|...');
+// Backend credentials are needed during init as well as plan/apply. Keep them
+// in the environment; -backend-config would copy them into plans and metadata.
+try { process.loadEnvFile('.env'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
 if (!['fmt', 'validate', 'version', 'init'].includes(args[0])) {
   loadCredentials();
   const hostname = process.env.TF_VAR_hostname || 'bahasadri.com';

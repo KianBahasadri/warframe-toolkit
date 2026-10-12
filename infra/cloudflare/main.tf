@@ -110,8 +110,11 @@ resource "cloudflare_workers_script" "app" {
     { name = "RELEASE", type = "plain_text", text = var.release },
   ]
   migrations = {
-    new_tag            = "v1"
-    new_sqlite_classes = ["AccountGateway", "DropTables"]
+    # Both SQLite namespaces were provisioned by v1. The provider sends this
+    # block on every update, so later uploads must preserve the existing tag
+    # without replaying namespace creation.
+    old_tag = "v1"
+    new_tag = "v1"
   }
   depends_on = [terraform_data.schema]
   lifecycle { prevent_destroy = true }
