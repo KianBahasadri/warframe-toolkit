@@ -290,6 +290,61 @@ test('quantity popup supports typed entry, native keys, and follows the thumb du
   await expect(node.getByRole('checkbox', { name: 'Completed: Ferrite', exact: true })).toBeChecked();
 });
 
+test('slider arrows add rounded gather quantities, commit once, and save progress', async ({ page, account }) => {
+  await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
+  const node = page.locator('.craft-branch[data-item="Rhino Chassis"]');
+  const slider = node.getByRole('slider', { name: 'Completed quantity for Ferrite', exact: true });
+  const arrow = node.getByRole('button', { name: 'Add 100 completed Ferrite', exact: true });
+  await slider.evaluate(element => {
+    element.dataset.changes = '0';
+    element.addEventListener('change', () => { element.dataset.changes = String(Number(element.dataset.changes) + 1); });
+  });
+  await arrow.focus(); await expect(page.getByRole('tooltip', { name: '+100 completed', exact: true })).toBeVisible();
+  const track = (await slider.boundingBox())!, control = (await arrow.boundingBox())!;
+  expect(control.x).toBeGreaterThanOrEqual(track.x + track.width);
+  expect(control.width).toBeGreaterThanOrEqual(44); expect(control.height).toBeGreaterThanOrEqual(44);
+  await arrow.press('Enter');
+  await expect(slider).toHaveValue('100'); await expect(slider).toHaveAttribute('data-changes', '1');
+  await arrow.press('Space'); await expect(slider).toHaveValue('200');
+  expect(Object.values((await account.profile()).craftingPlans[0].progress!)).toEqual([200]);
+  await page.reload(); await expect(slider).toHaveValue('200');
+  await page.getByRole('button', { name: 'Add 20 completed Alloy Plate', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Completed quantity for Alloy Plate', exact: true })).toHaveValue('20');
+  const rare = page.locator('.craft-branches > .craft-branch[data-item="Neurodes"]');
+  await rare.getByRole('button', { name: 'Add 1 completed Neurodes', exact: true }).click();
+  await expect(rare).not.toBeVisible();
+  await expect(page.locator('summary[aria-label="Completed ingredients for Rhino"]')).toBeFocused();
+  await expect(page.getByRole('slider', { name: 'Completed quantity for Neurodes', exact: true })).toHaveValue('0');
+});
+
+test('slider arrows use each recipe output and clamp the last Foundry batch', async ({ page, account }) => {
+  await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
+  const before = (await account.profile()).inventory;
+  await add(page, 'Gara');
+  const slider = page.getByRole('slider', { name: 'Completed quantity for Pyrotic Alloy', exact: true });
+  await expect(slider).toHaveAttribute('max', '90');
+  const arrow = page.getByRole('button', { name: 'Add 20 completed Pyrotic Alloy', exact: true });
+  await arrow.hover(); await expect(page.getByRole('tooltip')).toHaveText('+20 · 20 per Foundry build');
+  await arrow.click(); await expect(slider).toHaveValue('20');
+  await expect(page.getByRole('slider', { name: 'Completed quantity for Pyrol', exact: true })).toHaveAttribute('max', '80');
+  await slider.focus(); await slider.press('Enter');
+  const field = page.getByRole('textbox', { name: 'Completed quantity for Pyrotic Alloy value', exact: true });
+  await field.fill('85'); await field.press('Enter');
+  await page.getByRole('button', { name: 'Add 5 completed Pyrotic Alloy', exact: true }).click();
+  await expect(slider).not.toBeVisible();
+  await expect(page.locator('.craft-completed-group').filter({ hasText: 'Pyrotic Alloy' }).locator('summary')).toBeFocused();
+  await add(page, 'Pyrotic Alloy');
+  const quantity = page.getByRole('spinbutton', { name: 'Craft quantity', exact: true });
+  await quantity.fill('25'); await quantity.press('Enter');
+  await page.getByRole('button', { name: 'Add 20 completed Pyrotic Alloy', exact: true }).click();
+  await expect(slider).toHaveValue('20');
+  await page.getByRole('button', { name: 'Add 5 completed Pyrotic Alloy', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Completed: Pyrotic Alloy', exact: true })).toBeChecked();
+  const profile = await account.profile();
+  expect(profile.craftingPlans.at(-1)?.progress?.root).toBe(25);
+  expect(profile.inventory).toEqual(before);
+});
+
 test('source labels and quantity popups fit mobile themes and completed groups stay compact', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 800 });
   await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
@@ -321,10 +376,13 @@ test.describe('touch crafting', () => {
     const field = page.getByRole('textbox', { name: 'Completed quantity for Alloy Plate value', exact: true });
     await expect(field).toBeFocused(); await field.fill('75'); await field.press('Enter');
     await expect(slider).toHaveValue('75');
+    await page.getByRole('button', { name: 'Add 20 completed Alloy Plate', exact: true }).tap();
+    await expect(slider).toHaveValue('95');
     await slider.scrollIntoViewIfNeeded();
     const bounds = (await slider.boundingBox())!;
-    await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-    await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    const thumbX = bounds.x + 9 + 95 / 150 * (bounds.width - 18);
+    await page.touchscreen.tap(thumbX, bounds.y + bounds.height / 2);
+    await page.touchscreen.tap(thumbX, bounds.y + bounds.height / 2);
     await expect(field).toBeFocused(); await field.fill('150');
     await page.getByRole('heading', { name: 'Crafting', exact: true }).tap();
     await expect(slider).not.toBeVisible();

@@ -1,11 +1,13 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { ArrowRight } from 'lucide-react';
+import { Tooltip } from './Tooltip';
 import './QuantitySlider.css';
 
 const format = (value: number) => value.toLocaleString();
 
-export function QuantitySlider({ name, value, max, disabled, onChange }: { name: string; value: number; max: number; disabled: boolean; onChange: (value: number) => void }) {
+export function QuantitySlider({ name, value, max, batchSize, disabled, onChange }: { name: string; value: number; max: number; batchSize?: number; disabled: boolean; onChange: (value: number) => void }) {
   const id = useId(), slider = useRef<HTMLInputElement>(null), popup = useRef<HTMLDivElement>(null), editor = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(value), [dragging, setDragging] = useState(false), [editing, setEditing] = useState(false), [text, setText] = useState('');
   const live = useRef(value), editingRef = useRef(false), latest = useRef({ value, max, disabled, onChange });
@@ -14,6 +16,10 @@ export function QuantitySlider({ name, value, max, disabled, onChange }: { name:
   const click = useRef<{ time: number; x: number } | null>(null);
   const label = `Completed quantity for ${name}`;
   const shown = editing || dragging;
+  // Gathered materials use a nearby 1/2/5 step around one tenth of the total.
+  const target = max / 10, magnitude = 10 ** Math.floor(Math.log10(target));
+  const increment = batchSize ?? Math.max(1, [1, 2, 5, 10].map(scale => scale * magnitude).reduce((best, step) => Math.abs(step - target) <= Math.abs(best - target) ? step : best));
+  const remainingIncrement = Math.min(increment, max - draft);
   useEffect(() => { if (!drag.current && !editingRef.current) { live.current = value; setDraft(value); } }, [value, max]);
 
   const geometry = () => {
@@ -104,10 +110,13 @@ export function QuantitySlider({ name, value, max, disabled, onChange }: { name:
 
   return <div className={`quantity-slider${disabled ? ' is-disabled' : ''}`}>
     <div className="quantity-slider-heading"><label htmlFor={id}>Completed</label><button type="button" className="quantity-slider-value" aria-label={`Set completed quantity for ${name}`} aria-haspopup="dialog" disabled={disabled} onClick={openEditor}><output htmlFor={id}>{format(draft)} / {format(max)}</output></button></div>
-    <input ref={slider} id={id} type="range" className="quantity-range" min={0} max={max} step={1} value={draft} disabled={disabled} aria-label={label} aria-valuetext={`${format(draft)} of ${format(max)} completed`} aria-describedby={`${id}-help`} style={{ '--range-progress': `${draft / max * 100}%` } as CSSProperties}
-      onChange={() => {}} onInput={event => { live.current = Number(event.currentTarget.value); setDraft(live.current); if (!drag.current && !editingRef.current) commit(); }}
-      onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}
-      onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); openEditor(); } }} />
+    <div className="quantity-slider-row">
+      <input ref={slider} id={id} type="range" className="quantity-range" min={0} max={max} step={1} value={draft} disabled={disabled} aria-label={label} aria-valuetext={`${format(draft)} of ${format(max)} completed`} aria-describedby={`${id}-help`} style={{ '--range-progress': `${draft / max * 100}%` } as CSSProperties}
+        onChange={() => {}} onInput={event => { live.current = Number(event.currentTarget.value); setDraft(live.current); if (!drag.current && !editingRef.current) commit(); }}
+        onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}
+        onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); openEditor(); } }} />
+      <Tooltip className="icon-button quantity-increment" label={`Add ${format(remainingIncrement)} completed ${name}`} content={`+${format(remainingIncrement)}${batchSize ? ` · ${format(batchSize)} per Foundry build` : ' completed'}`} disabled={disabled || dragging || draft >= max} onClick={() => { if (!disabled && !drag.current && !editingRef.current) write(live.current + increment); }}><ArrowRight size={16} aria-hidden="true" /></Tooltip>
+    </div>
     <span id={`${id}-help`} className="sr-only">Double-click the thumb, press Enter, or activate the quantity to type a value.</span>
     {shown && createPortal(<div ref={popup} className={`quantity-popup${editing ? ' is-editing' : ''}`} role={editing ? 'dialog' : undefined} aria-label={editing ? label : undefined} aria-hidden={editing ? undefined : true}>
       <input ref={editor} type="text" inputMode="decimal" autoComplete="off" spellCheck={false} aria-label={`${label} value`} value={editing ? text : String(draft)} readOnly={!editing} tabIndex={editing ? 0 : -1} style={{ width: `${Math.max(4, String(max).length + 1)}ch` }} onChange={event => setText(event.target.value)} onBlur={() => closeEditor(true)} onKeyDown={event => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeEditor(event.key === 'Enter'); } }} />

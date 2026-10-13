@@ -3,12 +3,12 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './Tooltip.css';
 
-export function Tooltip({ children, content, className = '', label, onClick, hasPopup }: { children: ReactNode; content: ReactNode; className?: string; label?: string; onClick?: () => void; hasPopup?: boolean }) {
+export function Tooltip({ children, content, className = '', label, onClick, hasPopup, disabled = false }: { children: ReactNode; content: ReactNode; className?: string; label?: string; onClick?: () => void; hasPopup?: boolean; disabled?: boolean }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null), bubble = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false);
   const [dismissed, setDismissed] = useState(false), [open, setOpen] = useState(false);
-  const active = hovered || focused;
+  const active = !disabled && (hovered || focused);
   useEffect(() => {
     if (!active || dismissed) { setOpen(false); return; }
     const timer = window.setTimeout(() => setOpen(true), 150);
@@ -43,7 +43,7 @@ export function Tooltip({ children, content, className = '', label, onClick, has
     };
   }, [open, content]);
   return <>
-    <button ref={trigger} type="button" className={`tooltip-trigger ${className}`} aria-label={label} aria-haspopup={hasPopup ? 'dialog' : undefined} aria-describedby={open ? id : undefined} onClick={onClick ? () => { setDismissed(true); setOpen(false); onClick(); } : undefined}
+    <button ref={trigger} type="button" className={`tooltip-trigger ${className}`} disabled={disabled} aria-label={label} aria-haspopup={hasPopup ? 'dialog' : undefined} aria-describedby={open ? id : undefined} onClick={onClick ? () => { setDismissed(true); setOpen(false); onClick(); } : undefined}
       onPointerEnter={event => { if (event.pointerType !== 'touch') { setHovered(true); setDismissed(false); } }} onPointerLeave={() => setHovered(false)}
       onFocus={() => { setFocused(true); setDismissed(false); }} onBlur={() => setFocused(false)}>
       {children}
