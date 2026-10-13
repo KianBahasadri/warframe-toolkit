@@ -1,7 +1,7 @@
-import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Clock3, Info, ListChecks, MapPin, Plus, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { craftingDataSources, craftingDate, craftingItems } from '../data/crafting';
-import { buildCraftingTree, checkCraftingNode, chooseCraftingRecipe, craftingDuration, craftingSummary, MAX_CRAFTING_PLANS } from '../lib/crafting';
+import { buildCraftingTree, checkCraftingNode, chooseCraftingRecipe, craftingDuration, craftingSummary, setCraftingProgress, MAX_CRAFTING_PLANS } from '../lib/crafting';
 import type { CraftingItem, CraftingNode, CraftingPlan } from '../lib/crafting';
 import { Dialog } from './Dialog';
 import { Select } from './Select';
@@ -9,6 +9,8 @@ import { useToasts } from './Toasts';
 import { CraftingArtwork } from './CraftingArtwork';
 import { CraftingDetails } from './CraftingDetails';
 import { Currency, CurrencySymbol } from './Currency';
+import { QuantitySlider } from './QuantitySlider';
+import { Tooltip } from './Tooltip';
 import './Crafting.css';
 
 const number = (value: number) => value.toLocaleString();
@@ -35,29 +37,55 @@ function ItemPicker({ onPick, disabled }: { onPick: (item: CraftingItem) => void
 }
 
 function RecipeCost({ node }: { node: CraftingNode }) {
-  return node.recipe ? <div className="craft-cost"><span title="Time per build"><Clock3 size={13} />{craftingDuration(node.recipe.seconds)}</span><span title="Build credits for this quantity">{node.recipe.credits === null ? 'Cost unknown' : <Currency value={node.recipe.credits * node.batches} currency="credits" />}</span>{node.batches > 1 && <span>{number(node.batches)} builds</span>}{node.recipe.quantity > 1 && <span>{number(node.recipe.quantity)} / build</span>}</div> : null;
+  return node.recipe ? <div className="craft-cost"><span title="Time per build"><Clock3 size={13} />{craftingDuration(node.recipe.seconds)}</span><span title="Build credits remaining">{node.recipe.credits === null ? 'Cost unknown' : <Currency value={node.recipe.credits * node.batches} currency="credits" />}</span>{node.batches > 1 && <span>{number(node.batches)} builds</span>}{node.recipe.quantity > 1 && <span>{number(node.recipe.quantity)} / build</span>}</div> : null;
 }
 
-type NodeActions = { onCheck: (key: string, checked: boolean) => void; onChoice: (key: string, choice: string) => void; onDetails: (node: CraftingNode) => void; disabled: boolean };
+type NodeActions = { onCheck: (key: string, checked: boolean, quantity: number) => void; onProgress: (key: string, amount: number, quantity: number) => void; onChoice: (key: string, choice: string) => void; onDetails: (node: CraftingNode) => void; disabled: boolean };
+
+function SourceButton({ node, onClick }: { node: CraftingNode; onClick: () => void }) {
+  const text = node.item.location || 'Source details';
+  return <Tooltip className="button quiet craft-source-button" label={`Sources for ${node.item.name}: ${text}`} content={text} hasPopup onClick={onClick}><MapPin size={14} aria-hidden="true" /><span>{text}</span></Tooltip>;
+}
+
+function IngredientList({ nodes, actions, parent, nested = false, id, hidden }: { nodes: CraftingNode[]; actions: NodeActions; parent: string; nested?: boolean; id?: string; hidden?: boolean }) {
+  const list = useRef<HTMLUListElement>(null), summary = useRef<HTMLElement>(null);
+  const focus = useRef<{ key: string; completed: boolean } | null>(null);
+  const completed = nodes.filter(node => node.completed);
+  const rememberFocus = (key: string, done: boolean) => { if (nodes.some(node => node.key === key && node.completed !== done)) focus.current = { key, completed: done }; };
+  const localActions: NodeActions = { ...actions,
+    onCheck: (key, checked, quantity) => { rememberFocus(key, checked); actions.onCheck(key, checked, quantity); },
+    onProgress: (key, amount, quantity) => { rememberFocus(key, amount === quantity); actions.onProgress(key, amount, quantity); },
+  };
+  useLayoutEffect(() => {
+    if (!focus.current) return;
+    const target = focus.current; focus.current = null;
+    if (target.completed) summary.current?.focus({ preventScroll: true });
+    else list.current?.querySelector<HTMLInputElement>(`[data-node-key="${CSS.escape(target.key)}"] .craft-check input`)?.focus({ preventScroll: true });
+  }, [nodes]);
+  return <ul ref={list} id={id} className={nested ? 'craft-children' : 'craft-branches'} hidden={hidden}>
+    {nodes.filter(node => !node.completed).map(node => <IngredientNode key={node.key} node={node} actions={localActions} />)}
+    {!!completed.length && <li className="craft-completed-group"><details><summary ref={summary} aria-label={`Completed ingredients for ${parent}`}><Check size={14} aria-hidden="true" /><span>Completed ({completed.length})</span><ChevronRight size={14} aria-hidden="true" /></summary><ul>
+      {completed.map(node => <li key={node.key} className="craft-completed-item"><label><input type="checkbox" aria-label={`Completed: ${node.item.name}`} checked disabled={actions.disabled} onChange={() => localActions.onCheck(node.key, false, node.quantity)} /><CraftingArtwork item={node.item} /><span>{node.item.name}</span><small>× {number(node.quantity)}</small></label><button type="button" className="icon-button" aria-label={`Sources for ${node.item.name}`} title={`Sources for ${node.item.name}`} onClick={() => actions.onDetails(node)}><MapPin size={14} aria-hidden="true" /></button></li>)}
+    </ul></details></li>}
+  </ul>;
+}
 
 function IngredientNode({ node, actions }: { node: CraftingNode; actions: NodeActions }) {
   const [collapsed, setCollapsed] = useState(false);
   const childrenId = useId();
-  const expanded = !collapsed && !node.completed;
-  const choices = [{ value: 'gather', label: 'Gather / already built' }, ...node.item.recipes.map((recipe, i) => ({ value: recipe.id, label: node.item.recipes.length > 1 ? `Craft · recipe ${i + 1}` : 'Craft' }))];
-  if (!choices.some(choice => choice.value === node.choice)) choices.push({ value: node.choice, label: 'Recipe unavailable' });
-  return <li className={`craft-branch${node.completed ? ' is-complete' : ''}`} data-item={node.item.name}>
+  const expanded = !collapsed;
+  return <li className="craft-branch" data-item={node.item.name} data-node-key={node.key}>
     <div className={`craft-node ${node.recipe ? 'is-build' : 'is-material'}`}>
-      <div className="craft-node-main"><label className="craft-check"><input type="checkbox" aria-label={`Completed: ${node.item.name}`} checked={node.completed} disabled={actions.disabled} onChange={event => actions.onCheck(node.key, event.target.checked)} /></label><CraftingArtwork item={node.item} /><div className="craft-node-copy"><span className="craft-node-name">{node.item.name}</span><span className="craft-quantity">× {number(node.quantity)}{node.completed && <span className="craft-done"><Check size={12} />Done</span>}</span></div></div>
+      <div className="craft-node-main"><label className="craft-check"><input type="checkbox" aria-label={`Completed: ${node.item.name}`} checked={node.completed} disabled={actions.disabled} onChange={event => actions.onCheck(node.key, event.target.checked, node.quantity)} /></label><CraftingArtwork item={node.item} /><div className="craft-node-copy"><span className="craft-node-name">{node.item.name}</span><span className="craft-quantity">{node.acquired ? `${number(node.remaining)} left` : `× ${number(node.quantity)}`}</span></div></div>
       {!node.completed && <RecipeCost node={node} />}
       {node.item.equipment && <span className="craft-consumed">Consumes equipment</span>}
       {node.problem && <p className="small error-text">{node.problem}</p>}
-      <div className="craft-node-actions"><button type="button" className="button quiet" aria-label={`Sources for ${node.item.name}`} onClick={() => actions.onDetails(node)}><MapPin size={14} />Sources</button>
-        {!!node.item.recipes.length && !node.completed && <Select label={`Method for ${node.item.name}`} value={node.choice} options={choices} onChange={value => actions.onChoice(node.key, value)} disabled={actions.disabled} />}
-        {!!node.children.length && !node.completed && <button type="button" className="icon-button craft-expand" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.item.name} ingredients`} aria-expanded={expanded} aria-controls={childrenId} title={`${expanded ? 'Collapse' : 'Expand'} ${node.item.name} ingredients`} onClick={() => setCollapsed(value => !value)}>{expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button>}
+      <QuantitySlider name={node.item.name} value={node.acquired} max={node.quantity} disabled={actions.disabled} onChange={amount => actions.onProgress(node.key, amount, node.quantity)} />
+      <div className="craft-node-actions"><SourceButton node={node} onClick={() => actions.onDetails(node)} />
+        {!!node.children.length && <button type="button" className="icon-button craft-expand" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.item.name} ingredients`} aria-expanded={expanded} aria-controls={childrenId} title={`${expanded ? 'Collapse' : 'Expand'} ${node.item.name} ingredients`} onClick={() => setCollapsed(value => !value)}>{expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</button>}
       </div>
     </div>
-    {!!node.children.length && <ul id={childrenId} className="craft-children" hidden={!expanded}>{node.children.map(child => <IngredientNode key={child.key} node={child} actions={actions} />)}</ul>}
+    {!!node.children.length && <IngredientList id={childrenId} nodes={node.children} actions={actions} parent={node.item.name} nested hidden={!expanded} />}
   </li>;
 }
 
@@ -85,31 +113,32 @@ export function Crafting({ plans, selected, onSelect, onSave, canSave, onSignIn,
     if (!plan) return;
     const next = Number(quantity);
     if (!Number.isSafeInteger(next) || next < 1 || next > 100) { setQuantity(String(plan.quantity)); notify('Choose a quantity from 1 to 100.', 'caution'); return; }
-    if (next !== plan.quantity && savePlan({ ...plan, quantity: next, completed: [] })) notify('Quantity updated. Progress reset for this plan.', 'neutral');
+    if (next !== plan.quantity && savePlan({ ...plan, quantity: next, completed: [], progress: {} })) notify('Quantity updated. Progress reset for this plan.', 'neutral');
   };
   const actions: NodeActions = {
-    onCheck: (key, checked) => { if (plan) savePlan(checkCraftingNode(plan, key, checked)); },
+    onCheck: (key, checked, quantity) => { if (plan) savePlan(checkCraftingNode(plan, key, checked, quantity)); },
+    onProgress: (key, amount, quantity) => { if (plan) savePlan(setCraftingProgress(plan, key, amount, quantity)); },
     onChoice: (key, choice) => { if (plan) savePlan(chooseCraftingRecipe(plan, key, choice)); },
     onDetails: node => setDetails({ item: node.item, node }), disabled,
   };
   return <section className="crafting-page" aria-label="Crafting">
     <header className="craft-heading"><div className="craft-title"><h1>Crafting</h1><button type="button" className="icon-button" aria-label="About Crafting" title="About Crafting" aria-haspopup="dialog" onClick={() => setInfo(true)}><Info size={16} /></button></div><div className="craft-heading-actions">{!canSave && <button type="button" className="button quiet" onClick={onSignIn}>Sign in to save plans</button>}{!!plans.length && <button type="button" className="button secondary" aria-haspopup="dialog" onClick={() => setPicker(true)} disabled={disabled || plans.length >= MAX_CRAFTING_PLANS}><Plus size={16} />New plan</button>}</div></header>
     {!plans.length ? <ItemPicker onPick={addPlan} disabled={disabled} /> : <>
-      <div className="craft-plan-toolbar"><Select label="Crafting plan" value={plan.id} options={plans.map((entry, index) => ({ value: entry.id, label: `${craftingItems.get(entry.itemId)?.name ?? 'Unavailable item'}${entry.quantity > 1 ? ` × ${entry.quantity}` : ''}${plans.some((other, otherIndex) => otherIndex !== index && other.itemId === entry.itemId) ? ` · Plan ${index + 1}` : ''}` }))} onChange={onSelect} /><div className="craft-plan-tools"><button type="button" className="button quiet" disabled={disabled || !plan.completed.length} onClick={() => setConfirm('reset')}><RotateCcw size={14} />Reset progress</button><button type="button" className="icon-button" aria-label="Remove plan" title="Remove plan" disabled={disabled} onClick={() => setConfirm('remove')}><Trash2 size={16} /></button></div></div>
+      <div className="craft-plan-toolbar"><Select label="Crafting plan" value={plan.id} options={plans.map((entry, index) => ({ value: entry.id, label: `${craftingItems.get(entry.itemId)?.name ?? 'Unavailable item'}${entry.quantity > 1 ? ` × ${entry.quantity}` : ''}${plans.some((other, otherIndex) => otherIndex !== index && other.itemId === entry.itemId) ? ` · Plan ${index + 1}` : ''}` }))} onChange={onSelect} /><div className="craft-plan-tools"><button type="button" className="button quiet" disabled={disabled || !plan.completed.length && !Object.values(plan.progress ?? {}).some(amount => amount > 0)} onClick={() => setConfirm('reset')}><RotateCcw size={14} />Reset progress</button><button type="button" className="icon-button" aria-label="Remove plan" title="Remove plan" disabled={disabled} onClick={() => setConfirm('remove')}><Trash2 size={16} /></button></div></div>
       {!root || !summary ? <p className="callout caution">This item is no longer in the catalog. Your plan has been kept.</p> : <>
-        <div className={`craft-root${root.completed ? ' is-complete' : ''}`}><CraftingArtwork item={root.item} /><div className="craft-root-copy"><span className="craft-eyebrow">{root.item.catalogItem?.weaponType || 'Material / component'}</span><h2 ref={heading} tabIndex={-1}>{root.item.name}</h2><RecipeCost node={root} />{root.problem && <p className="small error-text">{root.problem}</p>}<button type="button" className="button quiet" onClick={() => actions.onDetails(root)}><MapPin size={14} />Blueprint & sources</button></div>
-          <div className="craft-root-controls"><label className="craft-amount">Quantity<input type="number" aria-label="Craft quantity" min={1} max={100} value={quantity} disabled={disabled} onChange={event => setQuantity(event.target.value)} onBlur={updateQuantity} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} title="Changing quantity resets this plan’s progress." /></label>{(root.item.recipes.length > 1 || root.problem && !root.recipe) && <Select label="Recipe" value={root.recipe?.id || 'Recipe unavailable'} options={root.item.recipes.map((recipe, index) => ({ value: recipe.id, label: `Recipe ${index + 1} · ${recipe.credits === null ? 'Unknown cost' : `${number(recipe.credits)} credits`}`, content: <>Recipe {index + 1} · {recipe.credits === null ? 'Unknown cost' : <Currency value={recipe.credits} currency="credits" />}</> }))} onChange={value => actions.onChoice(root.key, value)} disabled={disabled} />}<label className="craft-root-check"><input type="checkbox" aria-label={`Completed: ${root.item.name}`} checked={root.completed} disabled={disabled} onChange={event => actions.onCheck(root.key, event.target.checked)} />{root.completed ? 'Completed' : 'Mark complete'}</label></div>
+        <div className={`craft-root${root.completed ? ' is-complete' : ''}`}><CraftingArtwork item={root.item} /><div className="craft-root-copy"><span className="craft-eyebrow">{root.item.catalogItem?.weaponType || 'Material / component'}</span><h2 ref={heading} tabIndex={-1}>{root.item.name}</h2>{!root.completed && <RecipeCost node={root} />}{root.problem && <p className="small error-text">{root.problem}</p>}{!root.completed && <SourceButton node={root} onClick={() => actions.onDetails(root)} />}</div>
+          <div className="craft-root-controls">{root.quantity > 1 && !root.completed && <QuantitySlider name={root.item.name} value={root.acquired} max={root.quantity} disabled={disabled} onChange={amount => actions.onProgress(root.key, amount, root.quantity)} />}<label className="craft-amount">Quantity<input type="number" aria-label="Craft quantity" min={1} max={100} value={quantity} disabled={disabled} onChange={event => setQuantity(event.target.value)} onBlur={updateQuantity} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} title="Changing quantity resets this plan’s progress." /></label>{(root.item.recipes.length > 1 || root.problem && !root.recipe) && <Select label="Recipe" value={root.recipe?.id || 'Recipe unavailable'} options={root.item.recipes.map((recipe, index) => ({ value: recipe.id, label: `Recipe ${index + 1} · ${recipe.credits === null ? 'Unknown cost' : `${number(recipe.credits)} credits`}`, content: <>Recipe {index + 1} · {recipe.credits === null ? 'Unknown cost' : <Currency value={recipe.credits} currency="credits" />}</> }))} onChange={value => actions.onChoice(root.key, value)} disabled={disabled} />}<label className="craft-root-check"><input type="checkbox" aria-label={`Completed: ${root.item.name}`} checked={root.completed} disabled={disabled} onChange={event => actions.onCheck(root.key, event.target.checked, root.quantity)} />{root.completed ? 'Completed' : 'Mark complete'}</label></div>
         </div>
         <div className="craft-progress"><span><ListChecks size={16} /><strong>{summary.completed} / {summary.total}</strong> steps complete</span><progress max={summary.total} value={summary.completed} aria-label="Crafting progress" /><span><CurrencySymbol currency="credits" decorative /><strong>{number(summary.credits)}{summary.unknownCredits ? '+' : ''}</strong> build credits left</span></div>
         <div className="craft-workspace"><section className="craft-tree" aria-label="Ingredient tree"><div className="craft-section-heading"><h3>Ingredients</h3><span className="small muted">{root.completed ? 'Complete' : `${root.children.length} branches`}</span></div>
-          {root.completed ? <div className="craft-completed"><Check size={24} /><p>{root.item.name} completed.</p><span className="small muted">Uncheck the item to return to its ingredients.</span></div> : <ul className="craft-branches">{root.children.map(child => <IngredientNode key={child.key} node={child} actions={actions} />)}</ul>}
+          {root.completed ? <div className="craft-completed"><Check size={24} /><p>{root.item.name} completed.</p><span className="small muted">Uncheck the item to return to its ingredients.</span></div> : <IngredientList nodes={root.children} actions={actions} parent={root.item.name} />}
         </section><aside className="craft-remaining" aria-label="Remaining materials"><div className="craft-section-heading"><h3>Remaining materials</h3><span className="count">{summary.materials.length}</span></div>{summary.materials.length ? <ul>{summary.materials.map(({ item, quantity }) => <li key={item.id}><button type="button" aria-label={`Sources for remaining ${item.name}`} onClick={() => setDetails({ item })}><CraftingArtwork item={item} /><span>{item.name}</span><strong>{number(quantity)}</strong></button></li>)}</ul> : <p className="small muted">{root.completed ? 'Nothing left to gather.' : 'Materials gathered. Finish the remaining builds.'}</p>}</aside></div>
         <p className="craft-footnote">Checking a component covers its ingredients. Equipment ownership stays unchanged.</p>
       </>}
     </>}
     {picker && <Dialog title="New crafting plan" onClose={() => setPicker(false)} className="craft-picker-dialog" initialFocus="input[type=search]"><ItemPicker onPick={addPlan} disabled={disabled} /></Dialog>}
-    {details && <CraftingDetails key={details.item.id} item={details.item} node={details.node} onClose={() => setDetails(undefined)} />}
-    {confirm && <Dialog title={confirm === 'reset' ? 'Reset progress?' : 'Remove plan?'} onClose={() => setConfirm(undefined)} className="craft-confirm"><p className="small muted">{confirm === 'reset' ? 'Clear the checkmarks for this plan. Recipe choices stay the same.' : 'Remove this plan and its progress.'}</p><div className="craft-detail-links"><button type="button" className="button secondary" onClick={() => setConfirm(undefined)}>Cancel</button><button type="button" className="button primary" onClick={() => { const saved = confirm === 'reset' ? savePlan({ ...plan, completed: [] }) : onSave(plans.filter(entry => entry.id !== plan.id)); if (saved) setConfirm(undefined); }}>{confirm === 'reset' ? 'Reset progress' : 'Remove plan'}</button></div></Dialog>}
-    {info && <Dialog title="About Crafting" onClose={() => setInfo(false)} className="craft-detail"><p>Choose an item, then gather its ingredients and complete each build.</p><p className="small muted">Batches are counted per branch; surplus is not shared. Build credits exclude blueprint purchases. Times are per build. Gather skips a component’s recipe; checking it off covers its ingredients. Neither changes your equipment inventory.</p><p className="small muted">Plans save to your account. Guest plans last until the page is reloaded. Changing quantity resets progress.</p><p className="small muted">Recipes cover catalog equipment and their craftable ingredients. Modular equipment lists component costs, not a complete assembled loadout. Missing recipes or sources are not inferred.</p><p className="small muted">Catalog: {craftingDate.slice(0, 10)} · Sources update with the official drop tables.</p><div className="craft-detail-links">{craftingDataSources.map((url, index) => <a href={url} key={url} target="_blank" rel="noreferrer">{index ? 'Game export' : 'Item data'} ↗</a>)}</div></Dialog>}
+    {details && <CraftingDetails key={details.item.id} item={details.item} node={details.node} onRecipe={details.node && !disabled ? choice => { actions.onChoice(details.node!.key, choice); setDetails(undefined); } : undefined} onClose={() => setDetails(undefined)} />}
+    {confirm && <Dialog title={confirm === 'reset' ? 'Reset progress?' : 'Remove plan?'} onClose={() => setConfirm(undefined)} className="craft-confirm"><p className="small muted">{confirm === 'reset' ? 'Clear progress for this plan. Recipe choices stay the same.' : 'Remove this plan and its progress.'}</p><div className="craft-detail-links"><button type="button" className="button secondary" onClick={() => setConfirm(undefined)}>Cancel</button><button type="button" className="button primary" onClick={() => { const saved = confirm === 'reset' ? savePlan({ ...plan, completed: [], progress: {} }) : onSave(plans.filter(entry => entry.id !== plan.id)); if (saved) setConfirm(undefined); }}>{confirm === 'reset' ? 'Reset progress' : 'Remove plan'}</button></div></Dialog>}
+    {info && <Dialog title="About Crafting" onClose={() => setInfo(false)} className="craft-detail"><p>Choose an item, then track the completed quantity of each ingredient.</p><p className="small muted">Batches are counted per branch; surplus is not shared. Build credits exclude blueprint purchases. Times are per build. Partial quantities reduce the remaining recipe batches. Completed ingredients are grouped; uncheck one to restore it. Equipment inventory stays unchanged.</p><p className="small muted">Plans save to your account. Guest plans last until the page is reloaded. Changing quantity resets progress.</p><p className="small muted">Recipes cover catalog equipment and their craftable ingredients. Modular equipment lists component costs, not a complete assembled loadout. Missing recipes or sources are not inferred.</p><p className="small muted">Catalog: {craftingDate.slice(0, 10)} · Sources update with the official drop tables.</p><div className="craft-detail-links">{craftingDataSources.map((url, index) => <a href={url} key={url} target="_blank" rel="noreferrer">{index ? 'Game export' : 'Item data'} ↗</a>)}</div></Dialog>}
   </section>;
 }

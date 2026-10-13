@@ -14,12 +14,14 @@ export interface CraftingPlan {
   id: string; itemId: string; quantity: number;
   /** Paths distinguish repeated ingredients in different branches. */
   completed: string[];
+  /** Completed units per branch. Missing in older saves that only tracked checkmarks. */
+  progress?: Record<string, number>;
   /** A recipe ID, or "gather" for an ingredient acquired without crafting. */
   choices: Record<string, string>;
 }
 export interface CraftingNode {
   key: string; item: CraftingItem; quantity: number; recipe?: Recipe; batches: number;
-  choice: string; completed: boolean; children: CraftingNode[]; problem?: string;
+  choice: string; acquired: number; remaining: number; completed: boolean; children: CraftingNode[]; problem?: string;
 }
 export const MAX_CRAFTING_PLANS = 50;
 
@@ -34,9 +36,11 @@ export function validateCraftingPlans(value: unknown): CraftingPlan[] {
       || !Array.isArray(plan.completed) || plan.completed.length > 2000 || !plan.completed.every((key: unknown) => text(key, 16384))
       || new Set(plan.completed).size !== plan.completed.length
       || !plan.choices || typeof plan.choices !== 'object' || Array.isArray(plan.choices)
-      || Object.keys(plan.choices).length > 2000 || !Object.entries(plan.choices).every(([key, choice]) => text(key, 16384) && text(choice, 2048))) return invalid();
+      || Object.keys(plan.choices).length > 2000 || !Object.entries(plan.choices).every(([key, choice]) => text(key, 16384) && text(choice, 2048))
+      || plan.progress !== undefined && (!plan.progress || typeof plan.progress !== 'object' || Array.isArray(plan.progress)
+        || Object.keys(plan.progress).length > 2000 || !Object.entries(plan.progress).every(([key, amount]) => text(key, 16384) && Number.isSafeInteger(amount) && (amount as number) >= 0))) return invalid();
     ids.add(plan.id);
-    return { id: plan.id, itemId: plan.itemId, quantity: plan.quantity, completed: [...plan.completed], choices: { ...plan.choices } };
+    return { id: plan.id, itemId: plan.itemId, quantity: plan.quantity, completed: [...plan.completed], choices: { ...plan.choices }, ...(plan.progress !== undefined ? { progress: { ...plan.progress } } : {}) };
   });
 }
 
@@ -77,13 +81,17 @@ export function buildCraftingTree(index: Map<string, CraftingItem>, plan: Crafti
   const node = (item: CraftingItem, quantity: number, key: string, ancestors: string[]): CraftingNode => {
     const choice = Object.hasOwn(plan.choices, key) ? plan.choices[key] : defaultCraftingChoice(item, key === 'root');
     const recipe = item.recipes.find(recipe => recipe.id === choice);
-    const batches = recipe ? Math.ceil(quantity / recipe.quantity) : 0;
-    const result: CraftingNode = { key, item, quantity, recipe, batches, choice, completed: completed.has(key), children: [] };
+    const acquired = Math.min(quantity, Object.hasOwn(plan.progress ?? {}, key) ? plan.progress![key] : completed.has(key) ? quantity : 0);
+    const needed = quantity - acquired;
+    const batches = recipe ? Math.ceil(needed / recipe.quantity) : 0;
+    const result: CraftingNode = { key, item, quantity, acquired, remaining: needed, recipe, batches, choice, completed: needed === 0, children: [] };
     if (--remaining < 0 || ancestors.length >= 12 || ancestors.includes(item.id)) return { ...result, problem: 'Recipe chain unavailable.' };
     if (!recipe) return choice === 'gather' && key !== 'root' ? result : { ...result, problem: 'This recipe is no longer available. Choose another recipe.' };
     result.children = recipe.ingredients.map(part => {
       const ingredient = index.get(part.id)!;
-      return node(ingredient, part.count * batches, `${key}/${encodeURIComponent(recipe.id)}/${encodeURIComponent(part.id)}`, [...ancestors, item.id]);
+      // Keep covered descendants so undo restores their independent progress.
+      const childBatches = result.completed ? Math.ceil(quantity / recipe.quantity) : batches;
+      return node(ingredient, part.count * childBatches, `${key}/${encodeURIComponent(recipe.id)}/${encodeURIComponent(part.id)}`, [...ancestors, item.id]);
     });
     return result;
   };
@@ -104,7 +112,7 @@ export function craftingSummary(root: CraftingNode) {
         else credits += node.recipe.credits * node.batches;
       } else {
         const current = materials.get(node.item.id);
-        materials.set(node.item.id, { item: node.item, quantity: (current?.quantity ?? 0) + node.quantity });
+        materials.set(node.item.id, { item: node.item, quantity: (current?.quantity ?? 0) + node.remaining });
       }
     }
     node.children.forEach(child => visit(child, done));
@@ -113,13 +121,31 @@ export function craftingSummary(root: CraftingNode) {
   return { total, completed, credits, unknownCredits, materials: [...materials.values()].sort((a, b) => a.item.name.localeCompare(b.item.name)) };
 }
 
-export function checkCraftingNode(plan: CraftingPlan, key: string, checked: boolean): CraftingPlan {
-  return { ...plan, completed: checked ? [...new Set([...plan.completed, key])] : plan.completed.filter(path => path !== key) };
+export function setCraftingProgress(plan: CraftingPlan, key: string, amount: number, quantity: number): CraftingPlan {
+  if (!Number.isSafeInteger(amount) || !Number.isSafeInteger(quantity) || quantity < 1 || amount < 0 || amount > quantity) throw new Error('Invalid completed quantity.');
+  const progress = { ...plan.progress };
+  if (amount) progress[key] = amount; else delete progress[key];
+  return { ...plan, progress, completed: amount === quantity ? [...new Set([...plan.completed, key])] : plan.completed.filter(path => path !== key) };
+}
+
+export function checkCraftingNode(plan: CraftingPlan, key: string, checked: boolean, quantity?: number): CraftingPlan {
+  if (quantity !== undefined) return setCraftingProgress(plan, key, checked ? quantity : 0, quantity);
+  return { ...plan, ...(plan.progress ? { progress: Object.fromEntries(Object.entries(plan.progress).filter(([path]) => path !== key)) } : {}), completed: checked ? [...new Set([...plan.completed, key])] : plan.completed.filter(path => path !== key) };
 }
 
 export function chooseCraftingRecipe(plan: CraftingPlan, key: string, choice: string): CraftingPlan {
   // Retain independent branches. A changed recipe requires reviewing its ingredients.
-  return { ...plan, choices: { ...Object.fromEntries(Object.entries(plan.choices).filter(([path]) => !path.startsWith(`${key}/`))), [key]: choice }, completed: plan.completed.filter(path => path !== key && !path.startsWith(`${key}/`)) };
+  return { ...plan, choices: { ...Object.fromEntries(Object.entries(plan.choices).filter(([path]) => !path.startsWith(`${key}/`))), [key]: choice }, completed: plan.completed.filter(path => path !== key && !path.startsWith(`${key}/`)), ...(plan.progress ? { progress: Object.fromEntries(Object.entries(plan.progress).filter(([path]) => path !== key && !path.startsWith(`${key}/`))) } : {}) };
+}
+
+/** Older clients omit partial quantities. Keep them unless that branch was explicitly changed. */
+export function preserveCraftingProgress(next: CraftingPlan[], previous: CraftingPlan[]): CraftingPlan[] {
+  return next.map(plan => {
+    const old = previous.find(entry => entry.id === plan.id && entry.itemId === plan.itemId && entry.quantity === plan.quantity);
+    if (plan.progress !== undefined || !old?.progress) return plan;
+    const changed = [...new Set([...Object.keys(old.choices), ...Object.keys(plan.choices)])].filter(key => old.choices[key] !== plan.choices[key]);
+    return { ...plan, progress: Object.fromEntries(Object.entries(old.progress).filter(([key]) => old.completed.includes(key) === plan.completed.includes(key) && !changed.some(path => key === path || key.startsWith(`${path}/`)))) };
+  });
 }
 
 export function craftingDuration(seconds: number | null): string {

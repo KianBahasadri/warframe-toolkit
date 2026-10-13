@@ -32,11 +32,12 @@ test('ingredient completion is independent by branch, saves across navigation an
   const systems = page.locator('.craft-branch[data-item="Rhino Systems"]');
   const polymer = neuroptics.getByRole('checkbox', { name: 'Completed: Polymer Bundle', exact: true });
   const component = page.getByRole('checkbox', { name: 'Completed: Rhino Neuroptics', exact: true });
-  await polymer.check();
+  await polymer.click();
   await expect(systems.getByRole('checkbox', { name: 'Completed: Polymer Bundle', exact: true })).not.toBeChecked();
   await expect(page.getByRole('button', { name: 'Sources for remaining Polymer Bundle', exact: true })).toContainText('100');
-  await component.check();
+  await component.click();
   await expect(polymer).not.toBeVisible();
+  await expect(page.locator('summary[aria-label="Completed ingredients for Rhino"]')).toBeFocused();
   await expect(page.locator('.craft-progress')).toContainText('55,000');
   const saved = await account.profile();
   expect(saved.craftingPlans[0].completed).toHaveLength(2);
@@ -44,10 +45,12 @@ test('ingredient completion is independent by branch, saves across navigation an
   expect(saved.dropViews).toEqual(before.dropViews);
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
   await page.getByRole('link', { name: 'Crafting', exact: true }).click();
-  await expect(component).toBeChecked();
+  await expect(component).not.toBeVisible();
   await page.reload();
+  await page.locator('summary[aria-label="Completed ingredients for Rhino"]').click();
   await expect(component).toBeChecked();
-  await component.uncheck();
+  await component.click();
+  await neuroptics.locator('summary[aria-label="Completed ingredients for Rhino Neuroptics"]').click();
   await expect(polymer).toBeChecked();
   await page.getByRole('checkbox', { name: 'Completed: Rhino', exact: true }).check();
   await expect(page.getByRole('progressbar', { name: 'Crafting progress' })).toHaveAttribute('value', '16');
@@ -58,7 +61,8 @@ test('ingredient completion is independent by branch, saves across navigation an
 test('plans retain gather choices, quantity scaling, and nested weapon requirements', async ({ page, account }) => {
   await open(page);
   await page.getByRole('button', { name: 'Craft Forma', exact: true }).click();
-  await select(page, 'Method for Orokin Cell', 'Craft');
+  await page.getByRole('button', { name: /^Sources for Orokin Cell:/ }).click();
+  await page.getByRole('dialog', { name: 'Orokin Cell', exact: true }).getByRole('button', { name: 'Use this recipe', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Sources for remaining Nano Spores', exact: true })).toContainText('50,000');
   await expect(page.locator('.craft-progress')).toContainText('50,000');
   await add(page, 'Aklex Prime');
@@ -75,7 +79,8 @@ test('plans retain gather choices, quantity scaling, and nested weapon requireme
   await page.getByRole('link', { name: 'Crafting', exact: true }).click();
   await expect(region(page).getByRole('heading', { name: 'Aklex Prime', exact: true })).toBeVisible();
   await select(page, 'Crafting plan', 'Forma');
-  await expect(page.getByRole('combobox', { name: 'Method for Orokin Cell', exact: true })).toHaveText('Craft');
+  await expect(page.locator('.craft-branch[data-item="Orokin Cell"] > .craft-node .craft-cost')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: /Method for/ })).toHaveCount(0);
   const saved = await account.profile();
   expect(saved.craftingPlans).toHaveLength(2);
   expect(saved.craftingPlans[1].quantity).toBe(2);
@@ -83,7 +88,7 @@ test('plans retain gather choices, quantity scaling, and nested weapon requireme
   await page.getByRole('button', { name: 'Reset progress', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Reset progress', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Completed: Forma', exact: true })).not.toBeChecked();
-  await expect(page.getByRole('combobox', { name: 'Method for Orokin Cell', exact: true })).toHaveText('Craft');
+  await expect(page.locator('.craft-branch[data-item="Orokin Cell"] > .craft-node .craft-cost')).toBeVisible();
   await page.getByRole('button', { name: 'Remove plan', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   expect((await account.profile()).craftingPlans).toHaveLength(2);
@@ -96,7 +101,8 @@ test('plans retain gather choices, quantity scaling, and nested weapon requireme
 test('source details distinguish blueprints, exact variants, world locations and unknown drop rates', async ({ page }) => {
   await open(page);
   await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
-  const source = page.getByRole('button', { name: 'Sources for Rhino Neuroptics', exact: true });
+  const source = page.getByRole('button', { name: /^Sources for Rhino Neuroptics:/ });
+  await expect(page.getByRole('button', { name: /^Sources for Ferrite:/ }).first()).toHaveText('Mercury, Earth, Lua, Neptune, and the Void');
   await source.click();
   const dialog = page.getByRole('dialog', { name: 'Rhino Neuroptics', exact: true });
   await expect(dialog).toContainText('Jackal');
@@ -132,7 +138,8 @@ test('failed account writes keep crafting edits until retry succeeds', async ({ 
   });
   await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Your changes have been kept');
-  await page.getByRole('checkbox', { name: 'Completed: Rhino Neuroptics', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Completed: Rhino Neuroptics', exact: true }).click();
+  await page.locator('summary[aria-label="Completed ingredients for Rhino"]').click();
   await expect(page.getByRole('checkbox', { name: 'Completed: Rhino Neuroptics', exact: true })).toBeChecked();
   await expect(page.getByRole('alert')).toContainText('Your changes have been kept');
   expect((await account.session()).profile.craftingPlans).toHaveLength(0);
@@ -140,6 +147,7 @@ test('failed account writes keep crafting edits until retry succeeds', async ({ 
   await page.getByRole('button', { name: 'Try saving again' }).click();
   expect((await account.profile()).craftingPlans[0].completed).toHaveLength(1);
   await page.reload();
+  await page.locator('summary[aria-label="Completed ingredients for Rhino"]').click();
   await expect(page.getByRole('checkbox', { name: 'Completed: Rhino Neuroptics', exact: true })).toBeChecked();
 });
 
@@ -152,6 +160,136 @@ test('a removed recipe stays explicit until the user selects an available one', 
   await select(page, 'Recipe', 'Recipe 1 · 25,000 credits');
   await expect(page.getByRole('checkbox', { name: 'Completed: Rhino Neuroptics', exact: true })).toBeVisible();
   expect((await account.profile()).craftingPlans[0].choices.root).not.toBe('/removed-recipe');
+});
+
+test('partial quantities reduce nested requirements, save, and restore from compact completed groups', async ({ page, account }) => {
+  await open(page);
+  const before = await account.inventory();
+  await page.getByRole('searchbox', { name: 'Search craftable items' }).fill('Aklex Prime');
+  await page.getByRole('button', { name: 'Craft Aklex Prime', exact: true }).click();
+  const slider = page.getByRole('slider', { name: 'Completed quantity for Lex Prime', exact: true });
+  await slider.focus(); await slider.press('Enter');
+  const field = page.getByRole('textbox', { name: 'Completed quantity for Lex Prime value', exact: true });
+  await expect(field).toBeFocused(); await field.fill('1'); await field.press('Enter');
+  await expect(slider).toHaveValue('1');
+  await expect(page.locator('.craft-branch[data-item="Lex Prime Barrel"] .craft-quantity')).toHaveText('× 1');
+  const barrel = page.getByRole('slider', { name: 'Completed quantity for Lex Prime Barrel', exact: true });
+  await barrel.focus(); await barrel.press('End');
+  await expect(barrel).not.toBeVisible();
+  expect(Object.values((await account.profile()).craftingPlans[0].progress!)).toEqual([1, 1]);
+  await page.reload(); await expect(slider).toHaveValue('1');
+  const credits = await page.locator('.craft-progress').textContent();
+  await slider.focus(); await slider.press('End');
+  const group = page.locator('summary[aria-label="Completed ingredients for Aklex Prime"]');
+  await expect(group).toBeFocused();
+  await expect(group.locator('..')).not.toHaveAttribute('open', '');
+  await expect(slider).not.toBeVisible();
+  expect(await page.locator('.craft-progress').textContent()).not.toBe(credits);
+  await group.click();
+  const completed = page.locator('.craft-completed-item').filter({ hasText: 'Lex Prime' });
+  expect((await completed.boundingBox())!.height).toBeLessThan(70);
+  await completed.getByRole('checkbox', { name: 'Completed: Lex Prime', exact: true }).click();
+  await expect(slider).toHaveValue('0');
+  await expect(barrel).toHaveValue('1'); await expect(barrel).toHaveAttribute('max', '2');
+  await expect(page.getByRole('checkbox', { name: 'Completed: Lex Prime', exact: true })).toBeFocused();
+  expect((await account.profile()).inventory).toEqual(before);
+  await page.getByRole('spinbutton', { name: 'Craft quantity', exact: true }).fill('2');
+  await page.getByRole('spinbutton', { name: 'Craft quantity', exact: true }).press('Enter');
+  await expect(barrel).toHaveValue('0'); await expect(barrel).toHaveAttribute('max', '4');
+  expect((await account.profile()).craftingPlans[0].progress).toEqual({});
+});
+
+test('quantity popup supports typed entry, cancellation, clamping, native keys, and precision dragging', async ({ page, account }) => {
+  await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
+  const node = page.locator('.craft-branch[data-item="Rhino Chassis"]');
+  const slider = node.getByRole('slider', { name: 'Completed quantity for Ferrite', exact: true });
+  const field = page.getByRole('textbox', { name: 'Completed quantity for Ferrite value', exact: true });
+  await slider.focus(); await slider.press('Enter'); await field.fill('125.6'); await field.press('Enter');
+  await expect(slider).toHaveValue('126'); await expect(slider).toBeFocused();
+  await slider.press('Enter'); await field.fill('999'); await field.press('Escape');
+  await expect(slider).toHaveValue('126'); await expect(slider).toBeFocused();
+  await slider.press('Enter'); await field.fill('not a number'); await field.press('Enter');
+  await expect(slider).toHaveValue('126');
+  await slider.press('Enter'); await field.fill('250'); await page.getByRole('heading', { name: 'Crafting', exact: true }).click();
+  await expect(slider).toHaveValue('250');
+  await slider.focus(); await slider.press('Home'); await expect(slider).toHaveValue('0');
+  await slider.press('ArrowRight'); await expect(slider).toHaveValue('1');
+  await slider.press('PageUp'); expect(Number(await slider.inputValue())).toBeGreaterThan(1);
+  await slider.press('PageDown'); await expect(slider).toHaveValue('1');
+  await slider.press('Enter'); await field.fill('500'); await field.press('Enter'); await account.profile();
+  await slider.scrollIntoViewIfNeeded();
+  const bounds = (await slider.boundingBox())!, x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height / 2;
+  await slider.evaluate(element => {
+    element.dataset.inputs = '0'; element.dataset.changes = '0';
+    element.addEventListener('input', () => { element.dataset.inputs = String(Number(element.dataset.inputs) + 1); });
+    element.addEventListener('change', () => { element.dataset.changes = String(Number(element.dataset.changes) + 1); });
+  });
+  await page.mouse.move(x, y); await page.mouse.down();
+  await expect(page.locator('.quantity-popup')).toHaveText('Speed 1×');
+  await page.mouse.move(x, y + 100); await expect(slider).toHaveValue('500');
+  await expect(page.locator('.quantity-popup')).toHaveText('Speed 0.1×');
+  await page.mouse.move(x + 20, y + 100);
+  const fine = Number(await slider.inputValue()); expect(fine).toBeGreaterThan(500); expect(fine).toBeLessThan(520);
+  expect(Object.values((await account.session()).profile.craftingPlans[0].progress!)).toEqual([500]);
+  await page.mouse.up(); await expect(page.locator('.quantity-popup')).toHaveCount(0);
+  expect(Number(await slider.getAttribute('data-inputs'))).toBeGreaterThan(0);
+  await expect(slider).toHaveAttribute('data-changes', '1');
+  expect(Object.values((await account.profile()).craftingPlans[0].progress!)).toEqual([fine]);
+  const thumbX = 9 + fine / 1000 * (bounds.width - 18);
+  await slider.dblclick({ position: { x: thumbX, y: bounds.height / 2 } });
+  await expect(field).toBeFocused(); await expect(field).toHaveValue(String(fine));
+  await field.fill('-10'); await field.press('Enter'); await expect(slider).toHaveValue('0');
+  await node.getByRole('button', { name: 'Set completed quantity for Ferrite', exact: true }).click();
+  await field.fill('2,000'); await field.press('Enter');
+  const group = node.locator('summary[aria-label="Completed ingredients for Rhino Chassis"]');
+  await expect(group).toBeFocused(); await expect(slider).not.toBeVisible();
+  await group.click();
+  await expect(node.getByRole('checkbox', { name: 'Completed: Ferrite', exact: true })).toBeChecked();
+});
+
+test('source labels and quantity popups fit mobile themes and completed groups stay compact', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
+  const source = page.getByRole('button', { name: /^Sources for Alloy Plate:/ });
+  await expect(source).toHaveText('Venus, Phobos, Ceres, Jupiter, Pluto, and Sedna.');
+  for (const theme of ['dark', 'light']) {
+    if (theme === 'light') await page.getByRole('button', { name: 'Switch to light theme' }).click();
+    await page.getByRole('button', { name: 'Set completed quantity for Alloy Plate', exact: true }).click();
+    const field = page.getByRole('textbox', { name: 'Completed quantity for Alloy Plate value', exact: true });
+    await expect(field).toBeFocused();
+    const bounds = (await page.locator('.quantity-popup').boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(12); expect(bounds.x + bounds.width).toBeLessThanOrEqual(308);
+    await field.fill('50'); await field.press('Enter');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.getByRole('checkbox', { name: 'Completed: Rhino Neuroptics', exact: true }).click();
+  const group = page.locator('summary[aria-label="Completed ingredients for Rhino"]');
+  await expect(group).toBeVisible(); expect((await group.boundingBox())!.height).toBeLessThan(60);
+  await expect(page.getByRole('slider', { name: 'Completed quantity for Alloy Plate', exact: true })).not.toBeVisible();
+  await page.screenshot({ path: 'test-results/crafting-completed-mobile.png', fullPage: true });
+});
+
+test.describe('touch crafting', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  test('tapping the value and double-tapping the thumb both open precise quantity entry', async ({ page }) => {
+    await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).tap();
+    const slider = page.getByRole('slider', { name: 'Completed quantity for Alloy Plate', exact: true });
+    await page.getByRole('button', { name: 'Set completed quantity for Alloy Plate', exact: true }).tap();
+    const field = page.getByRole('textbox', { name: 'Completed quantity for Alloy Plate value', exact: true });
+    await expect(field).toBeFocused(); await field.fill('75'); await field.press('Enter');
+    await expect(slider).toHaveValue('75');
+    await slider.scrollIntoViewIfNeeded();
+    const bounds = (await slider.boundingBox())!;
+    await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await expect(field).toBeFocused(); await field.fill('150');
+    await page.getByRole('heading', { name: 'Crafting', exact: true }).tap();
+    await expect(slider).not.toBeVisible();
+    const group = page.locator('summary[aria-label="Completed ingredients for Rhino Neuroptics"]');
+    await group.tap();
+    await expect(page.getByRole('checkbox', { name: 'Completed: Alloy Plate', exact: true })).toBeChecked();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
 });
 
 test.describe('guest crafting', () => {
@@ -171,7 +309,7 @@ test.describe('guest crafting', () => {
     await page.keyboard.press('Space'); await expect(complete).not.toBeChecked();
     await page.getByRole('button', { name: 'Switch to light theme' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await page.getByRole('button', { name: 'Blueprint & sources', exact: true }).click();
+    await page.getByRole('button', { name: /^Sources for Akjagara:/ }).click();
     await expect(page.getByRole('dialog', { name: 'Akjagara', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.keyboard.press('Escape');

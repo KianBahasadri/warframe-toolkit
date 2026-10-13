@@ -11,7 +11,7 @@ import { defaultDropView, DROP_TABLES_URL, dropViewHash, formatChance } from '..
 
 const number = (value: number) => value.toLocaleString();
 
-export function CraftingDetails({ item, node, onClose }: { item: CraftingItem; node?: CraftingNode; onClose: () => void }) {
+export function CraftingDetails({ item, node, onRecipe, onClose }: { item: CraftingItem; node?: CraftingNode; onRecipe?: (choice: string) => void; onClose: () => void }) {
   const { data, loading, error } = useDropData();
   const [limit, setLimit] = useState(12);
   const recipe = node?.recipe ?? item.recipes[0];
@@ -33,7 +33,7 @@ export function CraftingDetails({ item, node, onClose }: { item: CraftingItem; n
       <div><dt>Produces</dt><dd>{number(recipe.quantity)} per build</dd></div>
       {node && node.batches > 1 && <div><dt>Builds needed</dt><dd>{number(node.batches)} ({number(node.batches * recipe.quantity)} produced)</dd></div>}
       {blueprintCredits !== null && <div><dt>Blueprint cost</dt><dd><Currency value={blueprintCredits} currency="credits" /></dd></div>}
-    </dl></section>}
+    </dl>{node && node.key !== 'root' && onRecipe && <button type="button" className="button quiet craft-recipe-action" onClick={() => onRecipe(node.recipe ? 'gather' : recipe.id)}>{node.recipe ? 'Gather instead' : 'Use this recipe'}</button>}</section>}
     {!!item.catalogItem?.quests?.length && <section className="craft-detail-section"><h3>Quests</h3><ul className="craft-quests">{item.catalogItem.quests.map(quest => <li key={`${quest.name}-${quest.kind}`}><a href={quest.url} target="_blank" rel="noreferrer">{quest.name} ↗</a><span className="muted small">{quest.kind}</span></li>)}</ul></section>}
     {item.catalogItem?.market && (item.catalogItem.market.credits !== null || item.catalogItem.market.platinum !== null) && <section className="craft-detail-section"><h3>In-game Market</h3><dl className="craft-facts">{item.catalogItem.market.credits !== null && <div><dt>Built item</dt><dd><Currency value={item.catalogItem.market.credits} currency="credits" /></dd></div>}{item.catalogItem.market.platinum !== null && <div><dt>Built item</dt><dd><Currency value={item.catalogItem.market.platinum} currency="platinum" /></dd></div>}</dl></section>}
     {item.catalogItem?.modular && <p className="small muted">{item.catalogItem.modular}</p>}

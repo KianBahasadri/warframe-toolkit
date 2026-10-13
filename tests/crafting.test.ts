@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildCraftingTree, checkCraftingNode, chooseCraftingRecipe, craftingIndex, craftingSources, craftingSummary, validateCraftingPlans } from '../src/lib/crafting.ts';
+import { buildCraftingTree, checkCraftingNode, chooseCraftingRecipe, craftingIndex, craftingSources, craftingSummary, preserveCraftingProgress, setCraftingProgress, validateCraftingPlans } from '../src/lib/crafting.ts';
 import type { CraftingItem, CraftingMaterial, CraftingPlan } from '../src/lib/crafting.ts';
 import type { CatalogItem, Recipe } from '../src/lib/model.ts';
 import type { DropRow } from '../src/lib/dropTables.ts';
@@ -70,6 +70,63 @@ test('completion covers a branch without erasing child progress or another occur
   tree = buildCraftingTree(index, checkCraftingNode(plan, 'root', true))!;
   const summary = craftingSummary(tree);
   assert.equal(summary.completed, summary.total); assert.equal(summary.credits, 0); assert.equal(summary.materials.length, 0);
+});
+
+test('partial materials remain independent and survive covering and restoring a branch', () => {
+  let plan = planFor('Rhino');
+  const tree = buildCraftingTree(index, plan)!;
+  const component = tree.children[0], polymer = component.children.find(node => node.item.name === 'Polymer Bundle')!;
+  plan = setCraftingProgress(plan, polymer.key, 50, polymer.quantity);
+  assert.equal(craftingSummary(buildCraftingTree(index, plan)!).materials.find(part => part.item.name === 'Polymer Bundle')?.quantity, 200);
+  plan = checkCraftingNode(plan, component.key, true, component.quantity);
+  assert.equal(craftingSummary(buildCraftingTree(index, plan)!).materials.find(part => part.item.name === 'Polymer Bundle')?.quantity, 100);
+  plan = checkCraftingNode(plan, component.key, false, component.quantity);
+  assert.equal(craftingSummary(buildCraftingTree(index, plan)!).materials.find(part => part.item.name === 'Polymer Bundle')?.quantity, 200);
+  assert.equal(plan.progress![polymer.key], 50);
+});
+
+test('partial equipment reduces recipe batches and restores exact child counts when requirements grow', () => {
+  let plan = planFor('Aklex Prime');
+  const original = buildCraftingTree(index, plan)!, lex = original.children.find(node => node.item.name === 'Lex Prime')!;
+  plan = setCraftingProgress(plan, lex.key, 1, 2);
+  let tree = buildCraftingTree(index, plan)!, part = tree.children.find(node => node.key === lex.key)!;
+  assert.equal(part.remaining, 1); assert.equal(part.batches, 1);
+  assert.equal(craftingSummary(tree).credits, craftingSummary(original).credits - lex.recipe!.credits!);
+  const barrel = part.children.find(node => node.item.name === 'Lex Prime Barrel')!;
+  assert.equal(barrel.quantity, 1);
+  plan = setCraftingProgress(plan, barrel.key, 1, 1);
+  plan = setCraftingProgress(plan, lex.key, 0, 2);
+  tree = buildCraftingTree(index, plan)!; part = tree.children.find(node => node.key === lex.key)!;
+  const restored = part.children.find(node => node.key === barrel.key)!;
+  assert.equal(restored.quantity, 2); assert.equal(restored.acquired, 1); assert.equal(restored.remaining, 1); assert.equal(restored.completed, false);
+  plan = chooseCraftingRecipe(plan, lex.key, 'gather');
+  assert.deepEqual(plan.progress, {});
+});
+
+test('root progress scales whole branches and batch output rounds the remaining quantity', () => {
+  const plan = planFor('Rhino', 3);
+  const partial = buildCraftingTree(index, setCraftingProgress(plan, 'root', 1, 3))!;
+  assert.equal(partial.batches, 2); assert.equal(partial.children[0].quantity, 2);
+  assert.equal(craftingSummary(partial).credits, 140000);
+  const alloy = { ...item('Forma'), recipes: [{ id: 'batch', name: 'Batch', quantity: 10, credits: 100, seconds: 60, ingredients: [] }] };
+  const fixture = new Map([[alloy.id, alloy]]), batchPlan = { ...planFor('Forma', 21), progress: { root: 2 } };
+  assert.equal(buildCraftingTree(fixture, batchPlan)!.batches, 2);
+  assert.equal(craftingSummary(buildCraftingTree(fixture, batchPlan)!).credits, 200);
+});
+
+test('partial saves round-trip, reject malformed quantities, and protect older client updates', () => {
+  const plan = { ...planFor('Rhino'), progress: { 'root/part': 50, 'root/other': 2 } };
+  assert.deepEqual(validateCraftingPlans([plan]), [plan]);
+  for (const progress of [null, [], { root: -1 }, { root: 1.5 }, { root: '2' }, { root: NaN }, { root: Infinity }]) {
+    assert.throws(() => validateCraftingPlans([{ ...plan, progress }]), /original data has been kept/);
+  }
+  for (const amount of [-1, 1.5, 151, NaN]) assert.throws(() => setCraftingProgress(plan, 'root/part', amount, 150));
+  const { progress, ...legacy } = plan;
+  assert.deepEqual(preserveCraftingProgress([legacy], [plan])[0].progress, progress);
+  assert.deepEqual(preserveCraftingProgress([{ ...legacy, completed: ['root/part'] }], [plan])[0].progress, { 'root/other': 2 });
+  assert.deepEqual(preserveCraftingProgress([{ ...legacy, choices: { 'root/part': 'gather' } }], [plan])[0].progress, { 'root/other': 2 });
+  assert.deepEqual(preserveCraftingProgress([{ ...legacy, progress: {} }], [plan])[0].progress, {});
+  assert.equal(preserveCraftingProgress([{ ...legacy, quantity: 2 }], [plan])[0].progress, undefined);
 });
 
 test('gather and alternate recipe choices preserve independent branches and exact weapon consumption', () => {

@@ -202,3 +202,23 @@ test('personal sign-in links carry credentials only in the fragment and reject m
   assert.equal(readAccessKeyLink('#droptables?view=old'), null);
   for (const hash of ['#sign-in', '#sign-in?username=Tenno', '#sign-in?username=Tenno&key=short', `${url.hash}&key=${accessKey}`, `${url.hash}&username=Other`]) assert.throws(() => readAccessKeyLink(hash), /incomplete or invalid/);
 });
+
+
+test('partial crafting quantities survive saves and older clients without accepting malformed replacements', async () => {
+  const api = await serve();
+  try {
+    const profile = emptyProfile();
+    profile.craftingPlans = [{ id: 'partial-plan', itemId: '/Rhino', quantity: 1, completed: [], choices: {}, progress: { 'root/part': 50 } }];
+    const registered = await api.request('register', { username: 'PartialTenno', profile });
+    const account = await registered.json(), cookie = cookieOf(registered);
+    const { progress, ...legacyPlan } = profile.craftingPlans[0];
+    const save = { accountId: account.user.id, revision: 0, profile: { ...profile, craftingPlans: [legacyPlan] } };
+    assert.equal((await api.request('profile', save, cookie, { method: 'PUT' })).status, 200);
+    const read = async () => (await (await api.request('session', undefined, cookie)).json()).profile.craftingPlans[0].progress;
+    assert.deepEqual(await read(), progress);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: [{ ...legacyPlan, progress: null }] } }, cookie, { method: 'PUT' })).status, 400);
+    assert.deepEqual(await read(), progress);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: [{ ...legacyPlan, progress: {} }] } }, cookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual(await read(), {});
+  } finally { await api.close(); }
+});

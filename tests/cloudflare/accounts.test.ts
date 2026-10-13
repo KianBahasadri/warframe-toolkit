@@ -111,3 +111,23 @@ test('D1 saves and persistent throttles survive runtime restarts; expired sessio
     assert.equal((await api.request('profile', { accountId: data.user.id, revision: 0, profile: emptyProfile() }, cookie, { method: 'PUT' })).status, 401);
   } finally { await api.close(); await rm(persist, { recursive: true, force: true }); }
 });
+
+
+test('partial crafting quantities survive saves and older clients without accepting malformed replacements', async () => {
+  const api = await cloudflareRuntime();
+  try {
+    const profile = emptyProfile();
+    profile.craftingPlans = [{ id: 'partial-plan', itemId: '/Rhino', quantity: 1, completed: [], choices: {}, progress: { 'root/part': 50 } }];
+    const registered = await api.request('register', { username: 'PartialTenno', profile });
+    const account = await registered.json() as any, cookie = cookieOf(registered);
+    const { progress, ...legacyPlan } = profile.craftingPlans[0];
+    const save = { accountId: account.user.id, revision: 0, profile: { ...profile, craftingPlans: [legacyPlan] } };
+    assert.equal((await api.request('profile', save, cookie, { method: 'PUT' })).status, 200);
+    const read = async () => (await (await api.request('session', undefined, cookie)).json() as any).profile.craftingPlans[0].progress;
+    assert.deepEqual(await read(), progress);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: [{ ...legacyPlan, progress: null }] } }, cookie, { method: 'PUT' })).status, 400);
+    assert.deepEqual(await read(), progress);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: [{ ...legacyPlan, progress: {} }] } }, cookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual(await read(), {});
+  } finally { await api.close(); }
+});

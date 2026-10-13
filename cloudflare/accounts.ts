@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { accountUsername, emptyProfile, isAccessKey, validateProfile } from '../src/lib/account.ts';
+import { preserveCraftingProgress } from '../src/lib/crafting.ts';
 import type { AccountProfile, AccountSession } from '../src/lib/account.ts';
 import type { Env } from './index.ts';
 
@@ -162,6 +163,7 @@ export class AccountGateway extends DurableObject<Env> {
       if (!Number.isSafeInteger(value.revision) || Number(value.revision) < 0) throw new ApiError(400, 'Invalid save revision.');
       const next = profile(value.profile);
       if (!Object.hasOwn(value.profile as object, 'craftingPlans')) next.craftingPlans = current.snapshot.profile.craftingPlans;
+      else next.craftingPlans = preserveCraftingProgress(next.craftingPlans, current.snapshot.profile.craftingPlans);
       const encoded = encodeProfile(next);
       const results = await db.batch([
         db.prepare(`UPDATE accounts SET profile_id = ?, profile_hash = ?, profile_chunks = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND profile_id = ? AND ${validSession}`).bind(encoded.id, encoded.hash, encoded.chunks.length, account.id, Number(value.revision), account.profile_id, digest(token(request)), Date.now()),
