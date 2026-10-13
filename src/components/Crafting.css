@@ -129,6 +129,10 @@
 .craft-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0; }
 .craft-facts dt { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
 .craft-facts dd { margin: 0; font: 13px var(--mono); }
+.craft-mining dd { font-family: var(--ui); }
+.craft-mining dd a { overflow-wrap: anywhere; }
+.craft-mining dd svg { vertical-align: middle; }
+.craft-mining > p { margin: 12px 0 0; }
 .craft-detail-heading { justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; }
 .craft-detail-heading h3 { margin: 0; }
 .craft-detail-heading a { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }

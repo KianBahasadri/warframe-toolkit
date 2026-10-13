@@ -110,6 +110,7 @@ test('source details distinguish blueprints, exact variants, world locations and
   await expect(dialog).toContainText('Rhino Neuroptics Blueprint');
   await expect(dialog).not.toContainText('Unrelated Prime source');
   await expect(dialog).toContainText('15,000 credits');
+  await expect(dialog.getByRole('region', { name: 'Mining info' })).toHaveCount(0);
   await expect(dialog.getByRole('link', { name: 'Item wiki' })).toHaveAttribute('href', 'https://wiki.warframe.com/w/Rhino');
   await dialog.getByRole('button', { name: 'Close', exact: true }).focus();
   await page.keyboard.press('Shift+Tab');
@@ -121,12 +122,45 @@ test('source details distinguish blueprints, exact variants, world locations and
   await expect(ferrite).toContainText('Mercury, Earth, Lua, Neptune, and the Void');
   await expect(ferrite).toContainText('500X Ferrite');
   await expect(ferrite).toContainText('Multiple rolls');
+  await expect(ferrite.getByRole('region', { name: 'Mining info' })).toHaveCount(0);
   await expect(ferrite).not.toContainText('Unrelated resource');
   await ferrite.getByRole('button', { name: 'Open Drop Tables' }).click();
   await expect(page).toHaveURL(/#droptables\?view=/);
   await expect(page.locator('.drop-group-title')).toHaveText(['500X Ferrite']);
   await page.getByRole('link', { name: 'Crafting', exact: true }).click();
   await expect(region(page).getByRole('heading', { name: 'Rhino', exact: true })).toBeVisible();
+});
+
+test('mining popups distinguish ore and gem rarities, cutter suggestions, and refined ingredients', async ({ page }) => {
+  await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
+  for (const [recipe, name, rarity, cutter, advice] of [
+    ['Pyrotic Alloy', 'Pyrol', 'Common ore', 'Nosam Cutter', 'Community recommendation'],
+    ['Devolved Namalon', 'Namalon', 'Uncommon ore', 'Nosam Cutter', 'Exact odds by cutter are not published'],
+    ['Thaumic Distillate', 'Thaumica', 'Rare ore', 'Sunpoint Plasma Drill', 'All cutters can mine this ore'],
+    ['Purified Heciphron', 'Heciphron', 'Uncommon gem', 'Focused Nosam Cutter', 'excludes the rarest gems'],
+    ['Radiant Zodian', 'Zodian', 'Very rare gem', 'Sunpoint Plasma Drill', 'Advanced Nosam Cutter also works'],
+  ]) {
+    await add(page, recipe);
+    await page.getByRole('button', { name: `Sources for remaining ${name}`, exact: true }).click();
+    const dialog = page.getByRole('dialog', { name, exact: true });
+    const mining = dialog.getByRole('region', { name: 'Mining info' });
+    await expect(mining).toContainText(rarity);
+    await expect(mining.getByRole('link', { name: cutter, exact: true })).toHaveAttribute('href', `https://wiki.warframe.com/w/${cutter.replaceAll(' ', '_')}`);
+    await expect(mining).toContainText(advice);
+    await expect(mining.getByRole('link', { name: 'Mining guide' })).toHaveAttribute('href', 'https://wiki.warframe.com/w/Mining');
+    for (const theme of ['dark', 'light']) {
+      await page.setViewportSize({ width: 320, height: 800 });
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1280, height: 720 });
+  }
+  await page.getByRole('button', { name: /^Sources for Radiant Zodian:/ }).click();
+  const refined = page.getByRole('dialog', { name: 'Radiant Zodian', exact: true });
+  await expect(refined.getByRole('region', { name: 'Mining info' })).toHaveCount(0);
+  await expect(refined.getByRole('region', { name: 'Crafting info' })).toBeVisible();
 });
 
 test('failed account writes keep crafting edits until retry succeeds', async ({ page, account }) => {
@@ -199,7 +233,7 @@ test('partial quantities reduce nested requirements, save, and restore from comp
   expect((await account.profile()).craftingPlans[0].progress).toEqual({});
 });
 
-test('quantity popup supports typed entry, cancellation, clamping, native keys, and precision dragging', async ({ page, account }) => {
+test('quantity popup supports typed entry, native keys, and follows the thumb during normal dragging', async ({ page, account }) => {
   await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
   const node = page.locator('.craft-branch[data-item="Rhino Chassis"]');
   const slider = node.getByRole('slider', { name: 'Completed quantity for Ferrite', exact: true });
@@ -225,19 +259,28 @@ test('quantity popup supports typed entry, cancellation, clamping, native keys, 
     element.addEventListener('change', () => { element.dataset.changes = String(Number(element.dataset.changes) + 1); });
   });
   await page.mouse.move(x, y); await page.mouse.down();
-  await expect(page.locator('.quantity-popup')).toHaveText('Speed 1×');
+  const popup = page.locator('.quantity-popup');
+  await expect(popup.locator('input')).toHaveValue('500');
+  const startPopup = (await popup.boundingBox())!;
+  expect(startPopup.y + startPopup.height).toBeLessThan(y - 9);
+  expect(startPopup.x + startPopup.width / 2).toBeCloseTo(x, 0);
   await page.mouse.move(x, y + 100); await expect(slider).toHaveValue('500');
-  await expect(page.locator('.quantity-popup')).toHaveText('Speed 0.1×');
+  await expect(popup.locator('input')).toHaveValue('500');
   await page.mouse.move(x + 20, y + 100);
-  const fine = Number(await slider.inputValue()); expect(fine).toBeGreaterThan(500); expect(fine).toBeLessThan(520);
+  const dragged = Number(await slider.inputValue());
+  expect(dragged).toBe(Math.round(500 + 20 / (bounds.width - 18) * 1000));
+  await expect(popup.locator('input')).toHaveValue(String(dragged));
+  const movedPopup = (await popup.boundingBox())!;
+  expect(movedPopup.x + movedPopup.width / 2).toBeCloseTo(bounds.x + 9 + dragged / 1000 * (bounds.width - 18), 0);
+  expect(movedPopup.y).toBe(startPopup.y);
   expect(Object.values((await account.session()).profile.craftingPlans[0].progress!)).toEqual([500]);
   await page.mouse.up(); await expect(page.locator('.quantity-popup')).toHaveCount(0);
   expect(Number(await slider.getAttribute('data-inputs'))).toBeGreaterThan(0);
   await expect(slider).toHaveAttribute('data-changes', '1');
-  expect(Object.values((await account.profile()).craftingPlans[0].progress!)).toEqual([fine]);
-  const thumbX = 9 + fine / 1000 * (bounds.width - 18);
+  expect(Object.values((await account.profile()).craftingPlans[0].progress!)).toEqual([dragged]);
+  const thumbX = 9 + dragged / 1000 * (bounds.width - 18);
   await slider.dblclick({ position: { x: thumbX, y: bounds.height / 2 } });
-  await expect(field).toBeFocused(); await expect(field).toHaveValue(String(fine));
+  await expect(field).toBeFocused(); await expect(field).toHaveValue(String(dragged));
   await field.fill('-10'); await field.press('Enter'); await expect(slider).toHaveValue('0');
   await node.getByRole('button', { name: 'Set completed quantity for Ferrite', exact: true }).click();
   await field.fill('2,000'); await field.press('Enter');

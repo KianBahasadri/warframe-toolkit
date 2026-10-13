@@ -7,13 +7,13 @@ const format = (value: number) => value.toLocaleString();
 
 export function QuantitySlider({ name, value, max, disabled, onChange }: { name: string; value: number; max: number; disabled: boolean; onChange: (value: number) => void }) {
   const id = useId(), slider = useRef<HTMLInputElement>(null), popup = useRef<HTMLDivElement>(null), editor = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState(value), [rate, setRate] = useState<number | null>(null), [editing, setEditing] = useState(false), [text, setText] = useState('');
+  const [draft, setDraft] = useState(value), [dragging, setDragging] = useState(false), [editing, setEditing] = useState(false), [text, setText] = useState('');
   const live = useRef(value), editingRef = useRef(false), latest = useRef({ value, max, disabled, onChange });
   latest.current = { value, max, disabled, onChange };
   const drag = useRef<{ id: number; initial: number; value: number; x: number; y: number; units: number; moved: boolean; thumb: boolean } | null>(null);
   const click = useRef<{ time: number; x: number } | null>(null);
   const label = `Completed quantity for ${name}`;
-  const shown = editing || rate !== null;
+  const shown = editing || dragging;
   useEffect(() => { if (!drag.current && !editingRef.current) { live.current = value; setDraft(value); } }, [value, max]);
 
   const geometry = () => {
@@ -45,7 +45,7 @@ export function QuantitySlider({ name, value, max, disabled, onChange }: { name:
   const openEditor = () => {
     if (disabled || drag.current || editingRef.current) return;
     click.current = null; editingRef.current = true;
-    setText(String(live.current)); setRate(null); setEditing(true);
+    setText(String(live.current)); setEditing(true);
   };
   useLayoutEffect(() => { if (editing) { editor.current?.focus({ preventScroll: true }); editor.current?.select(); } }, [editing]);
   useEffect(() => {
@@ -70,7 +70,7 @@ export function QuantitySlider({ name, value, max, disabled, onChange }: { name:
     window.addEventListener('resize', position); window.addEventListener('scroll', position, true);
     window.visualViewport?.addEventListener('resize', position); window.visualViewport?.addEventListener('scroll', position);
     return () => { observer.disconnect(); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); window.visualViewport?.removeEventListener('resize', position); window.visualViewport?.removeEventListener('scroll', position); };
-  }, [shown, draft, rate, editing, max]);
+  }, [shown, draft, editing, max]);
 
   const start = (event: PointerEvent<HTMLInputElement>) => {
     if (disabled || event.button !== 0 || drag.current) return;
@@ -82,22 +82,21 @@ export function QuantitySlider({ name, value, max, disabled, onChange }: { name:
     const initial = live.current, amount = onThumb ? initial : Math.max(0, Math.min(max, (event.clientX - track.start) / track.width * max));
     drag.current = { id: event.pointerId, initial, value: amount, x: event.clientX, y: event.clientY, units: max / track.width, moved: false, thumb: onThumb };
     event.currentTarget.focus({ preventScroll: true }); event.currentTarget.setPointerCapture(event.pointerId);
-    write(amount); setRate(1);
+    write(amount); setDragging(true);
   };
   const move = (event: PointerEvent<HTMLInputElement>) => {
     const active = drag.current;
     if (!active || active.id !== event.pointerId) return;
     event.preventDefault();
-    const distance = Math.abs(event.clientY - active.y), speed = distance <= 24 ? 1 : distance <= 72 ? .25 : distance <= 144 ? .1 : .02;
-    if (Math.abs(event.clientX - active.x) > 3 || distance > 3) active.moved = true;
-    active.value = Math.max(0, Math.min(max, active.value + (event.clientX - active.x) * active.units * speed));
-    active.x = event.clientX; write(active.value); setRate(speed);
+    if (Math.abs(event.clientX - active.x) > 3 || Math.abs(event.clientY - active.y) > 3) active.moved = true;
+    active.value = Math.max(0, Math.min(max, active.value + (event.clientX - active.x) * active.units));
+    active.x = event.clientX; write(active.value);
   };
   const finish = (event: PointerEvent<HTMLInputElement>) => {
     const active = drag.current;
     if (!active || active.id !== event.pointerId) return;
     if (event.type === 'pointercancel') write(active.initial);
-    drag.current = null; setRate(null);
+    drag.current = null; setDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     click.current = active.thumb && !active.moved && event.type === 'pointerup' ? { time: event.timeStamp, x: event.clientX } : null;
     commit();
@@ -109,10 +108,9 @@ export function QuantitySlider({ name, value, max, disabled, onChange }: { name:
       onChange={() => {}} onInput={event => { live.current = Number(event.currentTarget.value); setDraft(live.current); if (!drag.current && !editingRef.current) commit(); }}
       onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}
       onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); openEditor(); } }} />
-    <span id={`${id}-help`} className="sr-only">Drag vertically away from the slider for finer horizontal adjustment. Double-click the thumb, press Enter, or activate the quantity to type a value.</span>
-    <span className="sr-only" aria-live="polite">{rate !== null ? `Speed ${rate}×` : ''}</span>
+    <span id={`${id}-help`} className="sr-only">Double-click the thumb, press Enter, or activate the quantity to type a value.</span>
     {shown && createPortal(<div ref={popup} className={`quantity-popup${editing ? ' is-editing' : ''}`} role={editing ? 'dialog' : undefined} aria-label={editing ? label : undefined} aria-hidden={editing ? undefined : true}>
-      {editing ? <input ref={editor} type="text" inputMode="decimal" autoComplete="off" spellCheck={false} aria-label={`${label} value`} value={text} style={{ width: `${Math.max(4, String(max).length + 1)}ch` }} onChange={event => setText(event.target.value)} onBlur={() => closeEditor(true)} onKeyDown={event => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeEditor(event.key === 'Enter'); } }} /> : `Speed ${rate}×`}
+      <input ref={editor} type="text" inputMode="decimal" autoComplete="off" spellCheck={false} aria-label={`${label} value`} value={editing ? text : String(draft)} readOnly={!editing} tabIndex={editing ? 0 : -1} style={{ width: `${Math.max(4, String(max).length + 1)}ch` }} onChange={event => setText(event.target.value)} onBlur={() => closeEditor(true)} onKeyDown={event => { if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeEditor(event.key === 'Enter'); } }} />
     </div>, slider.current?.closest('dialog') ?? document.body)}
   </div>;
 }

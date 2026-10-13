@@ -4,6 +4,7 @@ import { Dialog } from './Dialog';
 import { CraftingArtwork } from './CraftingArtwork';
 import { Currency } from './Currency';
 import { craftingMaterials } from '../data/crafting';
+import { miningInfo, MINING_GUIDE_URL } from '../data/mining';
 import { craftingDuration, craftingSources } from '../lib/crafting';
 import type { CraftingItem, CraftingNode } from '../lib/crafting';
 import { useDropData } from '../lib/useDropData';
@@ -19,6 +20,7 @@ export function CraftingDetails({ item, node, onRecipe, onClose }: { item: Craft
   const sources = useMemo(() => craftingSources(data?.rows ?? [], item.name, recipe?.name), [data, item.name, recipe?.name]);
   const blueprintCredits = blueprint?.blueprintCredits ?? item.blueprintCredits;
   const description = item.description.replace(/\s*Location: .+$/i, '');
+  const mining = miningInfo(item.name);
   const openDrops = () => {
     const view = defaultDropView();
     view.filters.reward = { kind: 'values', values: [...new Set(sources.length ? sources.map(row => row.reward) : [item.name, ...(recipe ? [recipe.name] : [])])] };
@@ -27,6 +29,14 @@ export function CraftingDetails({ item, node, onRecipe, onClose }: { item: Craft
   };
   return <Dialog title={item.name} onClose={onClose} className="craft-detail">
     <div className="craft-detail-intro"><CraftingArtwork item={item} /><div>{description && <p className="small muted">{description}</p>}{item.location && <p className="craft-location"><MapPin size={16} /><span>{item.location}</span></p>}{node && <span className="badge">{number(node.quantity)} needed</span>}</div></div>
+    {mining && <section className="craft-detail-section craft-mining" aria-label="Mining info">
+      <div className="craft-detail-heading"><h3>Mining</h3><a href={MINING_GUIDE_URL} target="_blank" rel="noreferrer">Mining guide <ExternalLink size={12} /></a></div>
+      <dl className="craft-facts">
+        <div><dt>Rarity</dt><dd>{mining.rarity} {mining.kind.toLowerCase()}</dd></div>
+        <div><dt>Suggested cutter</dt><dd><a href={mining.cutterUrl} target="_blank" rel="noreferrer">{mining.cutter} <ExternalLink size={12} /></a></dd></div>
+      </dl>
+      <p className="small muted">{mining.advice}</p>
+    </section>}
     {recipe && <section className="craft-detail-section" aria-label="Crafting info"><h3>{recipe.name}</h3><dl className="craft-facts">
       <div><dt>Build time</dt><dd>{craftingDuration(recipe.seconds)}</dd></div>
       <div><dt>Build cost</dt><dd>{recipe.credits === null ? 'Unknown' : <Currency value={recipe.credits} currency="credits" />}</dd></div>
