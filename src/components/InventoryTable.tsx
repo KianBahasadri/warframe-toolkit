@@ -4,6 +4,7 @@ import { helminthStatus, recommendationFor, recommendedActions, warframeRecommen
 import { normalizeName } from '../lib/model';
 import { Tooltip } from './Tooltip';
 import { TableNotes } from './TableNotes';
+import { MarketPrice } from './MarketPrice';
 import type { Equipment } from '../lib/model';
 import { catalogFields, defaultWeaponFilters, filterEquipment } from '../lib/weaponCatalog';
 import type { BooleanField, EquipmentRow } from '../lib/weaponCatalog';
@@ -49,6 +50,7 @@ export function InventoryTable({ items, onEdit, onToggle, onNotesChange, onAdd, 
     retiredColumns: weapons ? ['dontKeep', 'override'] : retiredWarframeColumns,
     storageKey: weapons ? COLUMNS_STORAGE_KEY : WARFRAME_COLUMNS_STORAGE_KEY, legacyStorageKey: weapons ? undefined : COLUMNS_STORAGE_KEY,
     model: equipmentTableModel, rowLabel: item => item.name,
+    marketSubject: item => ({ name: item.name, kind: 'equipment', gameRef: item.catalogItem?.id }),
     rowKey: item => normalizeName(item.name),
     filters: equipmentFilters(items, weapons, ownedOnlyDefault),
     applyFilters: (rows, search, filters) => filterEquipment(rows, search, { ...defaultWeaponFilters, ...filters }),
@@ -60,6 +62,7 @@ export function InventoryTable({ items, onEdit, onToggle, onNotesChange, onAdd, 
     extraActions={<button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
     renderCell={(item, column, visibleColumns) => column.key === 'name'
       ? <>{item.catalogItem?.image ? <img className="equipment-image" src={item.catalogItem.image} width="88" height="56" alt="" loading="lazy" /> : <span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span>}<span className="equipment-identity"><span className="equipment-label">{item.name}</span>{weapons ? !visibleColumns.includes('slot') && <span className="equipment-meta">{item.slot}</span> : <span className="equipment-meta">{item.catalogItem?.weaponType === 'Necramech' ? 'Necramech' : !visibleColumns.includes('variant') ? item.variant : null}</span>}</span></>
+      : column.key === 'wfm' ? <MarketPrice subject={{ name: item.name, kind: 'equipment', gameRef: item.catalogItem?.id }} />
       : column.key === 'incarnon' && item.catalogItem ? <span className="catalog-fact" aria-label={`Incarnon: ${item.name}: ${item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}`}>{item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}</span>
       : column.kind === 'boolean' ? item.catalogItem && catalogFields.some(key => key === column.key) ? <span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item[column.key as keyof Equipment] ? 'Yes' : 'No'}`}>{item[column.key as keyof Equipment] ? 'Yes' : 'No'}</span> : <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} onChange={() => onToggle(item, column.key as BooleanField)} /></label>
       : column.key === 'keep' ? <Tooltip className="recommended-action" content={recommendationFor(item).reason}>{recommendationFor(item).action}</Tooltip>

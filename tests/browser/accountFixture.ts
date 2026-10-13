@@ -27,6 +27,9 @@ export const test = base.extend<{ account: TestAccount; signedIn: boolean }>({
     if (server) await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     const url = cloud?.url ?? `http://127.0.0.1:${(server!.address() as { port: number }).port}`;
     await context.route('**/api/account/**', async route => route.fulfill({ response: await route.fetch({ url: url + new URL(route.request().url()).pathname }) }));
+    // Unrelated browser tests never contact the live market. Market tests
+    // override this route with explicit orders and history fixtures.
+    await context.route('**/api/wfm/**', route => route.fulfill({ json: { data: [], fetchedAt: '2026-10-13T12:00:00.000Z', stale: false } }));
     const headers = { Origin: baseURL!, 'X-Toolkit-Request': '1' };
     const session = async (): Promise<AccountSession> => {
       const response = await context.request.get(`${url}/api/account/session`); expect(response.ok()).toBe(true); return response.json();

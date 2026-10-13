@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './Tooltip.css';
 
-export function Tooltip({ children, content, className = '' }: { children: ReactNode; content: string; className?: string }) {
+export function Tooltip({ children, content, className = '', label, onClick, hasPopup }: { children: ReactNode; content: ReactNode; className?: string; label?: string; onClick?: () => void; hasPopup?: boolean }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null), bubble = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false);
@@ -43,11 +43,11 @@ export function Tooltip({ children, content, className = '' }: { children: React
     };
   }, [open, content]);
   return <>
-    <button ref={trigger} type="button" className={`tooltip-trigger ${className}`} aria-describedby={open ? id : undefined}
+    <button ref={trigger} type="button" className={`tooltip-trigger ${className}`} aria-label={label} aria-haspopup={hasPopup ? 'dialog' : undefined} aria-describedby={open ? id : undefined} onClick={onClick ? () => { setDismissed(true); setOpen(false); onClick(); } : undefined}
       onPointerEnter={event => { if (event.pointerType !== 'touch') { setHovered(true); setDismissed(false); } }} onPointerLeave={() => setHovered(false)}
       onFocus={() => { setFocused(true); setDismissed(false); }} onBlur={() => setFocused(false)}>
       {children}
     </button>
-    {createPortal(<div ref={bubble} id={id} role="tooltip" className="tooltip-bubble" hidden={!open}>{content}</div>, document.body)}
+    {open && createPortal(<div ref={bubble} id={id} role="tooltip" className="tooltip-bubble">{content}</div>, trigger.current?.closest('dialog') ?? document.body)}
   </>;
 }

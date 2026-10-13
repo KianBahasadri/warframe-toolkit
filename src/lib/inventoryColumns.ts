@@ -3,10 +3,11 @@ import type { Equipment } from './model.ts';
 import type { EquipmentRow } from './weaponCatalog.ts';
 import type { TableColumn, TableModel } from './tableView.ts';
 
-export type Column = TableColumn & { key: keyof Equipment | 'keep' };
+export type Column = TableColumn & { key: keyof Equipment | 'keep' | 'wfm' };
 
 export const inventoryColumns: Column[] = [
   { key: 'name', title: 'Weapon', width: 360, required: true },
+  { key: 'wfm', title: 'WFM', width: 156, kind: 'number', number: { min: 0, max: 1000000, step: 'any', unknown: true } },
   { key: 'owned', title: 'Owned', width: 96, kind: 'boolean' },
   { key: 'rank', title: 'Rank', width: 84, kind: 'number', number: { min: 0, max: 40, unknown: true } },
   { key: 'mastered', title: 'Mastered', width: 124, kind: 'boolean' },
@@ -23,7 +24,7 @@ export const inventoryColumns: Column[] = [
   { key: 'notes', title: 'Notes', width: 280, wrap: true },
 ];
 
-export const defaultColumns: Column['key'][] = ['name', 'owned', 'rank', 'mastered', 'incarnon', 'upgraded', 'keep', 'craftingTarget'];
+export const defaultColumns: Column['key'][] = ['name', 'wfm', 'owned', 'rank', 'mastered', 'incarnon', 'upgraded', 'keep', 'craftingTarget'];
 export const COLUMNS_STORAGE_KEY = 'arsenal.inventory-columns';
 export const WARFRAME_COLUMNS_STORAGE_KEY = 'grakata.warframe-columns';
 export const retiredWarframeColumns = ['dontKeep', 'override', 'incarnon', 'craftingTarget', 'craftingIngredient', 'slot'];
@@ -33,7 +34,7 @@ export const warframeColumns: Column[] = [
   })),
   { key: 'helminth', title: 'Helminth unlocked', width: 200, choices: ['Unknown', 'Yes', 'No', 'Not applicable'].map(value => ({ value, label: value })) },
 ];
-export const defaultWarframeColumns: Column['key'][] = ['name', 'owned', 'rank', 'mastered', 'upgraded', 'keep', 'hasPrimeVariant', 'helminth'];
+export const defaultWarframeColumns: Column['key'][] = ['name', 'wfm', 'owned', 'rank', 'mastered', 'upgraded', 'keep', 'hasPrimeVariant', 'helminth'];
 
 export const equipmentTableModel: TableModel<EquipmentRow> = {
   value(item, key) {

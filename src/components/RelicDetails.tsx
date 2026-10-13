@@ -1,5 +1,6 @@
 import { relicCatalogDate } from '../data/relicCatalog';
 import type { RelicCatalogItem } from '../lib/relicCatalog';
+import { MarketPrice } from './MarketPrice';
 import { DROP_TABLES_URL } from '../lib/dropTables';
 
 const chance = (value: number | null) => value === null ? 'Not published' : `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
@@ -8,7 +9,7 @@ export function RelicDetails({ item }: { item: RelicCatalogItem }) {
   const total = item.rewards.every(reward => reward.chance !== null) ? item.rewards.reduce((sum, reward) => sum + reward.chance!, 0) : null;
   return <div className="weapon-details relic-details">
     <section aria-label="Relic rewards"><h3>Rewards · {item.refinement}</h3>
-      <ul className="relic-rewards">{item.rewards.map((reward, index) => <li key={`${reward.id}:${index}`}><div>{reward.quantity > 1 && `${reward.quantity} × `}{reward.name}<small className={`relic-rarity rarity-${reward.rarity}`}>{reward.rarity}</small></div><span>{chance(reward.chance)}</span></li>)}</ul>
+      <ul className="relic-rewards">{item.rewards.map((reward, index) => <li key={`${reward.id}:${index}`}><div>{reward.quantity > 1 && `${reward.quantity} × `}{reward.name}<small className={`relic-rarity rarity-${reward.rarity}`}>{reward.rarity}</small></div><span><MarketPrice subject={{ name: reward.name, kind: 'item' }} /></span><span>{chance(reward.chance)}</span></li>)}</ul>
       {total !== null && Math.abs(total - 100) > 0.05 && <p className="small muted">Published chances total {chance(total)}; the official table is incomplete.</p>}
       {item.refinement === 'Unrefined' && <p className="small muted">Cannot be refined.</p>}
     </section>

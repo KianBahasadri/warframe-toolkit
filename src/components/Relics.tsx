@@ -4,6 +4,7 @@ import { Minus, Plus, ScanLine } from 'lucide-react';
 import { Dialog } from './Dialog';
 import { Select } from './Select';
 import { TableNotes } from './TableNotes';
+import { MarketPrice } from './MarketPrice';
 import { CollectionTable } from './CollectionTable';
 import { RelicDetails } from './RelicDetails';
 import type { CollectionActions, CollectionDefinition } from './CollectionTable';
@@ -129,6 +130,7 @@ function RelicForm({ item, existing, onSave, onDelete, onClose }: { item?: Relic
 const relicDefinition: CollectionDefinition<RelicRow> = {
   label: 'Relics', itemLabel: 'relic', searchLabel: 'Search relics', regionLabel: 'Relic inventory', filterLabel: 'Relic filters',
   columns: relicColumns, defaultColumns: defaultRelicColumns, storageKey: RELIC_COLUMNS_STORAGE_KEY, model: relicTableModel,
+  marketSubject: relic => ({ name: relic.name, kind: 'relic', refinement: relic.refinement }),
   rowLabel: relic => `${relic.name} ${relic.refinement}`, rowKey: relicKey, initialSorting: [{ key: 'name', direction: 1 }], pageSize: 100,
   filters: [
     { key: 'trackedOnly', label: 'Tracked only', kind: 'checkbox' },
@@ -165,6 +167,7 @@ export function Relics({ relics, trackedOnlyDefault, onSave, onDelete, onQuantit
     <CollectionTable definition={definition} items={rows} onEdit={row => setEditing(editableRelic(row))} onAdd={() => setEditing('new')} onExport={onExport} actionsRef={actionsRef}
       extraActions={<button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
       renderCell={(relic, column) => column.key === 'name' ? <>{relic.catalogItem && <img className="equipment-image" src={relic.catalogItem.image} alt="" width="88" height="56" loading="lazy" />}<span className="equipment-label">{relic.name}</span></>
+        : column.key === 'wfm' ? <MarketPrice subject={{ name: relic.name, kind: 'relic', refinement: relic.refinement }} />
         : column.key === 'quantity' ? <div className="quantity-control"><button type="button" className="icon-button" aria-label={`Decrease ${relic.name} ${relic.refinement} quantity`} title="Decrease quantity" disabled={relic.quantity === 0} onClick={() => onQuantityChange(relic, -1)}><Minus size={14} /></button><span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span><button type="button" className="icon-button" aria-label={`Increase ${relic.name} ${relic.refinement} quantity`} title="Increase quantity" disabled={relic.quantity === MAX_RELIC_QUANTITY} onClick={() => onQuantityChange(relic, 1)}><Plus size={14} /></button></div>
         : column.key === 'notes' ? <TableNotes name={`${relic.name} ${relic.refinement}`} value={relic.notes} onChange={notes => onNotesChange(relic, notes)} />
         : relicTableModel.value(relic, column.key) || <span className="table-missing">—</span>}

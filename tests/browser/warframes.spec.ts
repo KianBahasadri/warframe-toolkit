@@ -16,7 +16,7 @@ test('Warframes exposes relevant columns, filters and Necramech types without ch
   await page.goto('/#warframes');
   const before = await account.inventory();
   await expect(page.getByRole('heading', { name: 'No owned Warframes yet' })).toBeVisible();
-  await expect(page.getByRole('columnheader')).toHaveText(['Warframe', 'Owned', 'Rank', 'Mastered', 'Upgraded', 'Recommended action', 'Has Prime variant', 'Helminth unlocked']);
+  await expect(page.getByRole('columnheader')).toHaveText(['Warframe', 'WFM', 'Owned', 'Rank', 'Mastered', 'Upgraded', 'Recommended action', 'Has Prime variant', 'Helminth unlocked']);
   await page.getByRole('button', { name: 'Columns', exact: true }).click();
   const columns = page.getByRole('group', { name: 'Table columns', exact: true });
   for (const name of ['Equipment', 'Incarnon', 'Crafting target', 'Crafting ingredient', 'Slot', 'Quest weapon', 'Meta / powerful']) {

@@ -4,10 +4,13 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 import { fetchLiveDropTables } from '../server/dropTables.ts';
 import { DROP_REFRESH_INTERVAL_MS, DROP_RETRY_INTERVAL_MS } from '../src/lib/dropTables.ts';
 import type { Env } from './index.ts';
+import { createDurableMarket } from './market.ts';
 
 type Metadata = { fetched_at: string | null; error: string | null; etag: string | null; next_attempt: number };
-/** Only scheduled events/alarms refresh upstream. Reads only serve stored bytes. */
+/** Official drops refresh only on schedules/alarms; WFM uses a separate object identity. */
 export class DropTables extends DurableObject<Env> {
+  // WFM uses a separate object identity in the existing public-data namespace.
+  private market: ReturnType<typeof createDurableMarket> | undefined;
   private refreshing: Promise<void> | undefined;
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -51,6 +54,7 @@ export class DropTables extends DurableObject<Env> {
   }
   async alarm() { await this.refresh(); }
   async fetch(request: Request) {
+    if (new URL(request.url).pathname.startsWith('/api/wfm/')) return (this.market ??= createDurableMarket(this.ctx)).handle(request);
     if (request.method !== 'GET') return new Response(null, { status: 405, headers: { Allow: 'GET' } });
     const meta = this.meta();
     if (!meta?.fetched_at) return Response.json({ error: meta?.error || 'The first drop-table update is being prepared.', refreshing: !meta?.error }, { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': meta?.error ? '60' : '5' } });

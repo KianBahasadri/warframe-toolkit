@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ExternalLink, Search } from 'lucide-react';
 import { Dialog } from './Dialog';
+import { MarketPrice } from './MarketPrice';
 import { attemptsForChance, DROP_TABLES_URL, formatChance, successChance } from '../lib/dropTables';
 import type { DropRow } from '../lib/dropTables';
 
@@ -11,6 +12,7 @@ export function DropDetails({ row, onClose, onFindReward, onFindSource }: { row:
   const required = row.chance !== null && validTarget ? attemptsForChance(row.chance, Number(target)) : null;
   return <Dialog title={row.reward} onClose={onClose} className="drop-details">
     <dl className="drop-facts">
+      <div><dt>WFM</dt><dd><MarketPrice subject={{ name: row.reward, kind: 'item' }} /></dd></div>
       <div><dt>Source</dt><dd>{row.source}</dd></div>
       <div><dt>Category</dt><dd>{row.category}</dd></div>
       {row.location && <div><dt>Location</dt><dd>{row.location}</dd></div>}

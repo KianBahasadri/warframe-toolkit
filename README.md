@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-Open http://127.0.0.1:5173. Catalog browsing and OCR work offline; drop-table updates need internet.
+Open http://127.0.0.1:5173. Catalog browsing and OCR work offline; drop updates and WFM prices need internet.
 
 ```sh
 npm test
@@ -28,6 +28,7 @@ npm run preview      # Production build at http://127.0.0.1:4173
 - Imports require review and preserve planning fields, notes, and absent equipment. Inventory supplies ownership/rank; Codex supplies mastery, not ownership/rank. Relic screenshots replace selected quantities by exact name/refinement, preserving notes and other stacks. Overlaps never add counts; missing counts suggest an unchecked 1.
 - OCR checked against English 1920 × 1200 Inventory (37 names/ranks), Codex (32 names/laurels), and Relics (20 names/refinements/counts), plus modified/resized Codex images. Other languages, themes, layouts, UI scales, and actual lower-resolution captures remain unverified. No equipment recognition from artwork or arbitrary custom names. See [fixtures](tests/fixtures/README.md).
 - [Official drops](https://warframe.com/droptables) update hourly through the server; failures retain the cache and retry after five minutes. Published sources may be unavailable or outdated. Odds assume independent attempts, without squad, booster, or pity modifiers.
+- WFM shows the median of up to five cheapest distinct online sellers, in platinum per item. Hover for statistics; click for history, platform/variant selection, and CSV. Prime equipment uses explicitly labeled sets/blueprints; relic refinements stay separate. Defaults to PC. [WFM API](https://docs.warframe.market/docs/api/overview/) requests share a paced cache: orders 5 minutes, history 1 hour. Failures retain dated, marked stale prices; missing prices remain unknown. Closed history is user-reported, not verified sales.
 
 ## Maintain
 
@@ -41,7 +42,7 @@ Relics use [Public Export](https://content.warframe.com/PublicExport/index_en.tx
 
 - `src/App.tsx`, `src/components/`: interface and collection tables.
 - `src/lib/`: models, recommendations, OCR, filtering, accounts, and persistence.
-- `server/`, `vite.config.ts`: local accounts and drop cache.
+- `server/`, `vite.config.ts`: local accounts, drops, and WFM cache.
 - `cloudflare/`, `infra/cloudflare/`: hosted runtime and [deployment/recovery](infra/cloudflare/README.md).
 - `tests/`: unit, browser, and Cloudflare checks.
 

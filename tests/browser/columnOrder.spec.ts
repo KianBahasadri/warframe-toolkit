@@ -6,7 +6,7 @@ import { createRelic } from '../../src/lib/relics';
 const header = (page: Page, name: string) => page.getByRole('columnheader').filter({ has: page.getByRole('button', { name: `${name} column options`, exact: true }) });
 const order = (page: Page) => page.locator('.inventory-section .inventory-table th').evaluateAll(cells => cells.map(cell => (cell as HTMLElement).dataset.columnKey));
 const menu = (page: Page) => page.getByRole('group', { name: /Column actions for/ });
-const equipmentOrder = ['name', 'owned', 'rank', 'mastered', 'incarnon', 'upgraded', 'keep', 'craftingTarget'];
+const equipmentOrder = ['name', 'wfm', 'owned', 'rank', 'mastered', 'incarnon', 'upgraded', 'keep', 'craftingTarget'];
 
 async function dragColumn(page: Page, source: string, target: string, edge: 'before' | 'after') {
   await expect(page.locator('.column-drag-layer')).toHaveCount(0);
@@ -47,10 +47,10 @@ test('dragged columns keep their data, filters, and independent saved order in e
   await page.getByRole('spinbutton', { name: 'Filter rank' }).fill('30');
   await page.getByRole('button', { name: 'Apply filter' }).click();
   await dragColumn(page, 'Rank', 'Owned', 'before');
-  await expect.poll(() => order(page)).toEqual(['name', 'rank', 'owned', ...equipmentOrder.slice(3)]);
+  await expect.poll(() => order(page)).toEqual(['name', 'wfm', 'rank', 'owned', ...equipmentOrder.slice(4)]);
   await expect(page.getByRole('button', { name: 'Rank column options' })).toHaveAccessibleDescription('Sort priority 1 of 1, descending');
   await expect(page.locator('.inventory-table .equipment-label')).toHaveText(['Bo']);
-  await expect(page.locator('tbody tr').first().getByRole('cell').nth(1)).toHaveText('30');
+  await expect(page.locator('tbody tr').first().locator('[data-column-key="rank"]')).toHaveText('30');
   await expect(page.getByRole('group', { name: 'Column filters', exact: true })).toContainText('Rank: Equals 30');
 
   await page.getByRole('button', { name: 'Columns', exact: true }).click();
@@ -58,37 +58,37 @@ test('dragged columns keep their data, filters, and independent saved order in e
   await rankChoice.uncheck();
   await rankChoice.check();
   await page.keyboard.press('Escape');
-  await expect.poll(() => order(page)).toEqual(['name', 'rank', 'owned', ...equipmentOrder.slice(3)]);
+  await expect.poll(() => order(page)).toEqual(['name', 'wfm', 'rank', 'owned', ...equipmentOrder.slice(4)]);
   await dragColumn(page, 'Weapon', 'Owned', 'after');
-  const moved = ['rank', 'owned', 'name', ...equipmentOrder.slice(3)];
+  const moved = ['wfm', 'rank', 'owned', 'name', ...equipmentOrder.slice(4)];
   await expect.poll(() => order(page)).toEqual(moved);
   const cells = page.locator('tbody tr').first().getByRole('cell');
-  await expect(cells.nth(0)).toHaveText('30');
-  await expect(cells.nth(1).getByRole('checkbox', { name: 'Owned: Bo', exact: true })).toBeChecked();
-  await expect(cells.nth(2).getByRole('button', { name: 'Edit Bo', exact: true })).toBeVisible();
+  await expect(cells.nth(1)).toHaveText('30');
+  await expect(cells.nth(2).getByRole('checkbox', { name: 'Owned: Bo', exact: true })).toBeChecked();
+  await expect(cells.nth(3).getByRole('button', { name: 'Edit Bo', exact: true })).toBeVisible();
   await page.reload();
   await expect.poll(() => order(page)).toEqual(moved);
   await page.getByRole('link', { name: 'Warframes', exact: true }).click();
   const warframeMoved = moved.filter(key => !['incarnon', 'craftingTarget'].includes(key));
   await expect.poll(() => order(page)).toEqual(warframeMoved);
-  await expect(page.locator('tbody tr').first().getByRole('cell').nth(0)).toHaveText('20');
+  await expect(page.locator('tbody tr').first().locator('[data-column-key="rank"]')).toHaveText('20');
   await dragColumn(page, 'Owned', 'Rank', 'before');
-  const warframeLayout = ['owned', 'rank', ...warframeMoved.slice(2)];
+  const warframeLayout = ['wfm', 'owned', 'rank', ...warframeMoved.slice(3)];
   await expect.poll(() => order(page)).toEqual(warframeLayout);
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
   await expect.poll(() => order(page)).toEqual(moved);
 
   await page.getByRole('link', { name: 'Relics', exact: true }).click();
   await dragColumn(page, 'Quantity', 'Relic', 'before');
-  await expect.poll(() => order(page)).toEqual(['quantity', 'name', 'era', 'refinement', 'notes']);
+  await expect.poll(() => order(page)).toEqual(['quantity', 'name', 'wfm', 'era', 'refinement', 'notes']);
   await expect(page.locator('tbody tr').first().getByRole('cell').nth(0)).toContainText('3');
   await header(page, 'Quantity').getByRole('button').press('Shift+F10');
   await expect(menu(page).getByRole('menuitem', { name: 'Move left' })).toBeDisabled();
   await menu(page).getByRole('menuitem', { name: 'Move right' }).click();
-  await expect.poll(() => order(page)).toEqual(['name', 'quantity', 'era', 'refinement', 'notes']);
+  await expect.poll(() => order(page)).toEqual(['name', 'quantity', 'wfm', 'era', 'refinement', 'notes']);
   await expect(header(page, 'Quantity').getByRole('button')).toBeFocused();
   await page.reload();
-  await expect.poll(() => order(page)).toEqual(['name', 'quantity', 'era', 'refinement', 'notes']);
+  await expect.poll(() => order(page)).toEqual(['name', 'quantity', 'wfm', 'era', 'refinement', 'notes']);
   await page.getByRole('link', { name: 'Warframes', exact: true }).click();
   await expect.poll(() => order(page)).toEqual(warframeLayout);
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
@@ -218,7 +218,7 @@ test('drag previews preserve cell geometry and never scroll away from a stationa
     expect(column.rows.length).toBeLessThan(column.total);
     expect(column.rows.every(row => row.topError < 1 && row.heightError < 1 && row.widthError < 1 && row.contentMatches)).toBe(true);
   }
-  for (const distance of [80, 400, 220, 80, 20, 400]) {
+  for (const distance of [80, 400, 220, 80, 20, 556]) {
     await page.mouse.move(x + distance, y);
     expect((await page.locator('.column-drag-preview[data-lifted]').boundingBox())!.x).toBeCloseTo(from.x + distance, 0);
     expect(await grid.evaluate(element => element.scrollLeft)).toBe(350);
@@ -228,7 +228,7 @@ test('drag previews preserve cell geometry and never scroll away from a stationa
   await page.mouse.up();
   await expect(layer).toHaveCount(0);
   expect(await grid.evaluate(element => element.scrollLeft)).toBe(350);
-  await expect.poll(() => order(page)).toEqual([...equipmentOrder.slice(1, 7), 'name', 'craftingTarget']);
+  await expect.poll(() => order(page)).toEqual([...equipmentOrder.slice(1, 8), 'name', 'craftingTarget']);
   expect(JSON.stringify(await account.inventory())).toBe(saved);
 });
 
@@ -237,12 +237,12 @@ test('neighbor columns slide smoothly, reverse on cancellation, and honor reduce
   await page.goto('/');
   const saved = JSON.stringify(await account.inventory());
   const from = (await header(page, 'Weapon').boundingBox())!;
-  const owned = (await header(page, 'Owned').boundingBox())!;
+  const neighborBounds = (await header(page, 'WFM').boundingBox())!;
   const x = from.x + 100, y = from.y + from.height / 2;
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 20, y);
-  const neighbor = page.locator('.column-drag-preview[data-column-key="owned"]');
+  const neighbor = page.locator('.column-drag-preview[data-column-key="wfm"]');
   const samples = neighbor.evaluate(async element => {
     const positions: number[] = [], start = performance.now();
     while (performance.now() - start < 250) {
@@ -251,11 +251,11 @@ test('neighbor columns slide smoothly, reverse on cancellation, and honor reduce
     }
     return positions;
   });
-  await page.mouse.move(x + owned.width + 10, y);
-  expect((await samples).some(left => left > from.x + 2 && left < owned.x - 2)).toBe(true);
+  await page.mouse.move(x + neighborBounds.width + 10, y);
+  expect((await samples).some(left => left > from.x + 2 && left < neighborBounds.x - 2)).toBe(true);
   await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(from.x, 0);
   await page.mouse.move(x + 20, y);
-  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(owned.x, 0);
+  await expect.poll(async () => (await neighbor.boundingBox())!.x).toBeCloseTo(neighborBounds.x, 0);
   await page.keyboard.press('Escape');
   await page.mouse.up();
   await expect(page.locator('.column-drag-layer')).toHaveCount(0);
@@ -265,12 +265,12 @@ test('neighbor columns slide smoothly, reverse on cancellation, and honor reduce
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x + owned.width + 10, y);
+  await page.mouse.move(x + neighborBounds.width + 10, y);
   expect(await neighbor.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0s');
   expect((await neighbor.boundingBox())!.x).toBeCloseTo(from.x, 0);
   await page.mouse.up();
   await expect(page.locator('.column-drag-layer')).toHaveCount(0);
-  await expect.poll(() => order(page)).toEqual(['owned', 'name', ...equipmentOrder.slice(2)]);
+  await expect.poll(() => order(page)).toEqual(['wfm', 'name', ...equipmentOrder.slice(2)]);
   expect(JSON.stringify(await account.inventory())).toBe(saved);
 });
 
@@ -293,7 +293,7 @@ test.describe('touch column dragging', () => {
     await expect(header(page, 'Rank')).toHaveAttribute('data-dragging', 'true');
     await expect(header(page, 'Owned')).toHaveAttribute('data-drop-edge', 'before');
     await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await expect.poll(() => order(page)).toEqual(['name', 'rank', 'owned', ...equipmentOrder.slice(3)]);
+    await expect.poll(() => order(page)).toEqual(['name', 'wfm', 'rank', 'owned', ...equipmentOrder.slice(4)]);
     await expect(menu(page)).toHaveCount(0);
     await expect(page.locator('.column-drag-layer')).toHaveCount(0);
     await header(page, 'Rank').getByRole('button').tap();

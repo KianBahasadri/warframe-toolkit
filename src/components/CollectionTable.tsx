@@ -7,6 +7,8 @@ import { ColumnMenu } from './ColumnMenu';
 import { ColumnPicker } from './ColumnPicker';
 import { Select } from './Select';
 import { useColumnDrag } from './useColumnDrag';
+import type { MarketSubject } from '../lib/market';
+import { marketPrice, useMarketPrefetch, useMarketRevision } from '../lib/marketClient';
 
 export type FilterValues = Record<string, string | boolean>;
 export type CollectionFilter = {
@@ -23,6 +25,7 @@ export interface CollectionDefinition<Row> {
   applyFilters: (items: Row[], search: string, filters: FilterValues) => Row[];
   initialSorting?: ColumnSort[];
   pageSize?: number;
+  marketSubject?: (item: Row) => MarketSubject;
   summary?: (count: number, items: Row[], filters: FilterValues) => string;
   emptyState: (items: Row[], filters: FilterValues) => { title: string; description?: string; resetLabel?: string; resetValues?: FilterValues };
 }
@@ -34,6 +37,8 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   extraActions?: ReactNode; renderCell: (item: Row, column: TableColumn, visibleColumns: string[]) => ReactNode;
 }) {
   const defaults = Object.fromEntries(definition.filters.map(field => [field.key, field.defaultValue ?? (field.kind === 'checkbox' ? false : '')]));
+  useMarketRevision();
+  const model: TableModel<Row> = { ...definition.model, value: (item, key) => key === 'wfm' && definition.marketSubject ? marketPrice(definition.marketSubject(item)) : definition.model.value(item, key) };
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterValues>(defaults);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -96,8 +101,10 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   };
   const filterCount = definition.filters.filter(field => filters[field.key] !== defaults[field.key]).length;
   const changed = Boolean(search || Object.keys(columnFilters).length || filterCount);
-  const filtered = filterRows(definition.applyFilters(items, search, filters), columnFilters, definition.model);
-  const sorted = sortRows(filtered, sorting, definition.model);
+  const candidates = definition.applyFilters(items, search, filters);
+  const pricing = useMarketPrefetch(definition.marketSubject ? filterRows(candidates, Object.fromEntries(Object.entries(columnFilters).filter(([key]) => key !== 'wfm')), model).map(definition.marketSubject) : [], Boolean(definition.marketSubject && (sorting.some(sort => sort.key === 'wfm') || columnFilters.wfm)));
+  const filtered = filterRows(candidates, columnFilters, model);
+  const sorted = sortRows(filtered, sorting, model);
   const pageSize = definition.pageSize ?? Math.max(1, sorted.length);
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
@@ -113,6 +120,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       <ColumnPicker options={definition.columns} selected={visibleColumns} onChange={changeVisibility} onReset={resetColumns} />
       {changed && <button type="button" className="button quiet" onClick={() => clearFilters()}>Reset filters</button>}
       <span className="filter-result" role="status">{definition.summary?.(filtered.length, items, filters) ?? `${filtered.length} of ${items.length}`}</span>
+      {pricing && <span className="small muted" role="status">{pricing}</span>}
       <div className="inventory-actions">
         <button type="button" className="button secondary" onClick={onAdd}><Plus size={16} />Add {definition.itemLabel}</button>
         {extraActions}
@@ -127,11 +135,11 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
           : <input type="number" min={field.min} max={field.max} step="1" placeholder={field.placeholder ?? 'Any'} value={String(filters[field.key])} onChange={event => changeFilter(field, event.target.value)} />}</label>)}
     </div>}
     {Object.keys(columnFilters).length > 0 && <div className="column-filter-list" role="group" aria-label="Column filters">{definition.columns.filter(column => columnFilters[column.key]).map(column => <div className="column-filter-chip" key={column.key}>
-      <button type="button" onClick={event => openMenu(column.key, event.currentTarget, undefined, 'filter')}><Filter size={14} aria-hidden="true" />{column.title}: {filterLabel(columnFilters[column.key]!, filterChoices(column, items, definition.model))}</button>
+      <button type="button" onClick={event => openMenu(column.key, event.currentTarget, undefined, 'filter')}><Filter size={14} aria-hidden="true" />{column.title}: {filterLabel(columnFilters[column.key]!, filterChoices(column, items, model))}</button>
       <button type="button" className="icon-button" aria-label={`Remove ${column.title} filter`} title={`Remove ${column.title} filter`} onClick={() => { changeColumnFilter(column.key); filterButton.current?.focus(); }}><X size={14} aria-hidden="true" /></button>
     </div>)}</div>}
     <span className="sr-only" aria-live="polite">{columnAnnouncement}</span>
-    <div ref={tableScroll} className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} tabIndex={0} style={{ '--first-column-width': `${columns[0].width}px` } as CSSProperties}>
+    <div ref={tableScroll} className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} aria-busy={Boolean(pricing)} tabIndex={0} style={{ '--first-column-width': `${columns[0].width}px` } as CSSProperties}>
       <table className="inventory-table" style={{ minWidth: columns.reduce((width, column) => width + column.width, 0) }}>
         <caption className="sr-only">{definition.label}. Changes save automatically when signed in. Select a name to view or edit an entry. Drag a header to move its column. Click or right-click a header, or press Shift+F10, for column actions, including Move left and Move right.</caption>
         <colgroup>{columns.map(column => <col key={column.key} style={{ width: column.width }} />)}</colgroup>
@@ -158,7 +166,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{empty.title}</h3>{empty.description && <p>{empty.description}</p>}{items.length > 0 && <button type="button" className="button secondary" onClick={() => clearFilters(empty.resetValues)}>{empty.resetLabel ?? 'Reset filters'}</button>}</div>}
     </div>
     {pageCount > 1 && <nav className="collection-pagination" aria-label={`${definition.label} pages`}><button type="button" className="button secondary" disabled={currentPage === 0} onClick={() => changePage(currentPage - 1)}>Previous</button><span aria-live="polite">{currentPage + 1} / {pageCount}</span><button type="button" className="button secondary" disabled={currentPage + 1 === pageCount} onClick={() => changePage(currentPage + 1)}>Next</button></nav>}
-    {menu && menuColumn && <ColumnMenu key={menu.id} anchor={menu.anchor} point={menu.point} initialView={menu.initialView} column={menuColumn} columns={definition.columns} selected={visibleColumns} choices={filterChoices(menuColumn, items, definition.model)} sorting={sorting} filter={columnFilters[menu.key]}
+    {menu && menuColumn && <ColumnMenu key={menu.id} anchor={menu.anchor} point={menu.point} initialView={menu.initialView} column={menuColumn} columns={definition.columns} selected={visibleColumns} choices={filterChoices(menuColumn, items, model)} sorting={sorting} filter={columnFilters[menu.key]}
       onVisibility={changeVisibility} onReset={resetColumns} onMove={direction => { const target = visibleColumns[visibleColumns.indexOf(menu.key) + direction]; if (target) reorderColumn(menu.key, { key: target, edge: direction === -1 ? 'before' : 'after' }); }} onSort={direction => setSorting(current => setColumnSort(current, menu.key, direction))} onPriority={index => setSorting(current => moveColumnSort(current, menu.key, index))} onFilter={filter => changeColumnFilter(menu.key, filter)} onClose={() => {
         setMenu(null);
         requestAnimationFrame(() => { if (!menu.anchor.isConnected && document.activeElement === document.body) headerButtons.current.get(primary.key)?.focus({ preventScroll: true }); });

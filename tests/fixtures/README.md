@@ -11,3 +11,5 @@ Browser tests require exact variants and no extra matches; cover review, duplica
 Relic browser tests generate local images and check review, overlaps, guests, and preserving merges. To recheck the original 20-stack example, set `RELIC_SCREENSHOT_PATH` when running `npm run test:browser -- tests/browser/relicScreenshots.spec.ts`.
 
 `drop-tables.html` uses synthetic sources/rates to test parsing, rotations, refinements, conditional odds, duplicates, and inert text. Browser tests add synthetic rows for scrolling/exports; no live reward database is bundled.
+
+`wfm.ts` supplies synthetic items, orders, and history for pricing, variant isolation, caching, charts, and exports. No live prices or WFM user data are retained.

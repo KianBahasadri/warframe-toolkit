@@ -58,7 +58,7 @@ function ColumnFilterForm({ column, choices, filter, onApply }: { column: TableC
   }}>
     {column.kind === 'number' ? <>
       <label>Condition<Select label={`${column.title} condition`} value={operator} onChange={next => setOperator(next as typeof operator)} options={[{ value: 'equals', label: 'Equals' }, { value: 'atLeast', label: 'At least' }, { value: 'atMost', label: 'At most' }, ...(column.number?.unknown ? [{ value: 'unknown', label: 'Unknown' }] : [])]} /></label>
-      {operator !== 'unknown' && <label>{column.title}<input aria-label={`Filter ${column.title.toLowerCase()}`} type="number" min={column.number?.min} max={column.number?.max} step="1" value={value} onChange={event => setValue(event.target.value)} /></label>}
+      {operator !== 'unknown' && <label>{column.title}<input aria-label={`Filter ${column.title.toLowerCase()}`} type="number" min={column.number?.min} max={column.number?.max} step={column.number?.step ?? 1} value={value} onChange={event => setValue(event.target.value)} /></label>}
     </> : choices ? <fieldset className="column-filter-choices" aria-label={`${column.title} filter values`}>
       <legend><span className="column-filter-label"><Filter size={16} aria-hidden="true" />Filter</span></legend>
       <div className="column-filter-options">{choices.map(choice => <label key={choice.value}>
