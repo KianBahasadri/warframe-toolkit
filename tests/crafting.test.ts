@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildCraftingTree, checkCraftingNode, chooseCraftingRecipe, craftingIndex, craftingSources, craftingSummary, preserveCraftingProgress, setCraftingProgress, validateCraftingPlans } from '../src/lib/crafting.ts';
+import { buildCraftingTree, checkCraftingNode, chooseCraftingRecipe, craftingAreas, craftingIndex, craftingSources, craftingSummary, preserveCraftingProgress, setCraftingProgress, validateCraftingPlans } from '../src/lib/crafting.ts';
 import type { CraftingItem, CraftingMaterial, CraftingPlan } from '../src/lib/crafting.ts';
 import type { CatalogItem, Recipe } from '../src/lib/model.ts';
 import type { DropRow } from '../src/lib/dropTables.ts';
@@ -39,6 +39,42 @@ test('Rhino expands components but gathers optional rare resources by default', 
   assert.equal(summary.credits, 70000);
   assert.equal(summary.materials.find(part => part.item.name === 'Ferrite')?.quantity, 1500);
   assert.equal(buildCraftingTree(index, planFor('Morphics'))!.recipe?.credits, 15000);
+});
+
+test('areas follow unfinished materials, including independent occurrences and recipe choices', () => {
+  let plan = planFor('Rhino');
+  const tree = buildCraftingTree(index, plan)!;
+  const locations = () => craftingAreas(craftingSummary(buildCraftingTree(index, plan)!).materials);
+  const polymerArea = () => locations().find(area => area.items.some(item => item.name === 'Polymer Bundle'));
+  assert.equal(polymerArea()?.location, 'Mercury, Venus, and Uranus');
+  plan = checkCraftingNode(plan, tree.children[0].key, true);
+  assert.ok(polymerArea(), 'The systems still need Polymer Bundle.');
+  plan = checkCraftingNode(plan, tree.children[2].key, true);
+  assert.equal(polymerArea(), undefined);
+  plan = checkCraftingNode(plan, tree.children[0].key, false);
+  assert.ok(polymerArea());
+  plan = checkCraftingNode(plan, 'root', true);
+  assert.deepEqual(locations(), []);
+
+  const forma = planFor('Forma'), cell = buildCraftingTree(index, forma)!.children.find(node => node.item.name === 'Orokin Cell')!;
+  const changed = chooseCraftingRecipe(forma, cell.key, cell.item.recipes[0].id);
+  const names = craftingAreas(craftingSummary(buildCraftingTree(index, changed)!).materials).flatMap(area => area.items.map(item => item.name));
+  assert.ok(names.includes('Nano Spores'));
+  assert.ok(!names.includes('Orokin Cell'));
+});
+
+test('areas group shared locations, retain source restrictions, and leave unknown locations explicit', () => {
+  const areas = craftingAreas([
+    { item: item('Neurodes'), quantity: 1 }, { item: item('Neurodes Blueprint'), quantity: 1 },
+    { item: item('Tellurium'), quantity: 2 }, { item: item('Lex Prime Barrel'), quantity: 1 },
+    { item: item('Zodian'), quantity: 1 }, { item: item('Ferrite'), quantity: 0 },
+  ]);
+  assert.deepEqual(areas.find(area => area.location === 'Earth, Lua, Eris, and Deimos')?.items.map(item => item.name), ['Neurodes', 'Neurodes Blueprint']);
+  assert.ok(areas.some(area => area.location === 'Archwing Missions on Uranus'));
+  assert.equal(areas.find(area => area.items.some(item => item.name === 'Zodian'))?.location, 'Orb Vallis (Venus) from Blue Mining Veins and the Exploiter Orb');
+  assert.equal(areas.at(-1)?.location, '');
+  assert.equal(areas.at(-1)?.items[0].name, 'Lex Prime Barrel');
+  assert.ok(!areas.some(area => area.items.some(item => item.name === 'Ferrite')));
 });
 
 test('batch output rounds each build up and multiplies nested ingredients and credits', () => {

@@ -3,10 +3,10 @@
 .quantity-slider-heading label { color: var(--muted); font-size: 11px; font-weight: 400; cursor: pointer; }
 .quantity-slider-value { padding: 4px 0; min-width: 0; background: transparent; border: 0; font: 12px var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; }
 .quantity-slider-value:hover:not(:disabled) { color: var(--ink-strong); }
-.quantity-slider-row { display: flex; align-items: center; gap: 4px; }
-.quantity-increment { width: 44px; height: 44px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--action-primary); color: var(--ink-strong); }
+.quantity-slider-row { display: flex; align-items: center; gap: 8px; }
+.quantity-increment { width: 28px; height: 28px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--action-primary); color: var(--ink-strong); }
 .quantity-increment:hover:not(:disabled) { background: var(--action-primary-hover); border-color: var(--control-selected-hover); }
-.quantity-increment::after { inset: 0; }
+.quantity-increment::after { inset: -8px; }
 input.quantity-range { --range-fill: var(--control-selected); appearance: none; display: block; flex: 1; width: 100%; height: 44px; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: pointer; touch-action: none; }
 .quantity-range::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: linear-gradient(to right, var(--range-fill) var(--range-progress), var(--line-strong) var(--range-progress)); }
 .quantity-range::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; margin-top: -7px; border: 0; border-radius: 50%; background: var(--range-fill); }

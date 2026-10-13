@@ -121,6 +121,20 @@ export function craftingSummary(root: CraftingNode) {
   return { total, completed, credits, unknownCredits, materials: [...materials.values()].sort((a, b) => a.item.name.localeCompare(b.item.name)) };
 }
 
+/** Keep source alternatives and mission restrictions together; do not guess missing locations. */
+export function craftingAreas(materials: { item: CraftingItem; quantity: number }[]) {
+  const areas = new Map<string, { location: string; items: CraftingItem[] }>();
+  for (const { item, quantity } of materials) {
+    if (quantity <= 0) continue;
+    // Mining advice belongs in source details, after the location's first sentence.
+    const location = item.location.replace(/\.\s+This\b.*/, '').replace(/[.\s]+$/, '').trim();
+    const area = areas.get(location) ?? { location, items: [] };
+    if (!area.items.some(entry => entry.id === item.id)) area.items.push(item);
+    areas.set(location, area);
+  }
+  return [...areas.values()].sort((a, b) => Number(!a.location) - Number(!b.location) || a.location.localeCompare(b.location));
+}
+
 export function setCraftingProgress(plan: CraftingPlan, key: string, amount: number, quantity: number): CraftingPlan {
   if (!Number.isSafeInteger(amount) || !Number.isSafeInteger(quantity) || quantity < 1 || amount < 0 || amount > quantity) throw new Error('Invalid completed quantity.');
   const progress = { ...plan.progress };

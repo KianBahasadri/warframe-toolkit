@@ -58,7 +58,11 @@ export default function App() {
   const collectionActions = useRef<CollectionActions>(null);
 
   useEffect(() => {
-    const hashChange = () => setPage(pageFromHash());
+    const hashChange = () => {
+      const destination = pageFromHash();
+      if (destination === 'crafting') setCraftingPlan('');
+      setPage(destination);
+    };
     hashChange();
     window.addEventListener('hashchange', hashChange);
     return () => window.removeEventListener('hashchange', hashChange);
@@ -78,7 +82,10 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [inventory, account.user, account.dirty, account.saving, account.error, notify]);
   useEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem('arsenal.theme', theme); } catch { /* Inventory saving reports its own failures. */ } }, [theme]);
-  const navigate = (destination: Page) => { setPage(destination); location.hash = destination; };
+  const navigate = (destination: Page) => {
+    if (destination === 'crafting') setCraftingPlan('');
+    setPage(destination); location.hash = destination;
+  };
   const openImport = () => { setImportRelics(page === 'relics'); navigate('import'); };
   const exportCsv = () => {
     const rows = equipmentRows(inventoryRef.current.items, catalog);
