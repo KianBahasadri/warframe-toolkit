@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
 
 // Drafts live in the collection immediately; the account layer debounces the save.
 // Hiding the column or changing pages therefore cannot discard a pending edit.
@@ -13,5 +14,5 @@ export function TableNotes({ name, value, onChange }: { name: string; value: str
         requestAnimationFrame(() => button.current?.focus({ preventScroll: true }));
       }
     }} />
-    : <button ref={button} type="button" className={`table-notes ${value ? '' : 'table-missing'}`} aria-label={`Edit notes for ${name}`} onClick={() => setEditing(true)}>{value || 'Add a note…'}</button>;
+    : <button ref={button} type="button" className={value ? 'table-notes' : 'icon-button'} aria-label={`Edit notes for ${name}`} title={value ? 'Edit note' : 'Add note'} onClick={() => setEditing(true)}>{value || <Plus size={16} aria-hidden="true" />}</button>;
 }

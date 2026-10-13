@@ -30,7 +30,12 @@ test('inline notes autosave across collections and navigation, preserving other 
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('link', { name: 'Warframes', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Notifications' })).toContainText('Notes saved for Anku.');
-  await page.getByRole('button', { name: 'Edit notes for Wisp', exact: true }).click();
+  const addWispNote = page.getByRole('button', { name: 'Edit notes for Wisp', exact: true });
+  await expect(addWispNote).toHaveText('');
+  await expect(addWispNote.locator('svg')).toBeVisible();
+  await addWispNote.focus();
+  await addWispNote.press('Enter');
+  await expect(page.getByRole('textbox', { name: 'Notes for Wisp', exact: true })).toBeFocused();
   await page.getByRole('textbox', { name: 'Notes for Wisp', exact: true }).fill('Unlock Helminth first');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Edit notes for Wisp', exact: true })).toBeFocused();
@@ -70,9 +75,15 @@ test('failed notes stay editable, only confirmed saves show success, and notes c
   await page.getByRole('button', { name: 'Edit notes for Anku', exact: true }).click();
   await field.fill('');
   await field.press('Escape');
+  await expect(page.getByRole('button', { name: 'Edit notes for Anku', exact: true })).toBeFocused();
   expect((await account.inventory()).items.find(item => item.name === 'Anku')!.notes).toBe('');
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Edit notes for Anku', exact: true })).toHaveText('Add a note…');
+  const addNote = page.getByRole('button', { name: 'Edit notes for Anku', exact: true });
+  await expect(addNote).toHaveText('');
+  await expect(addNote.locator('svg')).toBeVisible();
+  await addNote.click();
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue('');
 });
 
 test('typing notes on untracked catalog equipment retains focus and creates only that unowned record', async ({ page, account }) => {
@@ -102,6 +113,6 @@ test.describe('guest notes', () => {
     expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBeNull();
     await page.reload();
     await page.getByRole('textbox', { name: 'Search weapons', exact: true }).fill('Phenmor');
-    await expect(page.getByRole('button', { name: 'Edit notes for Phenmor', exact: true })).toHaveText('Add a note…');
+    await expect(page.getByRole('button', { name: 'Edit notes for Phenmor', exact: true })).toHaveText('');
   });
 });
