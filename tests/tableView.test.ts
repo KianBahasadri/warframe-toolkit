@@ -4,8 +4,8 @@ import { equipmentTableModel } from '../src/lib/inventoryColumns.ts';
 import { relicTableModel } from '../src/lib/relicColumns.ts';
 import { createRelic } from '../src/lib/relics.ts';
 import { createEquipment } from '../src/lib/model.ts';
-import { filterRows, moveColumn, moveColumnSort, parseColumnPreferences, setColumnSort, sortRows } from '../src/lib/tableView.ts';
-import type { ColumnSort } from '../src/lib/tableView.ts';
+import { filterLabel, filterRows, moveColumn, moveColumnSort, parseColumnPreferences, setColumnSort, sortRows } from '../src/lib/tableView.ts';
+import type { ColumnFilters, ColumnSort } from '../src/lib/tableView.ts';
 import type { EquipmentRow } from '../src/lib/weaponCatalog.ts';
 
 const rows: EquipmentRow[] = [
@@ -66,12 +66,26 @@ test('sort directions retain priority, priority changes reorder ties, and removi
 
 test('column filters combine text, booleans, categories, zero ranks, and unknown ranks without mutating rows', () => {
   const before = JSON.stringify(rows);
-  assert.deepEqual(filterRows(rows, { mastered: { kind: 'choice', value: 'true' }, rank: { kind: 'number', operator: 'atMost', value: 20 } }, equipmentTableModel).map(item => item.name), ['Bo']);
-  assert.deepEqual(filterRows(rows, { notes: { kind: 'text', value: ' CRAFTING ' }, slot: { kind: 'choice', value: 'Melee' } }, equipmentTableModel).map(item => item.name), ['Anku']);
-  assert.deepEqual(filterRows(rows, { owned: { kind: 'choice', value: 'false' }, rank: { kind: 'number', operator: 'unknown', value: 0 } }, equipmentTableModel).map(item => item.name), ['Boltor']);
+  assert.deepEqual(filterRows(rows, { mastered: { kind: 'choice', values: ['true'] }, rank: { kind: 'number', operator: 'atMost', value: 20 } }, equipmentTableModel).map(item => item.name), ['Bo']);
+  assert.deepEqual(filterRows(rows, { notes: { kind: 'text', value: ' CRAFTING ' }, slot: { kind: 'choice', values: ['Melee'] } }, equipmentTableModel).map(item => item.name), ['Anku']);
+  assert.deepEqual(filterRows(rows, { owned: { kind: 'choice', values: ['false'] }, rank: { kind: 'number', operator: 'unknown', value: 0 } }, equipmentTableModel).map(item => item.name), ['Boltor']);
   assert.deepEqual(filterRows(rows, { rank: { kind: 'number', operator: 'atLeast', value: 30 } }, equipmentTableModel).map(item => item.name), ['Anku', 'Arca Titron']);
   assert.equal(filterRows([{ ...rows[0], rank: 0 }, rows[4]], { rank: { kind: 'number', operator: 'equals', value: 0 } }, equipmentTableModel).length, 1);
   assert.equal(JSON.stringify(rows), before);
+});
+
+test('choice filters match any selected value and combine with other columns', () => {
+  const filters: ColumnFilters = { slot: { kind: 'choice', values: ['Melee', 'Secondary'] }, mastered: { kind: 'choice', values: ['false'] } };
+  const before = structuredClone(filters);
+  assert.deepEqual(filterRows(rows, filters, equipmentTableModel).map(item => item.name), ['Arca Titron', 'Atomos']);
+  assert.deepEqual(filterRows(rows, { owned: { kind: 'choice', values: ['true', 'false'] } }, equipmentTableModel), rows);
+  assert.deepEqual(filterRows(rows, { slot: { kind: 'choice', values: [] } }, equipmentTableModel), rows);
+  assert.deepEqual(filterRows(rows, { slot: { kind: 'choice', values: ['Missing'] } }, equipmentTableModel), []);
+  assert.equal(filterLabel(filters.slot!), 'Melee or Secondary');
+  assert.equal(filterLabel(filters.mastered!, [{ value: 'false', label: 'No' }]), 'No');
+  assert.equal(filterLabel({ kind: 'choice', values: ['true', 'false'] }, [{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]), 'Yes or No');
+  assert.equal(filterLabel({ kind: 'choice', values: [] }), 'Any');
+  assert.deepEqual(filters, before);
 });
 
 test('Incarnon filters distinguish Genesis, native, custom eligibility, and none', () => {
@@ -81,10 +95,12 @@ test('Incarnon filters distinguish Genesis, native, custom eligibility, and none
     { ...rows[2], incarnon: true },
     { ...rows[3], incarnon: false },
   ];
-  assert.equal(filterRows(equipment, { incarnon: { kind: 'choice', value: 'yes' } }, equipmentTableModel).length, 3);
-  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', value: 'genesis' } }, equipmentTableModel).map(item => item.name), ['Anku']);
-  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', value: 'native' } }, equipmentTableModel).map(item => item.name), ['Arca Titron']);
-  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', value: 'none' } }, equipmentTableModel).map(item => item.name), ['Bo']);
+  assert.equal(filterRows(equipment, { incarnon: { kind: 'choice', values: ['yes'] } }, equipmentTableModel).length, 3);
+  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', values: ['genesis'] } }, equipmentTableModel).map(item => item.name), ['Anku']);
+  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', values: ['native'] } }, equipmentTableModel).map(item => item.name), ['Arca Titron']);
+  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', values: ['none'] } }, equipmentTableModel).map(item => item.name), ['Bo']);
+  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', values: ['genesis', 'native'] } }, equipmentTableModel).map(item => item.name), ['Anku', 'Arca Titron']);
+  assert.equal(filterRows(equipment, { incarnon: { kind: 'choice', values: ['yes', 'native'] } }, equipmentTableModel).length, 3);
 });
 
 
@@ -98,7 +114,7 @@ test('shared sorting and filters use relic quantities and the published era and 
   const before = JSON.stringify(relics);
   assert.deepEqual(sortRows(relics, [{ key: 'era', direction: 1 }, { key: 'refinement', direction: 1 }], relicTableModel).map(row => row.name), ['Lith A10', 'Lith A2', 'Neo N1', 'Axi A1']);
   assert.deepEqual(sortRows(relics, [{ key: 'quantity', direction: -1 }, { key: 'name', direction: 1 }], relicTableModel).map(row => row.name), ['Lith A2', 'Neo N1', 'Lith A10', 'Axi A1']);
-  assert.deepEqual(filterRows(relics, { quantity: { kind: 'number', operator: 'atLeast', value: 40 }, refinement: { kind: 'choice', value: 'Radiant' } }, relicTableModel).map(row => row.name), ['Lith A2']);
+  assert.deepEqual(filterRows(relics, { quantity: { kind: 'number', operator: 'atLeast', value: 40 }, refinement: { kind: 'choice', values: ['Radiant', 'Flawless'] } }, relicTableModel).map(row => row.name), ['Lith A2', 'Neo N1']);
   assert.deepEqual(filterRows(relics, { quantity: { kind: 'number', operator: 'equals', value: 0 } }, relicTableModel).map(row => row.name), ['Axi A1']);
   assert.equal(JSON.stringify(relics), before);
 });

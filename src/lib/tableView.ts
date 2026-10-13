@@ -12,7 +12,7 @@ export interface TableModel<Row> {
   matchesChoice?: (item: Row, key: ColumnKey, choice: string) => boolean | undefined;
 }
 export type ColumnSort = { key: ColumnKey; direction: 1 | -1 };
-export type ColumnFilter = { kind: 'text'; value: string } | { kind: 'choice'; value: string } | { kind: 'number'; operator: 'equals' | 'atLeast' | 'atMost' | 'unknown'; value: number };
+export type ColumnFilter = { kind: 'text'; value: string } | { kind: 'choice'; values: string[] } | { kind: 'number'; operator: 'equals' | 'atLeast' | 'atMost' | 'unknown'; value: number };
 export type ColumnFilters = Partial<Record<ColumnKey, ColumnFilter>>;
 export type ColumnPreferences = { order: ColumnKey[]; visible: ColumnKey[] };
 export type ColumnDropTarget = { key: ColumnKey; edge: 'before' | 'after' };
@@ -45,7 +45,7 @@ export function filterRows<Row>(items: Row[], filters: ColumnFilters, model: Tab
     if (!filter) return true;
     const value = model.value(item, key);
     if (filter.kind === 'text') return String(value ?? '').toLocaleLowerCase().includes(filter.value.trim().toLocaleLowerCase());
-    if (filter.kind === 'choice') return model.matchesChoice?.(item, key, filter.value) ?? String(value) === filter.value;
+    if (filter.kind === 'choice') return !filter.values.length || filter.values.some(choice => model.matchesChoice?.(item, key, choice) ?? String(value) === choice);
     if (filter.operator === 'unknown') return value === null;
     if (typeof value !== 'number') return false;
     return filter.operator === 'atLeast' ? value >= filter.value : filter.operator === 'atMost' ? value <= filter.value : value === filter.value;
@@ -67,7 +67,7 @@ export function moveColumnSort(sorting: ColumnSort[], key: ColumnKey, priority: 
 
 export function filterLabel(filter: ColumnFilter, choices?: FilterChoice[]): string {
   if (filter.kind === 'text') return `Contains “${filter.value}”`;
-  if (filter.kind === 'choice') return choices?.find(choice => choice.value === filter.value)?.label ?? filter.value;
+  if (filter.kind === 'choice') return filter.values.map(value => choices?.find(choice => choice.value === value)?.label ?? value).join(' or ') || 'Any';
   return filter.operator === 'unknown' ? 'Unknown' : `${filter.operator === 'atLeast' ? 'At least' : filter.operator === 'atMost' ? 'At most' : 'Equals'} ${filter.value}`;
 }
 

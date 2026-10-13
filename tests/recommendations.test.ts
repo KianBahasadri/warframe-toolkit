@@ -123,7 +123,7 @@ test('Helminth filters distinguish unknown ability status from ineligible varian
   assert.equal(helminthStatus(equipment('Wisp', { helminth: 'Yes' })), 'Yes');
   for (const [value, expected] of [['Unknown', ['Wisp']], ['No', ['Dante']], ['Not applicable', ['Excalibur Umbra', 'Voidrig', 'Wisp Prime']]] as const) {
     assert.deepEqual(filterEquipment(rows, '', { ...defaultWeaponFilters, helminth: value }).map(item => item.name), expected);
-    assert.deepEqual(filterRows(rows, { helminth: { kind: 'choice', value } }, equipmentTableModel).map(item => item.name), expected);
+    assert.deepEqual(filterRows(rows, { helminth: { kind: 'choice', values: [value] } }, equipmentTableModel).map(item => item.name), expected);
   }
   assert.deepEqual(filterEquipment(rows, '', { ...defaultWeaponFilters, weaponType: 'Necramech' }).map(item => item.name), ['Voidrig']);
   assert.deepEqual(filterEquipment([{ ...createEquipment({ name: 'Custom Warframe', slot: 'Warframe', variant: 'Base' }) }], '', { ...defaultWeaponFilters, weaponType: 'Warframe' }).map(item => item.name), ['Custom Warframe']);
@@ -168,7 +168,7 @@ test('derived actions drive both filters and sorting without changing saved inve
   const boltor = rows.find(row => row.name === 'Boltor')!;
   assert.equal(recommendationFor(boltor).action, 'Sell');
   assert.deepEqual(filterEquipment(rows, '', { ...defaultWeaponFilters, keep: 'Sell' }).map(item => item.name), ['Boltace', 'Boltor']);
-  assert.deepEqual(filterRows(rows, { keep: { kind: 'choice', value: 'Master' } }, equipmentTableModel).map(item => item.name), ['Arca Titron']);
+  assert.deepEqual(filterRows(rows, { keep: { kind: 'choice', values: ['Master'] } }, equipmentTableModel).map(item => item.name), ['Arca Titron']);
   const sorted = sortRows(rows, [{ key: 'keep', direction: 1 }], equipmentTableModel).map(item => recommendationFor(item).action);
   assert.deepEqual(sorted, ['Add Incarnon', 'Keep', 'Master', 'Sell', 'Sell']);
   assert.deepEqual(editableRecord(boltor), items[0]);

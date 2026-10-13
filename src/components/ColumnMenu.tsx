@@ -47,18 +47,26 @@ export function ColumnMenu({ column, columns, selected, choices, sorting, filter
 }
 
 function ColumnFilterForm({ column, choices, filter, onApply }: { column: TableColumn; choices?: FilterChoice[]; filter?: ColumnFilter; onApply: (filter?: ColumnFilter) => void }) {
-  const [value, setValue] = useState(filter ? String(filter.value) : '');
+  const [value, setValue] = useState(filter && filter.kind !== 'choice' ? String(filter.value) : '');
+  const [selectedValues, setSelectedValues] = useState(filter?.kind === 'choice' ? filter.values : []);
   const [operator, setOperator] = useState(filter?.kind === 'number' ? filter.operator : 'equals');
   return <form className="column-filter-form" aria-label={`Filter ${column.title}`} onSubmit={event => {
     event.preventDefault();
     if (column.kind === 'number') onApply(operator === 'unknown' || value !== '' ? { kind: 'number', operator, value: Number(value) } : undefined);
-    else onApply(value.trim() ? { kind: choices ? 'choice' : 'text', value: value.trim() } : undefined);
+    else if (choices) onApply(selectedValues.length ? { kind: 'choice', values: selectedValues } : undefined);
+    else onApply(value.trim() ? { kind: 'text', value: value.trim() } : undefined);
   }}>
     {column.kind === 'number' ? <>
       <label>Condition<Select label={`${column.title} condition`} value={operator} onChange={next => setOperator(next as typeof operator)} options={[{ value: 'equals', label: 'Equals' }, { value: 'atLeast', label: 'At least' }, { value: 'atMost', label: 'At most' }, ...(column.number?.unknown ? [{ value: 'unknown', label: 'Unknown' }] : [])]} /></label>
       {operator !== 'unknown' && <label>{column.title}<input aria-label={`Filter ${column.title.toLowerCase()}`} type="number" min={column.number?.min} max={column.number?.max} step="1" value={value} onChange={event => setValue(event.target.value)} /></label>}
-    </> : choices ? <label><span className="column-filter-label"><Filter size={16} aria-hidden="true" />Filter</span><Select label={`${column.title} filter value`} value={value} onChange={setValue} options={[{ value: '', label: 'Any' }, ...choices]} /></label>
+    </> : choices ? <fieldset className="column-filter-choices" aria-label={`${column.title} filter values`}>
+      <legend><span className="column-filter-label"><Filter size={16} aria-hidden="true" />Filter</span></legend>
+      <div className="column-filter-options">{choices.map(choice => <label key={choice.value}>
+        <input type="checkbox" checked={selectedValues.includes(choice.value)} onChange={event => setSelectedValues(event.target.checked ? [...selectedValues, choice.value] : selectedValues.filter(value => value !== choice.value))} />
+        <span>{choice.label}</span>
+      </label>)}</div>
+    </fieldset>
       : <label>Contains<input aria-label={`${column.title} contains`} value={value} onChange={event => setValue(event.target.value)} /></label>}
-    <div className="column-filter-actions"><button type="button" className="button quiet" disabled={!filter} onClick={() => onApply()}>Clear filter</button><button type="submit" className="button primary">Apply filter</button></div>
+    <div className="column-filter-actions"><button type="button" className="button quiet" disabled={!filter && !selectedValues.length} onClick={() => onApply()}>Clear filter</button><button type="submit" className="button primary">Apply filter</button></div>
   </form>;
 }
