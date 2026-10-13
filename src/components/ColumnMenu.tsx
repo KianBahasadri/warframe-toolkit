@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Columns3, EyeOff, ListOrdered } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Columns3, EyeOff, Filter, ListOrdered } from 'lucide-react';
 import type { TableColumn, FilterChoice, ColumnFilter, ColumnKey, ColumnSort } from '../lib/tableView';
 import { ColumnOptions } from './ColumnPicker';
 import { Select } from './Select';
@@ -57,7 +57,7 @@ function ColumnFilterForm({ column, choices, filter, onApply }: { column: TableC
     {column.kind === 'number' ? <>
       <label>Condition<Select label={`${column.title} condition`} value={operator} onChange={next => setOperator(next as typeof operator)} options={[{ value: 'equals', label: 'Equals' }, { value: 'atLeast', label: 'At least' }, { value: 'atMost', label: 'At most' }, ...(column.number?.unknown ? [{ value: 'unknown', label: 'Unknown' }] : [])]} /></label>
       {operator !== 'unknown' && <label>{column.title}<input aria-label={`Filter ${column.title.toLowerCase()}`} type="number" min={column.number?.min} max={column.number?.max} step="1" value={value} onChange={event => setValue(event.target.value)} /></label>}
-    </> : choices ? <label>Value<Select label={`${column.title} filter value`} value={value} onChange={setValue} options={[{ value: '', label: 'Any' }, ...choices]} /></label>
+    </> : choices ? <label><span className="column-filter-label"><Filter size={16} aria-hidden="true" />Filter</span><Select label={`${column.title} filter value`} value={value} onChange={setValue} options={[{ value: '', label: 'Any' }, ...choices]} /></label>
       : <label>Contains<input aria-label={`${column.title} contains`} value={value} onChange={event => setValue(event.target.value)} /></label>}
     <div className="column-filter-actions"><button type="button" className="button quiet" disabled={!filter} onClick={() => onApply()}>Clear filter</button><button type="submit" className="button primary">Apply filter</button></div>
   </form>;
