@@ -4,7 +4,6 @@
 .account-button svg { flex-shrink: 0; }
 .account-button.account-sign-in { background: var(--ink-strong); border-color: var(--ink-strong); color: var(--canvas); font-weight: 600; }
 .account-button.account-sign-in:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); }
-.account-save-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 20px; margin-bottom: 18px; color: var(--muted); font-size: 12px; }
 .account-form { display: grid; gap: 16px; }
 .account-form > label:not(.check-row) { display: grid; gap: 8px; font-size: 13px; }
 .account-form input:not([type="checkbox"]) { width: 100%; min-width: 0; }
@@ -18,5 +17,5 @@
 .account-username { font-size: 18px; overflow-wrap: anywhere; }
 .account-error-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .account-error-actions:empty { display: none; }
-@media (max-width: 700px) { .account-button { max-width: 180px; }.account-save-status { margin-bottom: 16px; } }
+@media (max-width: 700px) { .account-button { max-width: 180px; } }
 @media (max-width: 600px) { .page-utilities .search-launcher { width: 36px; }.account-actions .button { font-size: 12px; padding: 9px 10px; } }
