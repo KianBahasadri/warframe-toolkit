@@ -215,6 +215,13 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .quantity-control { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .relic-quantity { min-width: 48px; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .relic-form-error { margin-top: 20px; }
+.collection-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 12px; font-size: 12px; }
+.relic-details .relic-rewards, .relic-details .relic-sources { list-style: none; padding: 0; margin: 12px 0; font-size: 13px; }
+.relic-rewards li, .relic-sources li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; border-bottom: 1px solid var(--line); padding: 10px 0; }
+.relic-rewards li > span, .relic-sources li > span { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.relic-rewards small, .relic-sources small { display: block; color: var(--muted); margin-top: 3px; }
+.relic-rarity { text-transform: capitalize; }
+.relic-sources { max-height: 280px; overflow-y: auto; }
 .empty-state { text-align: center; padding: 56px 24px; color: var(--muted); }.empty-state > svg { margin-bottom: 16px; color: var(--faint); }.empty-state h3 { font-size: 18px; }.empty-state p { font-size: 13px; }
 
 .inventory-toolbar { flex-wrap: wrap; margin-bottom: 16px; }

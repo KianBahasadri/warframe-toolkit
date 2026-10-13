@@ -619,6 +619,7 @@ test('relic refinements and quantity edits persist without changing an older equ
   await page.getByRole('button', { name: 'Clear filters' }).click();
 
   await page.getByRole('button', { name: 'Edit Lith A1 Intact' }).click();
+  await page.getByRole('tab', { name: 'My inventory', exact: true }).click();
   await page.getByRole('dialog').getByLabel('Quantity').fill('0');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('button', { name: 'Decrease Lith A1 Intact quantity' })).toBeDisabled();
@@ -649,6 +650,8 @@ test('relic CSV exports records and deletions persist without changing equipment
   expect(csv.suggestedFilename()).toMatch(/^grakata-relics-.*\.csv$/);
   expect(await readFile((await csv.path())!, 'utf8')).toContain('"Neo N1","Neo","Flawless","5"');
   await page.getByRole('button', { name: 'Edit Neo N1 Flawless' }).click();
+  await page.getByRole('tab', { name: 'My inventory', exact: true }).click();
+  await expect(page.getByRole('listbox', { name: 'Matching relics' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Remove entry', exact: true }).click();
   await page.getByRole('button', { name: 'Remove relic', exact: true }).click();
   await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();

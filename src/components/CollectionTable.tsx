@@ -1,4 +1,4 @@
-import { useId, useImperativeHandle, useRef, useState } from 'react';
+import { useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent, ReactNode, Ref } from 'react';
 import { ArrowDown, ArrowDownToLine, ArrowUp, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { filterChoices, filterLabel, filterRows, loadColumnPreferences, moveColumn, moveColumnSort, parseColumnPreferences, setColumnSort, sortRows } from '../lib/tableView';
@@ -22,7 +22,8 @@ export interface CollectionDefinition<Row> {
   filters: CollectionFilter[];
   applyFilters: (items: Row[], search: string, filters: FilterValues) => Row[];
   initialSorting?: ColumnSort[];
-  summary?: (count: number, items: Row[]) => string;
+  pageSize?: number;
+  summary?: (count: number, items: Row[], filters: FilterValues) => string;
   emptyState: (items: Row[], filters: FilterValues) => { title: string; description?: string; resetLabel?: string; resetValues?: FilterValues };
 }
 
@@ -40,6 +41,8 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   const visibleColumns = preferences.order.filter(key => preferences.visible.includes(key));
   const [sorting, setSorting] = useState<ColumnSort[]>(definition.initialSorting ?? []);
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({});
+  const [page, setPage] = useState(0);
+  useEffect(() => { setPage(0); }, [search, filters, sorting, columnFilters]);
   const [menu, setMenu] = useState<{ id: number; key: string; anchor: HTMLElement; point?: { x: number; y: number }; initialView?: 'filter' } | null>(null);
   const [active, setActive] = useState('');
   const [columnAnnouncement, setColumnAnnouncement] = useState('');
@@ -95,7 +98,12 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   const changed = Boolean(search || Object.keys(columnFilters).length || filterCount);
   const filtered = filterRows(definition.applyFilters(items, search, filters), columnFilters, definition.model);
   const sorted = sortRows(filtered, sorting, definition.model);
-  const activeId = sorted.some(item => item.id === active) ? active : sorted[0]?.id;
+  const pageSize = definition.pageSize ?? Math.max(1, sorted.length);
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+  const visible = sorted.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  const changePage = (next: number) => { setPage(next); tableScroll.current?.scrollTo({ top: 0 }); };
+  const activeId = visible.some(item => item.id === active) ? active : visible[0]?.id;
   const menuColumn = menu && definition.columns.find(column => column.key === menu.key)!;
   const empty = definition.emptyState(items, filters);
   return <section className="inventory-section" aria-label={definition.label}>
@@ -104,7 +112,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       <button ref={filterButton} type="button" className={`button secondary ${filtersOpen ? 'selected' : ''}`} aria-label="Filters" aria-expanded={filtersOpen} aria-controls={filtersId} onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />Filters{filterCount > 0 ? ` (${filterCount})` : ''}</button>
       <ColumnPicker options={definition.columns} selected={visibleColumns} onChange={changeVisibility} onReset={resetColumns} />
       {changed && <button type="button" className="button quiet" onClick={() => clearFilters()}>Reset filters</button>}
-      <span className="filter-result" role="status">{definition.summary?.(filtered.length, items) ?? `${filtered.length} of ${items.length}`}</span>
+      <span className="filter-result" role="status">{definition.summary?.(filtered.length, items, filters) ?? `${filtered.length} of ${items.length}`}</span>
       <div className="inventory-actions">
         <button type="button" className="button secondary" onClick={onAdd}><Plus size={16} />Add {definition.itemLabel}</button>
         {extraActions}
@@ -136,12 +144,12 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
             <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" aria-label={`${column.title} column options`} aria-expanded={menu?.key === column.key} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button></div>
           </th>;
         })}</tr></thead>
-        <tbody>{sorted.map((item, index) => <tr key={definition.rowKey?.(item) ?? item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, textarea, select, a, label, [contenteditable]') && !window.getSelection()?.toString()) onEdit(item); }}>
+        <tbody>{visible.map((item, index) => <tr key={definition.rowKey?.(item) ?? item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, textarea, select, a, label, [contenteditable]') && !window.getSelection()?.toString()) onEdit(item); }}>
           {columns.map(column => <td key={column.key} data-column-key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : column.key === primary.key ? 'equipment-cell' : column.wrap ? 'wrapping-cell' : ''}>
             {column.key === primary.key ? <button type="button" ref={node => { if (node) rowButtons.current.set(item.id, node); else rowButtons.current.delete(item.id); }} className="equipment-name" tabIndex={item.id === activeId ? 0 : -1} aria-label={`Edit ${definition.rowLabel(item)}`} onFocus={() => setActive(item.id)} onClick={() => onEdit(item)} onKeyDown={event => {
               if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
               event.preventDefault();
-              const next = sorted[event.key === 'Home' ? 0 : event.key === 'End' ? sorted.length - 1 : Math.max(0, Math.min(sorted.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
+              const next = visible[event.key === 'Home' ? 0 : event.key === 'End' ? visible.length - 1 : Math.max(0, Math.min(visible.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
               rowButtons.current.get(next.id)?.focus({ preventScroll: true }); rowButtons.current.get(next.id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
             }}>{renderCell(item, column, visibleColumns)}</button> : renderCell(item, column, visibleColumns)}
           </td>)}
@@ -149,6 +157,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       </table>
       {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{empty.title}</h3>{empty.description && <p>{empty.description}</p>}{items.length > 0 && <button type="button" className="button secondary" onClick={() => clearFilters(empty.resetValues)}>{empty.resetLabel ?? 'Reset filters'}</button>}</div>}
     </div>
+    {pageCount > 1 && <nav className="collection-pagination" aria-label={`${definition.label} pages`}><button type="button" className="button secondary" disabled={currentPage === 0} onClick={() => changePage(currentPage - 1)}>Previous</button><span aria-live="polite">{currentPage + 1} / {pageCount}</span><button type="button" className="button secondary" disabled={currentPage + 1 === pageCount} onClick={() => changePage(currentPage + 1)}>Next</button></nav>}
     {menu && menuColumn && <ColumnMenu key={menu.id} anchor={menu.anchor} point={menu.point} initialView={menu.initialView} column={menuColumn} columns={definition.columns} selected={visibleColumns} choices={filterChoices(menuColumn, items, definition.model)} sorting={sorting} filter={columnFilters[menu.key]}
       onVisibility={changeVisibility} onReset={resetColumns} onMove={direction => { const target = visibleColumns[visibleColumns.indexOf(menu.key) + direction]; if (target) reorderColumn(menu.key, { key: target, edge: direction === -1 ? 'before' : 'after' }); }} onSort={direction => setSorting(current => setColumnSort(current, menu.key, direction))} onPriority={index => setSorting(current => moveColumnSort(current, menu.key, index))} onFilter={filter => changeColumnFilter(menu.key, filter)} onClose={() => {
         setMenu(null);

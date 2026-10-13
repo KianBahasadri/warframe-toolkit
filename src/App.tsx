@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Moon, Search, Sun, Table2, UserRound } from 'lucide-react';
 import { InventoryTable } from './components/InventoryTable';
 import type { CollectionActions } from './components/CollectionTable';
 import { EquipmentForm } from './components/EquipmentForm';
 import { ScreenshotImport } from './components/ScreenshotImport';
-import { Relics } from './components/Relics';
 import { DropTables } from './components/DropTables';
 import type { DropTableActions } from './components/DropTables';
 import { Commands } from './components/Commands';
@@ -19,12 +18,15 @@ import { editableRecord, equipmentRows, toggleEquipment } from './lib/weaponCata
 import { mergeObservations, normalizeName } from './lib/model';
 import type { Equipment, Inventory } from './lib/model';
 import { downloadFile, inventoryCsv, relicsCsv, STORAGE_KEY, warframesCsv } from './lib/storage';
-import { MAX_RELIC_QUANTITY } from './lib/relics';
+import { relicKey } from './lib/relics';
+import { updateRelic } from './lib/relicCatalog';
 import weaponsIcon from './assets/warframe/weapons.png';
 import warframesIcon from './assets/warframe/warframes.png';
 import relicsIcon from './assets/warframe/relics.png';
 
 type Page = 'weapons' | 'warframes' | 'relics' | 'droptables' | 'import';
+const Relics = lazy(() => import('./components/Relics').then(module => ({ default: module.Relics })));
+
 const pageNames: Record<Page, string> = { weapons: 'Weapons', warframes: 'Warframes', relics: 'Relics', droptables: 'Drop Tables', import: 'Screenshot import' };
 const collectionTabs = [{ key: 'weapons', icon: weaponsIcon }, { key: 'warframes', icon: warframesIcon }, { key: 'relics', icon: relicsIcon }, { key: 'droptables', icon: '' }] as const;
 
@@ -118,19 +120,21 @@ export default function App() {
             const item = { ...(previous ?? editableRecord(row)), notes, updatedAt: new Date().toISOString() };
             if (commit({ ...current, items: previous ? current.items.map(entry => entry.id === item.id ? item : entry) : [...current.items, item] }, 600)) noteChanged('items', item.id, item.name, notes);
           }} onAdd={() => setEditing('new')} onImport={() => navigate('import')} onExport={exportCsv} actionsRef={collectionActions} />}
-        {page === 'relics' && <Relics key={account.user?.id ?? 'guest'} relics={relics} onExport={exportRelics} actionsRef={collectionActions} onSave={relic => {
+        {page === 'relics' && <Suspense fallback={<p role="status" className="small muted">Loading relics…</p>}><Relics key={account.user?.id ?? 'guest'} relics={relics} trackedOnlyDefault={Boolean(account.user)} onExport={exportRelics} actionsRef={collectionActions} onSave={relic => {
           const current = inventoryRef.current;
           const existing = current.relics ?? [];
           return commit({ ...current, relics: existing.some(entry => entry.id === relic.id) ? existing.map(entry => entry.id === relic.id ? relic : entry) : [...existing, relic] });
         }} onNotesChange={(relic, notes) => {
           const current = inventoryRef.current;
-          const previous = current.relics.find(item => item.id === relic.id);
-          if (!previous || previous.notes === notes) return;
-          if (commit({ ...current, relics: current.relics.map(item => item.id === relic.id ? { ...item, notes, updatedAt: new Date().toISOString() } : item) }, 600)) noteChanged('relics', relic.id, `${relic.name} ${relic.refinement}`, notes);
-        }} onDelete={id => commit({ ...inventoryRef.current, relics: (inventoryRef.current.relics ?? []).filter(relic => relic.id !== id) })} onQuantityChange={(id, change) => {
+          const relics = updateRelic(current.relics, relic, { notes });
+          if (relics === current.relics) return;
+          const updated = relics.find(item => relicKey(item) === relicKey(relic))!;
+          if (commit({ ...current, relics }, 600)) noteChanged('relics', updated.id, `${relic.name} ${relic.refinement}`, notes);
+        }} onDelete={id => commit({ ...inventoryRef.current, relics: (inventoryRef.current.relics ?? []).filter(relic => relic.id !== id) })} onQuantityChange={(relic, change) => {
           const current = inventoryRef.current;
-          commit({ ...current, relics: (current.relics ?? []).map(relic => relic.id === id ? { ...relic, quantity: Math.max(0, Math.min(MAX_RELIC_QUANTITY, relic.quantity + change)), updatedAt: new Date().toISOString() } : relic) });
-        }} />}
+          const relics = updateRelic(current.relics, relic, { quantityChange: change });
+          if (relics !== current.relics) commit({ ...current, relics });
+        }} /></Suspense>}
         {page === 'import' && <ScreenshotImport onImport={(observations, files) => {
           const merged = mergeObservations(inventoryRef.current.items, observations);
           const next = { ...inventoryRef.current, items: merged.items, imports: [{ id: crypto.randomUUID(), date: new Date().toISOString(), files, added: merged.added, updated: merged.updated }, ...inventoryRef.current.imports].slice(0, 100) };

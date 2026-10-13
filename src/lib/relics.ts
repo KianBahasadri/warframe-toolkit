@@ -1,5 +1,5 @@
 export const relicEras = ['Lith', 'Meso', 'Neo', 'Axi', 'Requiem', 'Vanguard'] as const;
-export const refinements = ['Intact', 'Exceptional', 'Flawless', 'Radiant'] as const;
+export const refinements = ['Intact', 'Exceptional', 'Flawless', 'Radiant', 'Unrefined'] as const;
 export type RelicEra = (typeof relicEras)[number];
 export type Refinement = (typeof refinements)[number];
 export const MAX_RELIC_QUANTITY = 999999;
@@ -17,7 +17,7 @@ export function parseRelicName(value: string): { name: string; era: RelicEra } |
   const parts = value.trim().replace(/\s+relic$/i, '').split(/\s+/);
   const era = relicEras.find(era => era.toLowerCase() === parts[0]?.toLowerCase());
   if (!era || parts.length !== 2 || !/^[a-z0-9]{1,10}$/i.test(parts[1])) return null;
-  return { name: `${era} ${parts[1].toUpperCase()}`, era };
+  return { name: `${era} ${era === 'Requiem' && parts[1].toLowerCase() === 'eterna' ? 'Eterna' : parts[1].toUpperCase()}`, era };
 }
 
 export function relicKey(relic: Pick<Relic, 'name' | 'refinement'>): string {

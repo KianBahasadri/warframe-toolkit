@@ -59,6 +59,7 @@ test.describe('guest accounts', () => {
     await page.getByLabel('Owned: Boltor', { exact: true }).check();
     await expect(status(page)).toHaveCount(0);
     await page.getByRole('link', { name: 'Relics', exact: true }).click();
+    await page.getByLabel('Search relics', { exact: true }).fill('Lith A1');
     await page.getByRole('button', { name: 'Add relic', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Relic name').fill('Lith A1');
@@ -70,7 +71,8 @@ test.describe('guest accounts', () => {
     page.on('dialog', dialog => dialog.accept());
     await page.reload();
     await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
-    await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
+    await page.getByLabel('Search relics', { exact: true }).fill('Lith A1');
+    await expect(page.getByLabel('Lith A1 Intact quantity', { exact: true })).toHaveText('0');
     await page.getByRole('link', { name: 'Weapons', exact: true }).click();
     await page.getByLabel('Search weapons').fill('Boltor');
     await expect(page.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
