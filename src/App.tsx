@@ -115,7 +115,7 @@ export default function App() {
 
   const relics = inventory.relics ?? [];
   const nav = <nav className="collection-nav" aria-label="Main navigation"><ul>
-    {collectionTabs.map(({ key, icon }, index) => <li key={key}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={!icon ? { background: 'none' } : { maskImage: `url(${icon})` }}>{key === 'droptables' && <Table2 size={20} />}{key === 'crafting' && <Hammer size={20} />}</span><span>{pageNames[key]}</span></a></li>)}
+    {collectionTabs.map(({ key, icon }, index) => <li key={key} className={key === 'droptables' ? 'nav-group-start' : undefined}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={!icon ? { background: 'none' } : { maskImage: `url(${icon})` }}>{key === 'droptables' && <Table2 size={20} />}{key === 'crafting' && <Hammer size={20} />}</span><span>{pageNames[key]}</span></a></li>)}
     </ul></nav>;
   const visibleItems = useMemo(() => equipmentRows(inventory.items, catalog, true).filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe'), [inventory.items, page]);
   const isInventory = page === 'weapons' || page === 'warframes';

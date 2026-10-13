@@ -96,6 +96,8 @@ progress::-moz-progress-bar { background: var(--control-selected); }
 .app-shell { min-height: 100dvh; }
 .collection-nav { display: flex; align-items: center; gap: 20px; min-width: 0; }
 .collection-nav ul { display: flex; gap: 8px; list-style: none; margin: 0; padding: 4px; }
+.collection-nav .nav-group-start { position: relative; margin-inline-start: 4px; padding-inline-start: 12px; }
+.collection-nav .nav-group-start::before { content: ''; position: absolute; inset-inline-start: 0; top: 50%; height: 20px; border-inline-start: 1px solid var(--line-strong); transform: translateY(-50%); pointer-events: none; }
 .collection-nav a { display: flex; gap: 8px; align-items: center; font-size: 13.5px; padding: 10px 12px; color: var(--muted); border-radius: 4px; text-decoration: none; min-height: 44px; }
 .collection-nav a:hover { background: var(--surface-raised); }.collection-nav a[aria-current="page"] { background: var(--surface-raised); font-weight: 600; color: var(--ink-strong); }
 .nav-icon { display: block; width: 20px; height: 20px; flex-shrink: 0; background: currentColor; mask-position: center; mask-size: contain; mask-repeat: no-repeat; }
@@ -372,6 +374,8 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
   .import-sources:not(.has-batch) .import-source[data-source="codex"]:not(.is-paste-target) { transform: translateX(8%); }
 }
 @media (max-width: 600px) {
+  .collection-nav .nav-group-start { margin-inline-start: 0; padding-inline-start: 0; }
+  .collection-nav .nav-group-start::before { inset-inline-start: -1px; height: 18px; }
   .import-source { padding: 32px 16px 24px; }
   .import-page > .callout { margin: 16px 16px 0; }
 }
