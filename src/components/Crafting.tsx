@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Clock3, MapPin, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { craftingItems } from '../data/crafting';
-import { buildCraftingTree, checkCraftingNode, chooseCraftingRecipe, craftingAreas, craftingDuration, craftingSummary, setCraftingProgress, MAX_CRAFTING_PLANS } from '../lib/crafting';
+import { buildCraftingTree, checkCraftingNode, chooseCraftingRecipe, craftingAreas, craftingDuration, craftingPlanLabel, craftingSummary, setCraftingProgress, MAX_CRAFTING_PLANS } from '../lib/crafting';
 import type { CraftingItem, CraftingNode, CraftingPlan } from '../lib/crafting';
 import { Dialog } from './Dialog';
 import { Select } from './Select';
@@ -151,9 +151,8 @@ export function Crafting({ plans, selected, onSelect, onSave, canSave, onSignIn,
         }}>
           {plans.map((entry, index) => {
             const item = craftingItems.get(entry.itemId), active = entry.id === plan?.id;
-            const duplicate = plans.some(other => other.id !== entry.id && other.itemId === entry.itemId);
             return <button type="button" role="tab" key={entry.id} id={`${tabsId}-tab-${index}`} aria-controls={`${tabsId}-panel-${index}`} aria-selected={active} tabIndex={active || !plan && index === 0 ? 0 : -1} onClick={() => onSelect(entry.id)}>
-              {item && <CraftingArtwork item={item} />}<span>{item?.name ?? 'Unavailable item'}{entry.quantity > 1 && ` × ${entry.quantity}`}{duplicate && ` · Plan ${plans.slice(0, index + 1).filter(other => other.itemId === entry.itemId).length}`}</span>
+              {item && <CraftingArtwork item={item} />}<span>{craftingPlanLabel(plans, index, item?.name ?? 'Unavailable item')}</span>
             </button>;
           })}
         </div>

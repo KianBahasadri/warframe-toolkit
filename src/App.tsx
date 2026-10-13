@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Hammer, Moon, Search, Sun, Table2, UserRound } from 'lucide-react';
+import { Moon, Search, Sun, Table2, UserRound } from 'lucide-react';
 import { InventoryTable } from './components/InventoryTable';
 import type { CollectionActions } from './components/CollectionTable';
 import { EquipmentForm } from './components/EquipmentForm';
@@ -10,6 +10,7 @@ import { Commands } from './components/Commands';
 import type { Command } from './components/Commands';
 import { Dialog } from './components/Dialog';
 import { AccountDialog } from './components/AccountDialog';
+import { CraftingNav } from './components/CraftingNav';
 import { useAccount } from './lib/useAccount';
 import { useToasts } from './components/Toasts';
 import './components/Account.css';
@@ -86,6 +87,11 @@ export default function App() {
     if (destination === 'crafting') setCraftingPlan('');
     setPage(destination); location.hash = destination;
   };
+  const openCraftingPlan = (id: string) => {
+    // Set both together; a hashchange would otherwise return Crafting to its picker.
+    if (location.hash !== '#crafting') history.pushState(null, '', '#crafting');
+    setCraftingPlan(id); setPage('crafting');
+  };
   const openImport = () => { setImportRelics(page === 'relics'); navigate('import'); };
   const exportCsv = () => {
     const rows = equipmentRows(inventoryRef.current.items, catalog);
@@ -115,7 +121,7 @@ export default function App() {
 
   const relics = inventory.relics ?? [];
   const nav = <nav className="collection-nav" aria-label="Main navigation"><ul>
-    {collectionTabs.map(({ key, icon }, index) => <li key={key} className={key === 'droptables' ? 'nav-group-start' : undefined}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={!icon ? { background: 'none' } : { maskImage: `url(${icon})` }}>{key === 'droptables' && <Table2 size={20} />}{key === 'crafting' && <Hammer size={20} />}</span><span>{pageNames[key]}</span></a></li>)}
+    {collectionTabs.map(({ key, icon }, index) => key === 'crafting' ? <CraftingNav key={`crafting-${account.user?.id ?? 'guest'}`} plans={account.profile.craftingPlans} active={page === 'crafting'} selected={craftingPlan} onHome={() => navigate('crafting')} onPlan={openCraftingPlan} /> : <li key={key} className={key === 'droptables' ? 'nav-group-start' : undefined}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={!icon ? { background: 'none' } : { maskImage: `url(${icon})` }}>{key === 'droptables' && <Table2 size={20} />}</span><span>{pageNames[key]}</span></a></li>)}
     </ul></nav>;
   const visibleItems = useMemo(() => equipmentRows(inventory.items, catalog, true).filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe'), [inventory.items, page]);
   const isInventory = page === 'weapons' || page === 'warframes';

@@ -25,6 +25,12 @@ export interface CraftingNode {
 }
 export const MAX_CRAFTING_PLANS = 50;
 
+export function craftingPlanLabel(plans: CraftingPlan[], index: number, name: string): string {
+  const plan = plans[index];
+  const duplicate = plans.some(other => other.id !== plan.id && other.itemId === plan.itemId);
+  return `${name}${plan.quantity > 1 ? ` × ${plan.quantity}` : ''}${duplicate ? ` · Plan ${plans.slice(0, index + 1).filter(other => other.itemId === plan.itemId).length}` : ''}`;
+}
+
 export function validateCraftingPlans(value: unknown): CraftingPlan[] {
   const text = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max;
   const invalid = () => { throw new Error('Crafting plans could not be read. The original data has been kept.'); };
