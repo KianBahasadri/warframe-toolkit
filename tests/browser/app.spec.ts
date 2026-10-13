@@ -688,7 +688,7 @@ test('Alt number shortcuts follow the top tabs and stay inactive while editing',
   await page.route('**/api/droptables', route => route.fulfill({ json: drops }));
   await page.goto('/#import'); await waitForSave(page);
   const navigation = page.getByRole('navigation', { name: 'Main navigation' });
-  const tabs = ['Weapons', 'Warframes', 'Relics', 'Drop Tables'];
+  const tabs = ['Weapons', 'Warframes', 'Relics', 'Drop Tables', 'Crafting'];
   await expect(navigation.getByRole('link')).toHaveText(tabs);
   for (const [index, name] of tabs.entries()) {
     await page.keyboard.press(`Alt+${index + 1}`);

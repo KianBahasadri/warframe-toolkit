@@ -93,12 +93,12 @@ test.describe('guest accounts', () => {
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
-    await expect(dialog.getByLabel('Save my current inventory and views to this account')).toBeChecked();
+    await expect(dialog.getByLabel('Save my current inventory, views, and crafting plans to this account')).toBeChecked();
     await expect(dialog.locator('input')).toHaveCount(2);
     await dialog.getByLabel('Warframe username', { exact: true }).fill('LegacyTenno#123');
     await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
     const { accessKey } = await saveKey(page);
-    expect(await account.profile()).toEqual({ inventory: legacy, dropViews: views });
+    expect(await account.profile()).toEqual({ inventory: legacy, dropViews: views, craftingPlans: [] });
     const boltor = page.getByLabel('Owned: Boltor', { exact: true });
     await boltor.click();
     await expect(boltor).toHaveCount(0);

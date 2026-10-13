@@ -71,6 +71,7 @@ test('guests cannot save; account ownership and revision checks prevent crossed 
     const b = await api.request('register', { username: 'TennoB' }), bCookie = cookieOf(b), bData = await b.json();
     const profile = emptyProfile();
     profile.inventory.items.push(createEquipment({ name: 'Boltor Prime', slot: 'Primary', variant: 'Prime' }, { owned: true, mastered: false, rank: 7, notes: 'Keep for crafting', override: 'Keep' }));
+    profile.craftingPlans.push({ id: 'rhino-plan', itemId: '/Lotus/Powersuits/Rhino/Rhino', quantity: 1, completed: ['root/part'], choices: { 'root/part': 'gather' } });
     const save = { accountId: aData.user.id, revision: 0, profile };
     assert.equal((await api.request('profile', save, bCookie, { method: 'PUT' })).status, 409);
     assert.equal((await api.request('profile', save, aCookie, { method: 'PUT' })).status, 200);
@@ -78,7 +79,13 @@ test('guests cannot save; account ownership and revision checks prevent crossed 
     assert.deepEqual((await (await api.request('session', undefined, bCookie)).json()).profile, bData.profile);
     assert.equal((await api.request('profile', { ...save, profile: emptyProfile() }, aCookie, { method: 'PUT' })).status, 409);
     assert.equal((await api.request('profile', { ...save, revision: 1, profile: { inventory: {}, dropViews: [] } }, aCookie, { method: 'PUT' })).status, 400);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: null } }, aCookie, { method: 'PUT' })).status, 400);
     assert.deepEqual((await (await api.request('session', undefined, aCookie)).json()).profile, profile);
+    const { craftingPlans, ...legacy } = profile;
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: legacy }, aCookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, aCookie)).json()).profile.craftingPlans, craftingPlans);
+    assert.equal((await api.request('profile', { ...save, revision: 2, profile: { ...profile, craftingPlans: [] } }, aCookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, aCookie)).json()).profile.craftingPlans, []);
   } finally { await api.close(); }
 });
 

@@ -9,6 +9,24 @@ import { emptyProfile, isAccessKey } from '../../src/lib/account.ts';
 import { createEquipment } from '../../src/lib/model.ts';
 
 const cookieOf = (response: { headers: Headers }) => response.headers.get('set-cookie')!.split(';')[0];
+test('D1 keeps crafting plans when an older client omits them and rejects malformed replacements', async () => {
+  const api = await cloudflareRuntime();
+  try {
+    const profile = emptyProfile();
+    profile.craftingPlans = [{ id: 'plan', itemId: '/Rhino', quantity: 1, completed: ['root'], choices: {} }];
+    const registered = await api.request('register', { username: 'CraftingTenno', profile });
+    const account = await registered.json() as any, cookie = cookieOf(registered);
+    const { craftingPlans, ...legacy } = profile;
+    const save = { accountId: account.user.id, revision: 0, profile: legacy };
+    assert.equal((await api.request('profile', save, cookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, cookie)).json() as any).profile.craftingPlans, craftingPlans);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...legacy, craftingPlans: null } }, cookie, { method: 'PUT' })).status, 400);
+    assert.deepEqual((await (await api.request('session', undefined, cookie)).json() as any).profile.craftingPlans, craftingPlans);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...legacy, craftingPlans: [] } }, cookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, cookie)).json() as any).profile.craftingPlans, []);
+  } finally { await api.close(); }
+});
+
 test('D1 accounts preserve authentication, profile isolation, revisions, key rotation, and protected writes', async () => {
   const api = await cloudflareRuntime();
   try {
@@ -26,6 +44,7 @@ test('D1 accounts preserve authentication, profile isolation, revisions, key rot
     const bResponse = await api.request('register', { username: 'Other' }), b = await bResponse.json() as any;
     const profile = emptyProfile();
     profile.inventory.items.push(createEquipment({ name: 'Boltor Prime', slot: 'Primary', variant: 'Prime' }, { owned: true, rank: 7, mastered: false, notes: 'Preserve planning', override: 'Keep' }));
+    profile.craftingPlans.push({ id: 'rhino-plan', itemId: '/Lotus/Powersuits/Rhino/Rhino', quantity: 2, completed: ['root/part'], choices: {} });
     const save = { accountId: a.user.id, revision: 0, profile };
     assert.equal((await api.request('profile', save, '', { method: 'PUT' })).status, 401);
     assert.equal((await api.request('profile', save, cookieOf(bResponse), { method: 'PUT' })).status, 409);

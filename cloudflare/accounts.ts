@@ -160,7 +160,9 @@ export class AccountGateway extends DurableObject<Env> {
     }
     if (path === '/api/account/profile' && request.method === 'PUT') {
       if (!Number.isSafeInteger(value.revision) || Number(value.revision) < 0) throw new ApiError(400, 'Invalid save revision.');
-      const encoded = encodeProfile(profile(value.profile));
+      const next = profile(value.profile);
+      if (!Object.hasOwn(value.profile as object, 'craftingPlans')) next.craftingPlans = current.snapshot.profile.craftingPlans;
+      const encoded = encodeProfile(next);
       const results = await db.batch([
         db.prepare(`UPDATE accounts SET profile_id = ?, profile_hash = ?, profile_chunks = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND profile_id = ? AND ${validSession}`).bind(encoded.id, encoded.hash, encoded.chunks.length, account.id, Number(value.revision), account.profile_id, digest(token(request)), Date.now()),
         ...this.chunks(account.id, encoded),

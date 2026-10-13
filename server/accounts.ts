@@ -134,9 +134,11 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
       json(res, 200, { accessKey: replaceAccessKey(account, token(req)) }); return;
     }
     if (path === '/api/account/profile' && req.method === 'PUT') {
-      snapshot(account);
+      const current = snapshot(account);
       if (!Number.isSafeInteger(value.revision) || Number(value.revision) < 0) throw new ApiError(400, 'Invalid save revision.');
       const next = profile(value.profile);
+      // Older open clients do not know about crafting. Only an explicit array replaces plans.
+      if (!Object.hasOwn(value.profile as object, 'craftingPlans')) next.craftingPlans = current.profile.craftingPlans;
       const result = db.prepare('UPDATE accounts SET profile = ?, revision = revision + 1 WHERE id = ? AND revision = ?').run(JSON.stringify(next), account.id, Number(value.revision));
       if (!result.changes) throw new ApiError(409, 'Your saved data changed in another tab or device. Download your changes before loading the saved version.');
       json(res, 200, { revision: Number(value.revision) + 1 }); return;

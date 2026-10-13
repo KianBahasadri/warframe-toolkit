@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { accountUsername, emptyProfile, isAccessKey, readAccessKeyLink, validateDropViews, validateProfile } from './account';
 import type { AccountProfile, AccountSession, AccountUser, SavedDropView } from './account';
 import type { Inventory } from './model';
+import type { CraftingPlan } from './crafting';
 import { parseBackup, STORAGE_KEY } from './storage';
 
 export const LEGACY_VIEWS_KEY = 'warframe-toolkit.drop-views.v1';
@@ -135,6 +136,7 @@ export function useAccount() {
   return { ...state, authenticate, replaceAccessKey, signOut, retrySave: save, reloadSaved,
     commitInventory: (inventory: Inventory, saveDelay?: number) => commit({ ...current.current.profile, inventory }, saveDelay),
     commitViews: (dropViews: SavedDropView[]) => current.current.user ? commit({ ...current.current.profile, dropViews }) : false,
-    canIncludeCurrent: !state.unreadable && !state.viewsError && Boolean(state.profile.inventory.items.length || state.profile.inventory.relics.length || state.profile.inventory.imports.length || state.profile.dropViews.length),
+    commitCrafting: (craftingPlans: CraftingPlan[]) => commit({ ...current.current.profile, craftingPlans }),
+    canIncludeCurrent: !state.unreadable && !state.viewsError && Boolean(state.profile.inventory.items.length || state.profile.inventory.relics.length || state.profile.inventory.imports.length || state.profile.dropViews.length || state.profile.craftingPlans.length),
   };
 }
