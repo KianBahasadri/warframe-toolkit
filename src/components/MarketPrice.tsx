@@ -1,8 +1,9 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { MarketItem, MarketOrder, MarketSubject, MarketTarget, MarketQuote, MarketSnapshot } from '../lib/market';
 import { marketPlatforms, platinum } from '../lib/market';
 import { loadMarket, marketCatalogPath, marketPath, marketQuote, marketTarget, useMarketPlatform, useMarketResource } from '../lib/marketClient';
 import { Tooltip } from './Tooltip';
+import { Currency } from './Currency';
 import './Market.css';
 
 const MarketDialog = lazy(() => import('./MarketDialog').then(module => ({ default: module.MarketDialog })));
@@ -26,7 +27,7 @@ export function MarketPrice({ subject }: { subject: MarketSubject }) {
     <Tooltip className={`market-price${error ? ' is-stale' : ''}`} label={`WFM: ${subject.name}${subject.refinement ? ` ${subject.refinement}` : ''}${target ? `: ${platinum(quote?.price)}, price details` : ''}`} hasPopup={Boolean(target)}
       onClick={() => { if (target) setOpen(true); else void loadMarket(marketCatalogPath, true); }}
       content={target ? <MarketTooltip target={target} quote={quote} snapshot={orders.snapshot} error={orders.error} platform={platform} /> : <span>{catalog.error || (catalog.snapshot ? 'Not listed on Warframe Market.' : 'Loading the Warframe Market catalog…')}</span>}>
-      {loading ? error ? 'Unavailable' : '…' : platinum(quote?.price)}
+      {loading ? error ? 'Unavailable' : '…' : <Currency value={quote?.price} currency="platinum" />}
       {target?.qualifier && subject.kind === 'equipment' && <small>{target.qualifier}</small>}
       {error && orders.snapshot && <small>stale</small>}
     </Tooltip>
@@ -38,14 +39,14 @@ export function MarketTooltip({ target, quote, snapshot, error, platform }: { ta
   return <span className="market-tooltip">
     <strong>{target.label}</strong><span>{marketPlatforms.find(item => item.value === platform)?.label} · Platinum per item</span>
     {quote ? <>
-      <dl><dt>WFM estimate</dt><dd>{platinum(quote.price)}</dd>
+      <dl><dt>WFM estimate</dt><dd><Currency value={quote.price} currency="platinum" /></dd>
         <dt>Cheapest sellers sampled</dt><dd>{quote.sample} / 5</dd>
-        <dt>Sell min / median / max</dt><dd>{[quote.sell.min, quote.sell.median, quote.sell.max].map(platinum).join(' / ')}</dd>
-        <dt>Sell average</dt><dd>{platinum(quote.sell.mean)}</dd>
+        <dt>Sell min / median / max</dt><dd>{[quote.sell.min, quote.sell.median, quote.sell.max].map((value, index) => <Fragment key={index}>{index > 0 && ' / '}<Currency value={value} currency="platinum" /></Fragment>)}</dd>
+        <dt>Sell average</dt><dd><Currency value={quote.sell.mean} currency="platinum" /></dd>
         <dt>Sell listings / units</dt><dd>{quote.sell.listings} / {quote.sell.units}</dd>
-        <dt>Best buy / buy median</dt><dd>{platinum(quote.buy.max)} / {platinum(quote.buy.median)}</dd>
-        <dt>Buy average / listings</dt><dd>{platinum(quote.buy.mean)} / {quote.buy.listings}</dd>
-        <dt>Buy–sell spread</dt><dd>{platinum(quote.spread)}</dd>
+        <dt>Best buy / buy median</dt><dd><Currency value={quote.buy.max} currency="platinum" /> / <Currency value={quote.buy.median} currency="platinum" /></dd>
+        <dt>Buy average / listings</dt><dd><Currency value={quote.buy.mean} currency="platinum" /> / {quote.buy.listings}</dd>
+        <dt>Buy–sell spread</dt><dd><Currency value={quote.spread} currency="platinum" /></dd>
         <dt>Offline listings excluded</dt><dd>{quote.offline}</dd>
       </dl>
       <span>Median of up to five cheapest distinct online sellers. Asking prices, not confirmed trades.</span>

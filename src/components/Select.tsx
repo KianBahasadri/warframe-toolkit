@@ -1,8 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 
-export interface SelectOption { value: string; label: string; disabled?: boolean }
+export interface SelectOption { value: string; label: string; content?: ReactNode; disabled?: boolean }
 
 interface SelectProps {
   label: string;
@@ -136,12 +137,12 @@ export function Select({ label, value, options, onChange, disabled = false, clas
           }
           setOpen(true);
         }
-      }}><span className="select-value">{currentLabel}</span><ChevronDown size={14} aria-hidden="true" /></button>
+      }}><span className="select-value">{options[selected]?.content ?? currentLabel}</span><ChevronDown size={14} aria-hidden="true" /></button>
     {expanded && createPortal(<div ref={menu} id={`${id}-list`} className="select-menu" role="listbox" aria-label={label} onMouseDown={event => event.preventDefault()}>
       {options.map((option, index) => <div key={option.value} id={`${id}-option-${index}`} role="option" aria-selected={index === selected} aria-disabled={option.disabled || undefined} className="select-option" data-active={index === activeIndex || undefined}
         onPointerMove={event => { if (event.pointerType === 'mouse' && !option.disabled && (event.movementX || event.movementY)) setActive(index); }}
         onClick={event => { event.stopPropagation(); if (!option.disabled) { choose(index); trigger.current?.focus({ preventScroll: true }); } }}>
-        <span>{option.label}</span><Check size={14} aria-hidden="true" className={index === selected ? '' : 'select-check-hidden'} />
+        <span>{option.content ?? option.label}</span><Check size={14} aria-hidden="true" className={index === selected ? '' : 'select-check-hidden'} />
       </div>)}
     </div>, trigger.current?.closest('dialog') ?? document.body)}
   </>;

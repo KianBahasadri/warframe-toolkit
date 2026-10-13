@@ -149,7 +149,7 @@ test('a removed recipe stays explicit until the user selects an available one', 
   await page.goto('/#crafting');
   await expect(region(page)).toContainText('This recipe is no longer available');
   expect((await account.profile()).craftingPlans[0].choices.root).toBe('/removed-recipe');
-  await select(page, 'Recipe', 'Recipe 1 · 25,000 cr');
+  await select(page, 'Recipe', 'Recipe 1 · 25,000 credits');
   await expect(page.getByRole('checkbox', { name: 'Completed: Rhino Neuroptics', exact: true })).toBeVisible();
   expect((await account.profile()).craftingPlans[0].choices.root).not.toBe('/removed-recipe');
 });

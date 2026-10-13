@@ -3,6 +3,7 @@ import type { PriceSample } from '../lib/market';
 import { platinum } from '../lib/market';
 import { priceSeries } from '../lib/marketChart';
 import type { PriceSeries } from '../lib/marketChart';
+import { Currency, currencySymbols } from './Currency';
 
 export interface PricePlotOptions { visible: PriceSeries[]; area: boolean; zero: boolean; grid: boolean; markers: boolean; target: number | null }
 export const timeLabel = (time: string) => new Date(time).toLocaleString(undefined, { timeZone: 'UTC', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -49,7 +50,7 @@ export function MarketChart({ samples, options, cursor, pinned, interval, onCurs
         else if (['+', '=', '-'].includes(event.key)) { event.preventDefault(); onZoom(event.key === '-' ? 2 : 0.5); }
       }}>
       <svg viewBox={`0 0 ${size.width} ${size.height}`} width="100%" height="100%" role="img" aria-label={`Price history in platinum, ${samples.length} timestamps`}>
-        <g aria-hidden="true"><text className="market-axis" x={left - 8} y={12} textAnchor="end">p</text>
+        <g aria-hidden="true"><image href={currencySymbols.platinum} x={left - 22} y={0} width={14} height={14} />
           {[0, 1, 2, 3, 4].map(tick => { const value = minimum + (maximum - minimum) * tick / 4; return <g key={tick}>{options.grid && <line className="market-grid" x1={left} x2={right} y1={y(value)} y2={y(value)} />}<text className="market-axis" x={left - 8} y={y(value) + 4} textAnchor="end">{value.toLocaleString(undefined, { maximumFractionDigits: 1 })}</text></g>; })}
           {[...new Set([0, ...(size.width > 500 ? [Math.floor((samples.length - 1) / 2)] : []), samples.length - 1])].filter(index => samples[index]).map((index, order, array) => <text key={index} className="market-axis" x={x(index)} y={size.height - 8} textAnchor={order === 0 ? 'start' : order === array.length - 1 ? 'end' : 'middle'}>{new Date(samples[index].time).toLocaleString(undefined, interval < 86_400_000 ? { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false } : { timeZone: 'UTC', month: 'short', day: 'numeric' })}</text>)}
         </g>
@@ -65,12 +66,12 @@ export function MarketChart({ samples, options, cursor, pinned, interval, onCurs
             return <g key={index}>{options.area && <path className="market-area" d={`${path}L${x(segment.at(-1)!)},${bottom}L${x(segment[0])},${bottom}Z`} />}<path className="market-line" d={path} strokeDasharray={series.dash} />{(options.markers || segment.length === 1) && segment.map(index => <g className="market-marker" key={index}>{marker(series.key, index)}</g>)}</g>;
           })}</g>;
         })}
-        {options.target !== null && <g><line className="market-target" x1={left} x2={right} y1={y(options.target)} y2={y(options.target)} /><text className="market-axis" x={right} y={Math.max(12, y(options.target) - 6)} textAnchor="end">Target {platinum(options.target)}</text></g>}
+        {options.target !== null && <g aria-hidden="true"><line className="market-target" x1={left} x2={right} y1={y(options.target)} y2={y(options.target)} /><text className="market-axis" x={right - 18} y={Math.max(14, y(options.target) - 6)} textAnchor="end">Target {options.target.toLocaleString(undefined, { maximumFractionDigits: 2 })}</text><image href={currencySymbols.platinum} x={right - 14} y={Math.max(14, y(options.target) - 6) - 12} width={14} height={14} /></g>}
         {!samples.some(sample => options.visible.some(key => sample[key] !== null)) && <text className="market-axis" x={(left + right) / 2} y={(top + bottom) / 2} textAnchor="middle">No measurements in this range</text>}
         {shown && <g aria-hidden="true"><line className="market-crosshair" x1={x(current)} x2={x(current)} y1={top} y2={bottom} />{options.visible.filter(key => sample[key] !== null).map(key => <g key={key} className={`market-marker series-${key}`}>{marker(key, current, 4)}</g>)}</g>}
       </svg>
     </div>
-    <div ref={tip} id={`${id}-tip`} className="market-chart-tip" role="tooltip" hidden={!shown}>{sample && <><time dateTime={sample.time}>{timeLabel(sample.time)} UTC</time><dl>{priceSeries.filter(series => options.visible.includes(series.key)).map(series => <div key={series.key}><dt>{series.label}</dt><dd>{platinum(sample[series.key])}</dd></div>)}<div><dt>Reported volume</dt><dd>{sample.volume ?? '—'}</dd></div></dl></>}</div>
+    <div ref={tip} id={`${id}-tip`} className="market-chart-tip" role="tooltip" hidden={!shown}>{sample && <><time dateTime={sample.time}>{timeLabel(sample.time)} UTC</time><dl>{priceSeries.filter(series => options.visible.includes(series.key)).map(series => <div key={series.key}><dt>{series.label}</dt><dd><Currency value={sample[series.key]} currency="platinum" /></dd></div>)}<div><dt>Reported volume</dt><dd>{sample.volume ?? '—'}</dd></div></dl></>}</div>
     <span id={`${id}-help`} className="sr-only">Left and Right inspect samples. Home and End reach endpoints. Enter, Space or click pins a sample. Plus and Minus zoom. Shift with Left or Right pans.</span>
     <span className="sr-only" aria-live="polite">{announcement}</span>
   </div>;

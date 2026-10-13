@@ -1,6 +1,7 @@
 import { catalogDate } from '../data/catalog';
 import type { CatalogItem, Recipe } from '../lib/model';
 import { maximumRank } from '../lib/model';
+import { Currency } from './Currency';
 
 const number = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 3 });
 const label = (key: string) => key.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ').replace(/^./, char => char.toUpperCase());
@@ -29,7 +30,7 @@ function duration(seconds: number) {
 }
 export function RecipeDetails({ recipe }: { recipe: Recipe }) {
   return <div className="recipe-details">
-    <dl className="recipe-cost"><div><dt>Credits</dt><dd>{recipe.credits === null ? 'Unknown' : number(recipe.credits)}</dd></div><div><dt>Build time</dt><dd>{recipe.seconds === null ? 'Unknown' : duration(recipe.seconds)}</dd></div><div><dt>Produces</dt><dd>{recipe.quantity}</dd></div></dl>
+    <dl className="recipe-cost"><div><dt>Credits</dt><dd>{recipe.credits === null ? 'Unknown' : <Currency value={recipe.credits} currency="credits" />}</dd></div><div><dt>Build time</dt><dd>{recipe.seconds === null ? 'Unknown' : duration(recipe.seconds)}</dd></div><div><dt>Produces</dt><dd>{recipe.quantity}</dd></div></dl>
     <ul className="recipe-materials">{recipe.ingredients.map(part => <li key={part.id}>
       <div><span>{part.name}{part.equipment && <small>Consumes weapon</small>}</span><strong>× {number(part.count)}</strong></div>
       {part.recipes?.map(subrecipe => <details key={subrecipe.id}><summary>Craft {part.name}</summary><RecipeDetails recipe={subrecipe} /></details>)}
@@ -54,7 +55,7 @@ export function WeaponDetails({ item }: { item: CatalogItem }) {
     </> : <p className="muted small">No Incarnon form or compatible Genesis adapter recorded.</p>}</section>}
     <section aria-label="Acquisition"><h3>Acquisition & quests</h3>
       {!!item.quests?.length && <ul className="quest-rewards">{item.quests.map(quest => <li key={`${quest.name}-${quest.kind}`}><a href={quest.url} target="_blank" rel="noreferrer">{quest.name}</a><span className="muted">{quest.kind === 'Weapon reward' ? `${kind} reward` : quest.kind}</span></li>)}</ul>}
-      {market && <dl className="weapon-stats">{market.blueprintCredits !== null && <div><dt>Blueprint cost</dt><dd>{number(market.blueprintCredits)} credits</dd></div>}{market.credits !== null && <div><dt>Market {warframe ? kind : 'weapon'}</dt><dd>{number(market.credits)} credits</dd></div>}{market.platinum !== null && <div><dt>Market {warframe ? kind : 'weapon'}</dt><dd>{number(market.platinum)} platinum</dd></div>}</dl>}
+      {market && <dl className="weapon-stats">{market.blueprintCredits !== null && <div><dt>Blueprint cost</dt><dd><Currency value={market.blueprintCredits} currency="credits" /></dd></div>}{market.credits !== null && <div><dt>Market {warframe ? kind : 'weapon'}</dt><dd><Currency value={market.credits} currency="credits" /></dd></div>}{market.platinum !== null && <div><dt>Market {warframe ? kind : 'weapon'}</dt><dd><Currency value={market.platinum} currency="platinum" /></dd></div>}</dl>}
       {!!item.tags?.length && <div className="weapon-tags">{item.tags.map(tag => <span className="badge" key={tag}>{tag}</span>)}</div>}
       {item.acquisition?.length ? <details className="drop-locations"><summary>Drop locations ({item.acquisition.length})</summary><ul>{item.acquisition.map(drop => <li key={drop}>{drop}</li>)}</ul></details> : <p className="muted small">Drop locations are not listed in this source. See the {warframe ? kind : 'weapon'} wiki for vendor and event availability.</p>}
     </section>

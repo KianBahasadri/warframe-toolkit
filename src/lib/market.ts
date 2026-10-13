@@ -139,5 +139,5 @@ export function marketSamples(history: MarketHistory, variant: MarketVariant, ra
   }
   return [...samples.values()].sort((a, b) => a.time.localeCompare(b.time));
 }
-export const platinum = (value: number | null | undefined) => value === null || value === undefined ? '—' : `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} p`;
+export const platinum = (value: number | null | undefined) => value === null || value === undefined ? '—' : `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} platinum`;
 export const marketUrl = (target: MarketTarget) => `https://warframe.market/items/${target.item.slug}`;
