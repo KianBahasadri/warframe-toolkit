@@ -1,16 +1,10 @@
-# Screenshot OCR fixtures
+# Fixtures
 
-Both images are unmodified 1920 × 1200 English Warframe Inventory/Sell screenshots supplied by the user on 2026-10-10. Game artwork belongs to Digital Extremes. They are read locally during browser tests, never uploaded.
+User-supplied English 1920 × 1200 screenshots; artwork © Digital Extremes. Tests process them locally. JSON expectations are manually checked, independent of OCR:
 
-- `public/images/import/inventory-weapons.png` is shared with the illustrated import instructions. Its 17 fully readable labels all show rank 30. The next row has no visible names and must not produce matches.
-- `inventory-weapons-bottom.png` has 20 readable labels. Vasto is rank 0; the other 19 are rank 30.
+- `inventory-screenshots.json`: 37 names/ranks across two Inventory images; Vasto is rank 0, all others rank 30.
+- `codex-screenshot.json`: 32 names/mastery laurels; establishes neither ownership nor rank.
 
-`inventory-screenshots.json` is the manually checked ground truth, independent of OCR output. Browser tests require every listed name, exact variant, and rank, with no extra matches; they also check review, mastery, repeated screenshots, and persistence.
+Browser tests require exact variants and no extra matches; cover review, duplicate imports, persistence, and a resized/offset Codex image with obscured/false badges. Other capture conditions remain unverified. [Screenshot/mask provenance](../../public/images/import/SOURCES.md).
 
-`public/images/import/codex-weapons.png` is the user's unmodified 1920 × 1200 English Codex screenshot supplied on 2026-10-11, shared with the Codex chooser and instructions. `codex-screenshot.json` independently transcribes its 32 full names and 32 mastery laurels. Braton and Braton Prime both have badges; no current ranks or ownership are established by this screen. Browser tests check every name and badge, no extra matches, review edits across duplicate uploads, and preservation of saved ownership, current ranks, planning fields, and absent equipment. Another test obscures the Afuris laurel, replaces Akbolto's with a plain mint square, then resizes the image to 75% with an offset; neither changed card may be automatically marked mastered.
-
-These samples do not establish accuracy for other themes, UI scales, languages, layouts, or actual lower-resolution captures. The resized test is derived from the original capture. The badge shape mask's provenance is recorded in `public/images/import/SOURCES.md`.
-
-# Drop-table fixture
-
-`drop-tables.html` is a small synthetic fixture using the official document's table structure. Its invented sources and selected example rates test mission rotations, relic refinements, bounty stages, conditional rates, multiple rolls, reverse indexes, duplicate entries, and inert HTML-like reward text. It is not a bundled reward database. Browser tests generate additional synthetic rows to exercise pagination and exports without depending on the network.
+`drop-tables.html` uses synthetic sources/rates to test parsing, rotations, refinements, conditional odds, duplicates, and inert text. Browser tests add synthetic rows for scrolling/exports; no live reward database is bundled.
