@@ -58,6 +58,61 @@ test('ingredient completion is independent by branch, saves across navigation an
   expect((await account.profile()).inventory).toEqual(before.inventory);
 });
 
+test('new plans open focused tabs with independent progress, keyboard navigation, and adjacent removal', async ({ page, account }) => {
+  await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
+  const tabs = page.getByRole('tablist', { name: 'Crafting plans' });
+  await expect(tabs.getByRole('tab', { name: 'Rhino', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Add 20 completed Alloy Plate', exact: true }).click();
+  await add(page, 'Forma');
+  await expect(tabs.getByRole('tab', { name: 'Forma', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(tabs.getByRole('tab', { name: 'Forma', exact: true })).toBeFocused();
+  await add(page, 'Rhino');
+  const first = tabs.getByRole('tab', { name: 'Rhino · Plan 1', exact: true });
+  const second = tabs.getByRole('tab', { name: 'Forma', exact: true });
+  const third = tabs.getByRole('tab', { name: 'Rhino · Plan 2', exact: true });
+  await expect(tabs.getByRole('tab')).toHaveCount(3);
+  await expect(page.getByRole('combobox', { name: 'Crafting plan', exact: true })).toHaveCount(0);
+  await expect(third).toBeFocused(); await expect(third).toHaveAttribute('aria-selected', 'true');
+  const alloy = page.getByRole('slider', { name: 'Completed quantity for Alloy Plate', exact: true });
+  await expect(alloy).toHaveValue('0');
+  await third.press('Home');
+  await expect(first).toBeFocused(); await expect(first).toHaveAttribute('tabindex', '0');
+  await expect(third).toHaveAttribute('tabindex', '-1');
+  await expect(alloy).toHaveValue('20');
+  await first.press('ArrowLeft'); await expect(third).toBeFocused(); await expect(alloy).toHaveValue('0');
+  await third.press('ArrowRight'); await expect(first).toBeFocused(); await expect(alloy).toHaveValue('20');
+  await first.press('End'); await expect(third).toBeFocused();
+  await third.press('ArrowLeft'); await expect(second).toBeFocused();
+  await expect(page.getByRole('tabpanel', { name: 'Forma', exact: true })).toBeVisible();
+  await expect(page.getByRole('tabpanel')).toHaveCount(1);
+  await expect(page.getByRole('tabpanel', { includeHidden: true })).toHaveCount(3);
+  expect(await tabs.getByRole('tab').evaluateAll(elements => elements.every(tab => {
+    const panel = document.getElementById(tab.getAttribute('aria-controls')!);
+    return panel?.getAttribute('aria-labelledby') === tab.id && panel.hidden === (tab.getAttribute('aria-selected') !== 'true');
+  }))).toBe(true);
+  const saved = await account.profile();
+  expect(saved.craftingPlans).toHaveLength(3);
+  expect(Object.values(saved.craftingPlans[0].progress!)).toEqual([20]);
+  expect(saved.craftingPlans[2].progress ?? {}).toEqual({});
+  await page.reload();
+  await expect(tabs.getByRole('tab')).toHaveCount(3);
+  await first.click(); await expect(alloy).toHaveValue('20');
+  await second.click();
+  await page.getByRole('button', { name: 'Remove plan', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove plan', exact: true }).click();
+  await expect(third).toBeFocused(); await expect(third).toHaveAttribute('aria-selected', 'true');
+  await expect(tabs.getByRole('tab')).toHaveCount(2); await expect(alloy).toHaveValue('0');
+  await page.getByRole('button', { name: 'Remove plan', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove plan', exact: true }).click();
+  await expect(tabs.getByRole('tab', { name: 'Rhino', exact: true })).toBeFocused();
+  await expect(alloy).toHaveValue('20');
+  await page.getByRole('button', { name: 'Remove plan', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove plan', exact: true }).click();
+  await expect(tabs).toHaveCount(0);
+  await expect(page.getByRole('searchbox', { name: 'Search craftable items' })).toBeFocused();
+  expect((await account.profile()).craftingPlans).toHaveLength(0);
+});
+
 test('plans retain gather choices, quantity scaling, and nested weapon requirements', async ({ page, account }) => {
   await open(page);
   await page.getByRole('button', { name: 'Craft Forma', exact: true }).click();
@@ -78,7 +133,7 @@ test('plans retain gather choices, quantity scaling, and nested weapon requireme
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();
   await page.getByRole('link', { name: 'Crafting', exact: true }).click();
   await expect(region(page).getByRole('heading', { name: 'Aklex Prime', exact: true })).toBeVisible();
-  await select(page, 'Crafting plan', 'Forma');
+  await page.getByRole('tab', { name: 'Forma', exact: true }).click();
   await expect(page.locator('.craft-branch[data-item="Orokin Cell"] > .craft-node .craft-cost')).toBeVisible();
   await expect(page.getByRole('combobox', { name: /Method for/ })).toHaveCount(0);
   const saved = await account.profile();
@@ -369,6 +424,26 @@ test('source labels and quantity popups fit mobile themes and completed groups s
 
 test.describe('touch crafting', () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  test('plan tabs wrap on narrow screens and select plans by touch in both themes', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).tap();
+    await add(page, 'Aklex Prime'); await add(page, 'Proboscis Cernos');
+    const tabs = page.getByRole('tablist', { name: 'Crafting plans' });
+    await expect(tabs.getByRole('tab', { name: 'Proboscis Cernos', exact: true })).toHaveAttribute('aria-selected', 'true');
+    for (const theme of ['dark', 'light']) {
+      if (theme === 'light') await page.getByRole('button', { name: 'Switch to light theme' }).tap();
+      await tabs.getByRole('tab', { name: 'Rhino', exact: true }).tap();
+      await expect(page.getByRole('tabpanel', { name: 'Rhino', exact: true })).toBeVisible();
+      await tabs.getByRole('tab', { name: 'Proboscis Cernos', exact: true }).tap();
+      await expect(page.getByRole('tabpanel', { name: 'Proboscis Cernos', exact: true })).toBeVisible();
+      const bounds = await tabs.getByRole('tab').evaluateAll(elements => elements.map(element => {
+        const { x, y, right } = element.getBoundingClientRect(); return { x, y, right };
+      }));
+      expect(bounds.at(-1)!.y).toBeGreaterThan(bounds[0].y);
+      expect(bounds.every(bound => bound.x >= 0 && bound.right <= 320)).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+  });
   test('tapping the value and double-tapping the thumb both open precise quantity entry', async ({ page }) => {
     await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).tap();
     const slider = page.getByRole('slider', { name: 'Completed quantity for Alloy Plate', exact: true });
