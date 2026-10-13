@@ -164,6 +164,7 @@ export class AccountGateway extends DurableObject<Env> {
       const next = profile(value.profile);
       if (!Object.hasOwn(value.profile as object, 'craftingPlans')) next.craftingPlans = current.snapshot.profile.craftingPlans;
       else next.craftingPlans = preserveCraftingProgress(next.craftingPlans, current.snapshot.profile.craftingPlans);
+      if (!Object.hasOwn(value.profile as object, 'arsenals')) next.arsenals = current.snapshot.profile.arsenals;
       const encoded = encodeProfile(next);
       const results = await db.batch([
         db.prepare(`UPDATE accounts SET profile_id = ?, profile_hash = ?, profile_chunks = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND profile_id = ? AND ${validSession}`).bind(encoded.id, encoded.hash, encoded.chunks.length, account.id, Number(value.revision), account.profile_id, digest(token(request)), Date.now()),

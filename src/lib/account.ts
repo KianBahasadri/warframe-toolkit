@@ -4,10 +4,12 @@ import { isDropView } from './dropTables.ts';
 import { validateInventory } from './storage.ts';
 import { validateCraftingPlans } from './crafting.ts';
 import type { CraftingPlan } from './crafting.ts';
+import { validateArsenals } from './modderModel.ts';
+import type { ArsenalBuild } from './modderModel.ts';
 
 export interface AccountUser { id: string; username: string }
 export interface SavedDropView { name: string; view: DropView }
-export interface AccountProfile { inventory: Inventory; dropViews: SavedDropView[]; craftingPlans: CraftingPlan[] }
+export interface AccountProfile { inventory: Inventory; dropViews: SavedDropView[]; craftingPlans: CraftingPlan[]; arsenals: ArsenalBuild[] }
 export interface AccountSession { user: AccountUser; profile: AccountProfile; revision: number }
 export const isAccessKey = (value: unknown): value is string => typeof value === 'string' && /^wft_[A-Za-z0-9_-]{43}$/.test(value);
 
@@ -26,7 +28,7 @@ export function readAccessKeyLink(hash: string): { username: string; accessKey: 
   return { username: accountUsername(params.get('username')).username, accessKey };
 }
 
-export const emptyProfile = (): AccountProfile => ({ inventory: { version: 1, items: [], relics: [], imports: [], referenceNotice: false }, dropViews: [], craftingPlans: [] });
+export const emptyProfile = (): AccountProfile => ({ inventory: { version: 1, items: [], relics: [], imports: [], referenceNotice: false }, dropViews: [], craftingPlans: [], arsenals: [] });
 
 export function validateDropViews(value: unknown): SavedDropView[] {
   if (!Array.isArray(value) || value.length > 200 || value.some(entry => !entry || typeof entry.name !== 'string' || !entry.name.trim() || entry.name.length > 100 || !isDropView(entry.view))) throw new Error('Saved views could not be read. The original data has been kept.');
@@ -36,7 +38,7 @@ export function validateDropViews(value: unknown): SavedDropView[] {
 export function validateProfile(value: unknown): AccountProfile {
   if (!value || typeof value !== 'object') throw new Error('Invalid saved profile.');
   const profile = value as AccountProfile;
-  return { inventory: validateInventory(profile.inventory), dropViews: validateDropViews(profile.dropViews), craftingPlans: validateCraftingPlans(profile.craftingPlans === undefined ? [] : profile.craftingPlans) };
+  return { inventory: validateInventory(profile.inventory), dropViews: validateDropViews(profile.dropViews), craftingPlans: validateCraftingPlans(profile.craftingPlans === undefined ? [] : profile.craftingPlans), arsenals: validateArsenals(profile.arsenals === undefined ? [] : profile.arsenals) };
 }
 
 export function accountUsername(value: unknown): { username: string; key: string } {

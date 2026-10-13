@@ -55,7 +55,7 @@ test('plan dropdown supports keyboard traversal, escape, tab, pointer exit, and 
   await trigger.press('ArrowUp'); await expect(last).toBeFocused();
   await last.press('Shift+Tab'); await expect(trigger).toBeFocused(); await expect(menu).toHaveCount(0);
   await trigger.press('Space'); await expect(first).toBeFocused();
-  await first.press('Tab'); await expect(page.getByRole('button', { name: 'Open search and commands' })).toBeFocused();
+  await first.press('Tab'); await expect(page.getByRole('link', { name: 'Modder', exact: true })).toBeFocused();
   await expect(menu).toHaveCount(0);
   await trigger.hover(); await expect(menu).toBeVisible();
   await page.getByRole('heading', { name: 'Choose an item', exact: true }).hover();
@@ -101,8 +101,7 @@ test('the plan list updates after creation and removal and clears after sign-out
   await expect(page.getByRole('tab', { name: 'Rhino', exact: true })).toBeVisible();
   await trigger.hover(); await expect(menu.getByRole('menuitem')).toHaveText(['Rhino']);
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Remove plan', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Remove plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Rhino plan', exact: true }).click();
   await trigger.hover(); await expect(menu).toHaveText('No open plans.');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Craft Forma', exact: true }).click();

@@ -9,6 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createAccountsApi } from '../server/accounts.ts';
 import { accessKeyLink, emptyProfile, isAccessKey, readAccessKeyLink } from '../src/lib/account.ts';
 import { createEquipment } from '../src/lib/model.ts';
+import { newArsenal } from '../src/lib/modderModel.ts';
 
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 async function serve(path = ':memory:', now?: () => number) {
@@ -24,6 +25,23 @@ async function serve(path = ':memory:', now?: () => number) {
   };
 }
 const cookieOf = (response: Response) => response.headers.get('set-cookie')!.split(';')[0];
+
+test('arsenal saves survive older clients and malformed replacements are rejected', async () => {
+  const api = await serve();
+  try {
+    const profile = emptyProfile(); profile.arsenals = [newArsenal()];
+    const registered = await api.request('register', { username: 'ModderTenno', profile });
+    const account = await registered.json(), cookie = cookieOf(registered);
+    const { arsenals, ...legacy } = profile;
+    const save = { accountId: account.user.id, revision: 0, profile: legacy };
+    assert.equal((await api.request('profile', save, cookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, cookie)).json()).profile.arsenals, arsenals);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...legacy, arsenals: null } }, cookie, { method: 'PUT' })).status, 400);
+    assert.deepEqual((await (await api.request('session', undefined, cookie)).json()).profile.arsenals, arsenals);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...legacy, arsenals: [] } }, cookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, cookie)).json()).profile.arsenals, []);
+  } finally { await api.close(); }
+});
 
 test('accounts use normalized usernames and generated access keys, with private expiring sessions and no email', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'warframe-auth-'));

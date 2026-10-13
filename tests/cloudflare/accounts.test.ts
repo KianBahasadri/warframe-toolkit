@@ -7,8 +7,25 @@ import { createHash } from 'node:crypto';
 import { cloudflareRuntime } from './runtime.ts';
 import { emptyProfile, isAccessKey } from '../../src/lib/account.ts';
 import { createEquipment } from '../../src/lib/model.ts';
+import { newArsenal } from '../../src/lib/modderModel.ts';
 
 const cookieOf = (response: { headers: Headers }) => response.headers.get('set-cookie')!.split(';')[0];
+test('D1 preserves arsenals omitted by older clients and rejects malformed builds', async () => {
+  const api = await cloudflareRuntime();
+  try {
+    const profile = emptyProfile(); profile.arsenals = [newArsenal()];
+    const registered = await api.request('register', { username: 'ModderTenno', profile });
+    const account = await registered.json() as any, cookie = cookieOf(registered);
+    const { arsenals, ...legacy } = profile;
+    const save = { accountId: account.user.id, revision: 0, profile: legacy };
+    assert.equal((await api.request('profile', save, cookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, cookie)).json() as any).profile.arsenals, arsenals);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...legacy, arsenals: null } }, cookie, { method: 'PUT' })).status, 400);
+    assert.deepEqual((await (await api.request('session', undefined, cookie)).json() as any).profile.arsenals, arsenals);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...legacy, arsenals: [] } }, cookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, cookie)).json() as any).profile.arsenals, []);
+  } finally { await api.close(); }
+});
 test('D1 keeps crafting plans when an older client omits them and rejects malformed replacements', async () => {
   const api = await cloudflareRuntime();
   try {

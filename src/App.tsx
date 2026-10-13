@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Moon, Search, Sun, Table2, UserRound } from 'lucide-react';
+import { Moon, Search, SlidersHorizontal, Sun, Table2, UserRound } from 'lucide-react';
 import { InventoryTable } from './components/InventoryTable';
 import type { CollectionActions } from './components/CollectionTable';
 import { EquipmentForm } from './components/EquipmentForm';
@@ -26,12 +26,13 @@ import weaponsIcon from './assets/warframe/weapons.png';
 import warframesIcon from './assets/warframe/warframes.png';
 import relicsIcon from './assets/warframe/relics.png';
 
-type Page = 'weapons' | 'warframes' | 'relics' | 'droptables' | 'crafting' | 'import';
+type Page = 'weapons' | 'warframes' | 'relics' | 'droptables' | 'crafting' | 'modder' | 'import';
 const Relics = lazy(() => import('./components/Relics').then(module => ({ default: module.Relics })));
+const Modder = lazy(() => import('./components/Modder').then(module => ({ default: module.Modder })));
 const Crafting = lazy(() => import('./components/Crafting').then(module => ({ default: module.Crafting })));
 
-const pageNames: Record<Page, string> = { weapons: 'Weapons', warframes: 'Warframes', relics: 'Relics', droptables: 'Drop Tables', crafting: 'Crafting', import: 'Screenshot import' };
-const collectionTabs = [{ key: 'weapons', icon: weaponsIcon }, { key: 'warframes', icon: warframesIcon }, { key: 'relics', icon: relicsIcon }, { key: 'droptables', icon: '' }, { key: 'crafting', icon: '' }] as const;
+const pageNames: Record<Page, string> = { weapons: 'Weapons', warframes: 'Warframes', relics: 'Relics', droptables: 'Drop Tables', crafting: 'Crafting', modder: 'Modder', import: 'Screenshot import' };
+const collectionTabs = [{ key: 'weapons', icon: weaponsIcon }, { key: 'warframes', icon: warframesIcon }, { key: 'relics', icon: relicsIcon }, { key: 'droptables', icon: '' }, { key: 'crafting', icon: '' }, { key: 'modder', icon: '' }] as const;
 
 function pageFromHash(): Page {
   const value = location.hash.slice(1).split('?')[0];
@@ -103,7 +104,7 @@ export default function App() {
   const commands: Command[] = [
     ...(['weapons', 'warframes', 'relics'].includes(page) ? [{ label: `Add ${page === 'relics' ? 'relic' : equipmentLabel}`, keys: ['Alt', 'N'], run: () => collectionActions.current?.add() }] : []),
     { label: 'Import screenshots', keys: ['Alt', 'I'], run: openImport },
-    ...(page !== 'crafting' ? [{ label: page === 'droptables' ? 'Export filtered drop tables CSV' : page === 'relics' ? 'Export relics CSV' : page === 'warframes' ? 'Export Warframes CSV' : 'Export inventory CSV', keys: ['Alt', 'E'], run: page === 'droptables' ? () => dropActions.current?.exportCsv() : page === 'relics' ? exportRelics : exportCsv }] : []),
+    ...(!['crafting', 'modder'].includes(page) ? [{ label: page === 'droptables' ? 'Export filtered drop tables CSV' : page === 'relics' ? 'Export relics CSV' : page === 'warframes' ? 'Export Warframes CSV' : 'Export inventory CSV', keys: ['Alt', 'E'], run: page === 'droptables' ? () => dropActions.current?.exportCsv() : page === 'relics' ? exportRelics : exportCsv }] : []),
     { label: 'Toggle theme', keys: ['Alt', 'Shift', 'T'], run: () => setTheme(value => value === 'dark' ? 'light' : 'dark') },
     { label: 'Keyboard shortcuts', keys: ['Alt', '/'], run: () => setShortcuts(true) },
   ];
@@ -121,7 +122,7 @@ export default function App() {
 
   const relics = inventory.relics ?? [];
   const nav = <nav className="collection-nav" aria-label="Main navigation"><ul>
-    {collectionTabs.map(({ key, icon }, index) => key === 'crafting' ? <CraftingNav key={`crafting-${account.user?.id ?? 'guest'}`} plans={account.profile.craftingPlans} active={page === 'crafting'} selected={craftingPlan} onHome={() => navigate('crafting')} onPlan={openCraftingPlan} /> : <li key={key} className={key === 'droptables' ? 'nav-group-start' : undefined}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={!icon ? { background: 'none' } : { maskImage: `url(${icon})` }}>{key === 'droptables' && <Table2 size={20} />}</span><span>{pageNames[key]}</span></a></li>)}
+    {collectionTabs.map(({ key, icon }, index) => key === 'crafting' ? <CraftingNav key={`crafting-${account.user?.id ?? 'guest'}`} plans={account.profile.craftingPlans} active={page === 'crafting'} selected={craftingPlan} onHome={() => navigate('crafting')} onPlan={openCraftingPlan} /> : <li key={key} className={key === 'droptables' ? 'nav-group-start' : undefined}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={!icon ? { background: 'none' } : { maskImage: `url(${icon})` }}>{key === 'droptables' && <Table2 size={20} />}{key === 'modder' && <SlidersHorizontal size={20} />}</span><span>{pageNames[key]}</span></a></li>)}
     </ul></nav>;
   const visibleItems = useMemo(() => equipmentRows(inventory.items, catalog, true).filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe'), [inventory.items, page]);
   const isInventory = page === 'weapons' || page === 'warframes';
@@ -167,6 +168,7 @@ export default function App() {
           return true;
         }} />}
         {page === 'droptables' && <DropTables actionsRef={dropActions} savedViews={account.profile.dropViews} savedViewsError={account.viewsError} canSave={Boolean(account.user)} onSaveViews={account.commitViews} onSignIn={() => setAccountOpen('login')} />}
+        {page === 'modder' && <Suspense fallback={<p role="status" className="small muted">Loading Modder…</p>}><Modder key={account.user?.id ?? 'guest'} builds={account.profile.arsenals} onSave={account.commitArsenals} canSave={Boolean(account.user)} disabled={account.checking || account.unreadable} onSignIn={() => setAccountOpen('login')} /></Suspense>}
         {page === 'crafting' && <Suspense fallback={<p role="status" className="small muted">Loading crafting…</p>}><Crafting key={account.user?.id ?? 'guest'} plans={account.profile.craftingPlans} selected={craftingPlan} onSelect={setCraftingPlan} onSave={account.commitCrafting} canSave={Boolean(account.user)} disabled={account.checking || account.unreadable} onSignIn={() => setAccountOpen('login')} /></Suspense>}
       </main>
     </div>

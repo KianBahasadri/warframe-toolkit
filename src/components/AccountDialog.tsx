@@ -74,7 +74,7 @@ export function AccountDialog({ user, initialMode, canIncludeCurrent, dirty, onA
       </div>
     </div> : mode === 'account' ? <>
       <p className="account-username">{user!.username}</p>
-      <p className="muted small">{dirty ? 'You have unsaved changes.' : 'Your inventory, views, and crafting plans belong to this account.'}</p>
+      <p className="muted small">{dirty ? 'You have unsaved changes.' : 'Your inventory, views, crafting plans, and arsenals belong to this account.'}</p>
       <button type="button" className="button secondary" disabled={busy} onClick={() => { setMode('replace'); setError(''); }}><KeyRound size={15} />Replace access key</button>
       {feedback}
       <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { setMode('login'); setError(''); }}>Sign in again</button><button type="button" className="button secondary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await onSignOut(); onClose(); } catch (error) { setError((error as Error).message); } finally { setBusy(false); } }}>{busy ? 'Signing out…' : 'Sign out'}</button></div>
@@ -91,7 +91,7 @@ export function AccountDialog({ user, initialMode, canIncludeCurrent, dirty, onA
         <label>Access key<input name="accessKey" type="password" autoComplete="current-password" autoCapitalize="none" spellCheck={false} maxLength={128} required value={credential} onChange={event => setCredential(event.target.value)} disabled={busy} /></label>
       </> : <>
         <p className="muted small">We’ll generate an access key for you to save. No password or email is needed. If you lose your key and sign-in link, there is no email recovery.</p>
-        {canIncludeCurrent && <label className="check-row"><input type="checkbox" checked={includeCurrent} onChange={event => setIncludeCurrent(event.target.checked)} disabled={busy} /><span>Save my current inventory, views, and crafting plans to this account</span></label>}
+        {canIncludeCurrent && <label className="check-row"><input type="checkbox" checked={includeCurrent} onChange={event => setIncludeCurrent(event.target.checked)} disabled={busy} /><span>Save my current inventory, views, crafting plans, and arsenals to this account</span></label>}
       </>}
       {feedback}
       <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setCredential(''); setError(''); }}>{mode === 'login' ? 'Create account' : 'Sign in instead'}</button><button type="submit" className="button primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'register' ? 'Create account' : 'Sign in'}</button></div>
