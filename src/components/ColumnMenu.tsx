@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Columns3, EyeOff, Filter, ListOrdered, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Columns3, EyeOff, ListOrdered } from 'lucide-react';
 import type { TableColumn, FilterChoice, ColumnFilter, ColumnKey, ColumnSort } from '../lib/tableView';
 import { ColumnOptions } from './ColumnPicker';
 import { Select } from './Select';
@@ -20,23 +20,26 @@ export function ColumnMenu({ column, columns, selected, choices, sorting, filter
   const finish = (action: () => void) => { action(); onClose(); if (anchor.isConnected) anchor.focus({ preventScroll: true }); };
   useEffect(() => { content.current?.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)')?.focus({ preventScroll: true }); }, [view]);
   const title = view === 'columns' ? 'Columns' : view === 'priority' ? `${column.title} sort priority` : view === 'filter' ? `Filter ${column.title}` : column.title;
-  return <TablePopover anchor={anchor} point={point} role={view === 'actions' || view === 'priority' ? 'menu' : 'group'} label={view === 'columns' ? 'Table columns' : view === 'filter' ? title : `Column actions for ${column.title}`} className="column-context" onClose={onClose}>
+  return <TablePopover anchor={anchor} point={point} label={view === 'columns' ? 'Table columns' : view === 'filter' ? title : `Column actions for ${column.title}`} className="column-context" onClose={onClose}>
     <div className="column-menu-heading">{view !== 'actions' && <button type="button" className="icon-button" aria-label="Back to column actions" title="Back to column actions" onClick={() => setView('actions')}><ArrowLeft size={16} aria-hidden="true" /></button>}<span>{title}</span></div>
     <div ref={content} className={`column-menu-content ${view === 'columns' ? 'column-menu-content-options' : ''}`}>
       {view === 'actions' && <>
-        <button type="button" role="menuitemradio" aria-checked={direction === 1} className="column-menu-action" onClick={() => finish(() => onSort(direction === 1 ? 0 : 1))}><ArrowUp size={16} aria-hidden="true" />Sort ascending</button>
-        <button type="button" role="menuitemradio" aria-checked={direction === -1} className="column-menu-action" onClick={() => finish(() => onSort(direction === -1 ? 0 : -1))}><ArrowDown size={16} aria-hidden="true" />Sort descending</button>
-        <button type="button" role="menuitem" className="column-menu-action" disabled={sortIndex < 0 || sorting.length < 2} onClick={() => setView('priority')}><ListOrdered size={16} aria-hidden="true" />Sort priority{sortIndex >= 0 && <span className="menu-value">{sortIndex + 1} of {sorting.length}</span>}</button>
+        <div role="menu" aria-label={`Sort ${column.title}`}>
+          <button type="button" role="menuitemradio" aria-checked={direction === 1} className="column-menu-action" onClick={() => finish(() => onSort(direction === 1 ? 0 : 1))}><ArrowUp size={16} aria-hidden="true" />Sort ascending</button>
+          <button type="button" role="menuitemradio" aria-checked={direction === -1} className="column-menu-action" onClick={() => finish(() => onSort(direction === -1 ? 0 : -1))}><ArrowDown size={16} aria-hidden="true" />Sort descending</button>
+          <button type="button" role="menuitem" className="column-menu-action" disabled={sortIndex < 0 || sorting.length < 2} onClick={() => setView('priority')}><ListOrdered size={16} aria-hidden="true" />Sort priority{sortIndex >= 0 && <span className="menu-value">{sortIndex + 1} of {sorting.length}</span>}</button>
+        </div>
         <div className="column-menu-divider" role="separator" />
-        <button type="button" role="menuitem" className="column-menu-action" onClick={() => setView('filter')}><Filter size={16} aria-hidden="true" />{filter ? 'Edit filter' : 'Set filter'}</button>
-        {filter && <button type="button" role="menuitem" className="column-menu-action" onClick={() => finish(() => onFilter())}><X size={16} aria-hidden="true" />Clear filter</button>}
+        <ColumnFilterForm column={column} choices={choices} filter={filter} onApply={next => finish(() => onFilter(next))} />
         <div className="column-menu-divider" role="separator" />
-        <button type="button" role="menuitem" className="column-menu-action" disabled={columnIndex <= 0} onClick={() => finish(() => onMove(-1))}><ArrowLeft size={16} aria-hidden="true" />Move left</button>
-        <button type="button" role="menuitem" className="column-menu-action" disabled={columnIndex < 0 || columnIndex === selected.length - 1} onClick={() => finish(() => onMove(1))}><ArrowRight size={16} aria-hidden="true" />Move right</button>
-        <button type="button" role="menuitem" className="column-menu-action" disabled={column.required || !selected.includes(column.key)} onClick={onHide}><EyeOff size={16} aria-hidden="true" />Hide column</button>
-        <button type="button" role="menuitem" className="column-menu-action" onClick={() => setView('columns')}><Columns3 size={16} aria-hidden="true" />Add or remove columns</button>
+        <div role="menu" aria-label={`Arrange ${column.title}`}>
+          <button type="button" role="menuitem" className="column-menu-action" disabled={columnIndex <= 0} onClick={() => finish(() => onMove(-1))}><ArrowLeft size={16} aria-hidden="true" />Move left</button>
+          <button type="button" role="menuitem" className="column-menu-action" disabled={columnIndex < 0 || columnIndex === selected.length - 1} onClick={() => finish(() => onMove(1))}><ArrowRight size={16} aria-hidden="true" />Move right</button>
+          <button type="button" role="menuitem" className="column-menu-action" disabled={column.required || !selected.includes(column.key)} onClick={onHide}><EyeOff size={16} aria-hidden="true" />Hide column</button>
+          <button type="button" role="menuitem" className="column-menu-action" onClick={() => setView('columns')}><Columns3 size={16} aria-hidden="true" />Add or remove columns</button>
+        </div>
       </>}
-      {view === 'priority' && sorting.map((sort, index) => <button key={sort.key} type="button" role="menuitemradio" aria-checked={index === sortIndex} className="column-menu-action" onClick={() => finish(() => onPriority(index))}><span className="menu-priority">{index + 1}</span><span>{columns.find(option => option.key === sort.key)?.title}</span>{sort.direction === 1 ? <ArrowUp size={14} aria-label="Ascending" /> : <ArrowDown size={14} aria-label="Descending" />}</button>)}
+      {view === 'priority' && <div role="menu" aria-label={title}>{sorting.map((sort, index) => <button key={sort.key} type="button" role="menuitemradio" aria-checked={index === sortIndex} className="column-menu-action" onClick={() => finish(() => onPriority(index))}><span className="menu-priority">{index + 1}</span><span>{columns.find(option => option.key === sort.key)?.title}</span>{sort.direction === 1 ? <ArrowUp size={14} aria-label="Ascending" /> : <ArrowDown size={14} aria-label="Descending" />}</button>)}</div>}
       {view === 'columns' && <ColumnOptions options={columns} selected={selected} onChange={onVisibility} onReset={onReset} />}
       {view === 'filter' && <ColumnFilterForm column={column} choices={choices} filter={filter} onApply={next => finish(() => onFilter(next))} />}
     </div>
@@ -46,7 +49,7 @@ export function ColumnMenu({ column, columns, selected, choices, sorting, filter
 function ColumnFilterForm({ column, choices, filter, onApply }: { column: TableColumn; choices?: FilterChoice[]; filter?: ColumnFilter; onApply: (filter?: ColumnFilter) => void }) {
   const [value, setValue] = useState(filter ? String(filter.value) : '');
   const [operator, setOperator] = useState(filter?.kind === 'number' ? filter.operator : 'equals');
-  return <form className="column-filter-form" onSubmit={event => {
+  return <form className="column-filter-form" aria-label={`Filter ${column.title}`} onSubmit={event => {
     event.preventDefault();
     if (column.kind === 'number') onApply(operator === 'unknown' || value !== '' ? { kind: 'number', operator, value: Number(value) } : undefined);
     else onApply(value.trim() ? { kind: choices ? 'choice' : 'text', value: value.trim() } : undefined);

@@ -5,7 +5,7 @@ import { createRelic } from '../../src/lib/relics';
 
 const header = (page: Page, name: string) => page.getByRole('columnheader').filter({ has: page.getByRole('button', { name: `${name} column options`, exact: true }) });
 const order = (page: Page) => page.locator('.inventory-section .inventory-table th').evaluateAll(cells => cells.map(cell => (cell as HTMLElement).dataset.columnKey));
-const menu = (page: Page) => page.getByRole('menu', { name: /Column actions for/ });
+const menu = (page: Page) => page.getByRole('group', { name: /Column actions for/ });
 const equipmentOrder = ['name', 'owned', 'rank', 'mastered', 'incarnon', 'upgraded', 'keep', 'craftingTarget'];
 
 async function dragColumn(page: Page, source: string, target: string, edge: 'before' | 'after') {
@@ -44,7 +44,6 @@ test('dragged columns keep their data, filters, and independent saved order in e
   await header(page, 'Rank').click();
   await menu(page).getByRole('menuitemradio', { name: 'Sort descending' }).click();
   await header(page, 'Rank').click();
-  await menu(page).getByRole('menuitem', { name: 'Set filter' }).click();
   await page.getByRole('spinbutton', { name: 'Filter rank' }).fill('30');
   await page.getByRole('button', { name: 'Apply filter' }).click();
   await dragColumn(page, 'Rank', 'Owned', 'before');

@@ -91,7 +91,7 @@ test('table keeps rank separate from mastery and preserves sorting when changing
   await expect(arca.getByRole('cell').nth(2)).toHaveText('30');
   await expect(arca.getByRole('checkbox', { name: 'Mastered: Arca Titron', exact: true })).not.toBeChecked();
   const rankHeader = page.getByRole('button', { name: 'Rank column options', exact: true });
-  const menu = page.getByRole('menu', { name: /Column actions for/ });
+  const menu = page.getByRole('group', { name: /Column actions for/ });
   await rankHeader.click();
   await expect(names).toHaveText(['Anku', 'Arca Titron', 'Atomos', 'Bo']);
   await menu.getByRole('menuitemradio', { name: 'Sort ascending', exact: true }).click();
@@ -214,7 +214,7 @@ test('column context menus sort by multiple priorities and add or hide columns',
   await waitForSave(page); await page.reload(); await waitForSave(page);
   const saved = JSON.stringify(await account.inventory());
   const names = page.locator('.inventory-table .equipment-label');
-  const menu = page.getByRole('menu', { name: /Column actions for/ });
+  const menu = page.getByRole('group', { name: /Column actions for/ });
   await page.getByRole('button', { name: 'Mastered column options', exact: true }).click();
   await menu.getByRole('menuitemradio', { name: 'Sort descending', exact: true }).click();
   await page.getByRole('button', { name: 'Rank column options', exact: true }).click({ button: 'right' });
@@ -251,15 +251,13 @@ test('column context menus sort by multiple priorities and add or hide columns',
 
 test('column filters combine, survive hiding their column, and coordinate with weapon filters', async ({ page }) => {
   await page.goto('/'); await waitForSave(page);
-  const menu = page.getByRole('menu', { name: /Column actions for/ });
+  const menu = page.getByRole('group', { name: /Column actions for/ });
   const names = page.locator('.inventory-table .equipment-label');
   await page.getByRole('button', { name: 'Weapon column options', exact: true }).click({ button: 'right' });
-  await menu.getByRole('menuitem', { name: 'Set filter' }).click();
   await page.getByRole('textbox', { name: 'Weapon contains' }).fill('Boltor');
   await page.getByRole('button', { name: 'Apply filter', exact: true }).click();
   await expect(names).toHaveText(['Boltor']);
   await page.getByRole('button', { name: 'Owned column options', exact: true }).click({ button: 'right' });
-  await menu.getByRole('menuitem', { name: 'Set filter' }).click();
   await chooseOption(page, 'Owned filter value', 'No');
   await page.getByRole('button', { name: 'Apply filter', exact: true }).click();
   await expect(names).toHaveText(['Boltor Prime', 'Telos Boltor']);
@@ -273,16 +271,22 @@ test('column filters combine, survive hiding their column, and coordinate with w
   await expect(names).toHaveText(['Boltor']);
   await page.getByRole('button', { name: 'Reset filters', exact: true }).click();
   await page.getByRole('button', { name: 'Rank column options', exact: true }).click({ button: 'right' });
-  await menu.getByRole('menuitem', { name: 'Set filter' }).click();
-  await page.getByRole('spinbutton', { name: 'Filter rank' }).fill('40');
+  const rank = menu.getByRole('spinbutton', { name: 'Filter rank' });
+  await rank.fill('39');
+  await rank.press('ArrowUp');
+  await expect(rank).toHaveValue('40');
+  await expect(rank).toBeFocused();
   await page.getByRole('button', { name: 'Apply filter', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'No matching weapons' })).toBeVisible();
   await page.getByRole('button', { name: 'Rank: Equals 40', exact: true }).click();
   await chooseOption(page, 'Rank condition', 'Unknown');
   await page.getByRole('button', { name: 'Apply filter', exact: true }).click();
   await expect(names).toHaveCount(30);
+  await page.getByRole('button', { name: 'Rank column options', exact: true }).click();
+  await expect(menu.getByRole('combobox', { name: 'Rank condition' })).toHaveText('Unknown');
+  await menu.getByRole('button', { name: 'Clear filter' }).click();
+  await expect(page.getByRole('button', { name: 'Remove Rank filter' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Incarnon column options', exact: true }).click({ button: 'right' });
-  await menu.getByRole('menuitem', { name: 'Set filter' }).click();
   await chooseOption(page, 'Incarnon filter value', 'Genesis compatible');
   await page.getByRole('button', { name: 'Apply filter', exact: true }).click();
   await expect(names).not.toHaveCount(30);
@@ -297,7 +301,7 @@ test('left-click, right-click, and keyboard activation open the same column menu
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto('/'); await waitForSave(page);
   const header = page.getByRole('button', { name: 'Weapon column options', exact: true });
-  const menu = page.getByRole('menu', { name: 'Column actions for Weapon' });
+  const menu = page.getByRole('group', { name: 'Column actions for Weapon' });
   const names = page.locator('.inventory-table .equipment-label');
   const initialNames = await names.allTextContents();
   for (const activation of ['left', 'right', 'Enter', 'Space', 'Shift+F10']) {
@@ -305,7 +309,7 @@ test('left-click, right-click, and keyboard activation open the same column menu
     else await header.press(activation);
     await expect(menu).toBeVisible();
     await expect(menu.getByRole('menuitemradio')).toHaveText(['Sort ascending', 'Sort descending']);
-    await expect(menu.getByRole('menuitem', { name: 'Set filter', exact: true })).toBeVisible();
+    await expect(menu.getByRole('textbox', { name: /contains$/ })).toBeVisible();
     await expect(menu.getByRole('menuitem', { name: 'Add or remove columns', exact: true })).toBeVisible();
     await expect(header).toHaveAttribute('aria-expanded', 'true');
     await expect(names).toHaveText(initialNames);
@@ -324,6 +328,23 @@ test('left-click, right-click, and keyboard activation open the same column menu
   await page.keyboard.press('ArrowDown');
   await expect(menu.getByRole('menuitemradio', { name: 'Sort descending' })).toBeFocused();
   await page.keyboard.press('End');
+  await expect(menu.getByRole('menuitemradio', { name: 'Sort descending' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  const contains = menu.getByRole('textbox', { name: 'Weapon contains' });
+  await expect(contains).toBeFocused();
+  await contains.fill('no matches');
+  await contains.press('Home');
+  await contains.press('Delete');
+  await expect(contains).toHaveValue('o matches');
+  await contains.press('End');
+  await contains.press('Backspace');
+  await expect(contains).toHaveValue('o matche');
+  await expect(contains).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(menu.getByRole('button', { name: 'Apply filter' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(menu.getByRole('menuitem', { name: 'Move right' })).toBeFocused();
+  await page.keyboard.press('End');
   await expect(menu.getByRole('menuitem', { name: 'Add or remove columns' })).toBeFocused();
   const bounds = await menu.boundingBox();
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
@@ -333,10 +354,6 @@ test('left-click, right-click, and keyboard activation open the same column menu
   await page.keyboard.press('Escape');
   await expect(header).toBeFocused();
   await expect(header).toHaveAccessibleDescription('Unsorted');
-  await header.click({ button: 'right' });
-  await menu.getByRole('menuitem', { name: 'Set filter' }).click();
-  await page.getByRole('textbox', { name: 'Weapon contains' }).fill('no matches');
-  await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(30);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

@@ -63,11 +63,12 @@ export function TablePopover({ anchor, point, label, role = 'group', className =
   return createPortal(<div ref={panel} tabIndex={-1} className={`table-popover ${className}`} role={role} aria-label={label} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget) && event.relatedTarget !== anchor) close.current();
   }} onKeyDown={event => {
+    const menu = (event.target as HTMLElement).closest<HTMLElement>('[role="menu"]');
     if (event.key === 'Escape') {
       event.preventDefault(); event.stopPropagation(); close.current(); anchor.focus({ preventScroll: true });
-    } else if (role === 'menu' && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+    } else if (menu && event.currentTarget.contains(menu) && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
       event.preventDefault(); event.stopPropagation();
-      const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+      const buttons = [...menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus();

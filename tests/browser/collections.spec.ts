@@ -50,9 +50,9 @@ test('all collections share the toolbar, column menus, responsive layout, and ad
     await section.getByRole('button', { name: 'Filters', exact: true }).click();
     await expect(section.getByRole('group', { name: filterName, exact: true })).toHaveCount(0);
     await section.getByRole('columnheader').first().click({ button: 'right' });
-    const menu = page.getByRole('menu', { name: /Column actions for/ });
+    const menu = page.getByRole('group', { name: /Column actions for/ });
     await expect(menu.getByRole('menuitemradio', { name: 'Sort ascending' })).toBeVisible();
-    await expect(menu.getByRole('menuitem', { name: 'Set filter', exact: true })).toBeVisible();
+    await expect(menu.getByRole('textbox', { name: /contains$/ })).toBeVisible();
     await expect(menu.getByRole('menuitem', { name: 'Add or remove columns' })).toBeVisible();
     await expect(menu.getByRole('menuitem', { name: 'Hide column' })).toBeDisabled();
     await menu.getByRole('menuitem', { name: 'Add or remove columns' }).click();
@@ -86,7 +86,7 @@ test('relics share numeric filters, sort priorities, hidden-column filters, and 
   const saved = JSON.stringify(await account.inventory());
   const names = page.locator('.inventory-table .equipment-label');
   const quantity = page.getByRole('button', { name: 'Quantity column options' });
-  const menu = page.getByRole('menu', { name: /Column actions for/ });
+  const menu = page.getByRole('group', { name: /Column actions for/ });
   await quantity.click();
   await menu.getByRole('menuitemradio', { name: 'Sort descending' }).click();
   await quantity.press('Shift+F10');
@@ -95,7 +95,6 @@ test('relics share numeric filters, sort priorities, hidden-column filters, and 
   await expect(names).toHaveText(['Neo N1', 'Lith A1', 'Lith A1']);
   await expect(quantity).toHaveAccessibleDescription('Sort priority 1 of 2, descending');
   await quantity.click({ button: 'right' });
-  await menu.getByRole('menuitem', { name: 'Set filter' }).click();
   await page.getByRole('combobox', { name: 'Quantity condition' }).click();
   await page.getByRole('option', { name: 'At least', exact: true }).click();
   await page.getByRole('spinbutton', { name: 'Filter quantity' }).fill('50');
