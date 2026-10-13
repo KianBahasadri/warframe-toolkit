@@ -1,36 +1,46 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { CircleHelp } from 'lucide-react';
 import { catalog } from '../data/catalog';
 import { createEquipment } from '../lib/model';
 import type { Equipment } from '../lib/model';
 import { appendDetections, matchOcrLines, reviewDetection } from '../lib/matching';
 import type { Detection, ScreenshotSource } from '../lib/matching';
+import { appendRelicDetections, matchRelicOcrLines, relicImportError, reviewRelicDetection } from '../lib/relicMatching';
+import type { RelicDetection } from '../lib/relicMatching';
+import type { Relic } from '../lib/relics';
 import { Select } from './Select';
 import { ScreenshotHelp } from './ScreenshotHelp';
 import { ScreenshotGallery } from './ScreenshotGallery';
 
 const equipmentOptions = catalog.map(item => ({ value: item.id, label: item.name }));
-const importSources = [{ value: 'inventory', label: 'Inventory' }, { value: 'codex', label: 'Codex' }] as const;
+const importSources = [{ value: 'inventory', label: 'Inventory' }, { value: 'codex', label: 'Codex' }, { value: 'relics', label: 'Relics' }] as const;
+const RelicScreenshotReview = lazy(() => import('./RelicScreenshotReview').then(module => ({ default: module.RelicScreenshotReview })));
 
 interface Scan { file: File; url: string; read: boolean }
 interface Batch { source: ScreenshotSource | null; scans: Scan[]; pending: File[]; completed: boolean }
 
-export function ScreenshotImport({ onImport }: { onImport: (observations: Equipment[], files: string[]) => boolean }) {
-  const [source, setSource] = useState<ScreenshotSource>('inventory');
-  const [pasteTarget, setPasteTarget] = useState<ScreenshotSource>('inventory');
+export function ScreenshotImport({ onImport, onRelicImport, existingRelics, initialSource = 'inventory' }: {
+  onImport: (observations: Equipment[], files: string[]) => boolean;
+  onRelicImport: (observations: Pick<Relic, 'name' | 'refinement' | 'quantity'>[], files: string[]) => boolean;
+  existingRelics: Relic[]; initialSource?: ScreenshotSource;
+}) {
+  const [mode, setMode] = useState<'equipment' | 'relics'>(initialSource === 'relics' ? 'relics' : 'equipment');
+  const [source, setSource] = useState<ScreenshotSource>(initialSource);
+  const [pasteTarget, setPasteTarget] = useState<ScreenshotSource>(initialSource);
   const [help, setHelp] = useState<ScreenshotSource | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [departing, setDeparting] = useState<ScreenshotSource | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
   const [detections, setDetections] = useState<Detection[]>([]);
+  const [relicDetections, setRelicDetections] = useState<RelicDetection[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState<ScreenshotSource | null>(null);
-  const inputs = useRef<Record<ScreenshotSource, HTMLInputElement | null>>({ inventory: null, codex: null });
+  const inputs = useRef<Record<ScreenshotSource, HTMLInputElement | null>>({ inventory: null, codex: null, relics: null });
   const sourceStage = useRef<HTMLDivElement | null>(null);
-  const pasteSource = useRef<ScreenshotSource>('inventory');
+  const pasteSource = useRef<ScreenshotSource>(initialSource);
   const controller = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
   const batch = useRef<Batch>({ source: null, scans: [], pending: [], completed: false });
@@ -50,7 +60,7 @@ export function ScreenshotImport({ onImport }: { onImport: (observations: Equipm
   }, []);
   useEffect(() => {
     const followPointer = (event: PointerEvent) => {
-      if (event.pointerType === 'touch' || batch.current.source || document.querySelector('dialog[open]')) return;
+      if (mode === 'relics' || event.pointerType === 'touch' || batch.current.source || document.querySelector('dialog[open]')) return;
       const stage = sourceStage.current?.getBoundingClientRect();
       if (!stage) return;
       // Keep the hit boundary stationary while the panels move beneath it.
@@ -61,7 +71,7 @@ export function ScreenshotImport({ onImport }: { onImport: (observations: Equipm
     };
     document.addEventListener('pointermove', followPointer);
     return () => document.removeEventListener('pointermove', followPointer);
-  }, [choosePasteSource]);
+  }, [choosePasteSource, mode]);
 
   const processFiles = async (files: File[], screenshotSource: ScreenshotSource) => {
     if (!files.length || batch.current.completed || controller.current?.signal.aborted || (batch.current.source && batch.current.source !== screenshotSource)) return;
@@ -70,7 +80,7 @@ export function ScreenshotImport({ onImport }: { onImport: (observations: Equipm
     if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))) { setError('Use PNG, JPG, or WebP screenshots.'); return; }
     if (files.some(file => file.size > 20 * 1024 * 1024)) { setError('Each screenshot must be smaller than 20 MB.'); return; }
     const next = files.map(file => ({ file, url: URL.createObjectURL(file), read: false }));
-    if (!batch.current.source) setDeparting(screenshotSource === 'inventory' ? 'codex' : 'inventory');
+    if (!batch.current.source && screenshotSource !== 'relics') setDeparting(screenshotSource === 'inventory' ? 'codex' : 'inventory');
     batch.current.source = screenshotSource;
     batch.current.scans = [...batch.current.scans, ...next];
     batch.current.pending.push(...files);
@@ -82,6 +92,7 @@ export function ScreenshotImport({ onImport }: { onImport: (observations: Equipm
     const abort = new AbortController(); controller.current = abort;
     try {
       const { recognizeScreenshots } = await import('../lib/ocr');
+      const relicNames = screenshotSource === 'relics' ? (await import('../data/relicCatalog')).relicNames : [];
       while (batch.current.pending.length) {
         const queued = batch.current.pending.splice(0);
         const readCount = batch.current.scans.filter(scan => scan.read).length;
@@ -91,8 +102,13 @@ export function ScreenshotImport({ onImport }: { onImport: (observations: Equipm
           if (!active.current || abort.signal.aborted) return;
           batch.current.scans = batch.current.scans.map(scan => scan.file === file ? { ...scan, read: true } : scan);
           setScans(batch.current.scans);
-          const matched = matchOcrLines(result.lines, catalog, file.name, screenshotSource);
-          setDetections(current => appendDetections(current, matched));
+          if (screenshotSource === 'relics') {
+            const matched = matchRelicOcrLines(result.lines, relicNames, file.name, result.imageSize);
+            setRelicDetections(current => appendRelicDetections(current, matched));
+          } else {
+            const matched = matchOcrLines(result.lines, catalog, file.name, screenshotSource);
+            setDetections(current => appendDetections(current, matched));
+          }
         }, abort.signal, screenshotSource);
       }
       if (active.current) setProgress(1);
@@ -127,21 +143,35 @@ export function ScreenshotImport({ onImport }: { onImport: (observations: Equipm
     return () => document.removeEventListener('paste', paste);
   }, []);
   const update = (id: string, patch: Partial<Detection>) => setDetections(current => current.map(detection => detection.id === id ? reviewDetection(detection, patch) : detection));
+  const updateRelic = (id: string, patch: Partial<RelicDetection>) => setRelicDetections(current => current.map(detection => detection.id === id ? reviewRelicDetection(detection, patch) : detection));
   const selected = detections.filter(detection => detection.selected);
   const hasBatch = scans.length > 0;
-  const visibleSources = importSources.filter(entry => !hasBatch || entry.value === source || entry.value === departing);
+  const visibleSources = importSources.filter(entry => (entry.value === 'relics') === (mode === 'relics') && (!hasBatch || entry.value === source || entry.value === departing));
   const clear = () => {
     batch.current.scans.forEach(scan => URL.revokeObjectURL(scan.url));
     batch.current = { source: null, scans: [], pending: [], completed: false };
-    setScans([]); setDetections([]); setError(''); setStatus(''); setProgress(0); setDeparting(null); setViewing(null);
+    setScans([]); setDetections([]); setRelicDetections([]); setError(''); setStatus(''); setProgress(0); setDeparting(null); setViewing(null);
   };
   const save = () => {
-    if (busyRef.current || batch.current.completed || !selected.length) return;
+    if (busyRef.current || batch.current.completed) return;
+    if (source === 'relics') {
+      const selected = relicDetections.filter(detection => detection.selected);
+      if (!selected.length) return;
+      const problem = relicImportError(relicDetections);
+      if (problem) { setError(problem); return; }
+      if (onRelicImport(selected.map(detection => ({ name: detection.name, refinement: detection.refinement!, quantity: detection.quantity! })), scans.filter(scan => scan.read).map(scan => scan.file.name))) batch.current.completed = true;
+      else setError('Your import could not be applied. Previous data is unchanged.');
+      return;
+    }
+    if (!selected.length) return;
     const observations = selected.map(detection => ({ ...createEquipment(detection.item), owned: detection.owned, mastered: detection.mastered, rank: detection.rank, source: `Screenshot · ${detection.filename}` }));
     if (onImport(observations, scans.filter(scan => scan.read).map(scan => scan.file.name))) batch.current.completed = true;
   };
   return <section className="import-section" aria-label="Import screenshots">
-    <div ref={sourceStage} className={`import-sources${hasBatch ? ' has-batch' : ''}`}>{visibleSources.map(({ value, label }) => <section key={value} data-source={value} className={`import-source${!hasBatch && pasteTarget === value ? ' is-paste-target' : ''}${departing === value ? ' is-exiting' : ''}`} inert={departing === value} aria-hidden={departing === value ? true : undefined} aria-labelledby={`${value}-import-title`} aria-description={!hasBatch && pasteTarget === value ? 'Selected for screenshot paste' : undefined} onFocusCapture={() => choosePasteSource(value)} onPointerDownCapture={() => choosePasteSource(value)} onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && departing === value) setDeparting(null); }}>
+    {!hasBatch && <div className="import-type-options" role="group" aria-label="Screenshot type">{(['equipment', 'relics'] as const).map(value => <button key={value} type="button" className="button quiet" aria-pressed={mode === value} onClick={() => {
+      setMode(value); const next = value === 'relics' ? 'relics' : 'inventory'; setSource(next); setPasteTarget(next); pasteSource.current = next; setError(''); setStatus('');
+    }}>{value === 'relics' ? 'Relics' : 'Equipment'}</button>)}</div>}
+    <div ref={sourceStage} className={`import-sources${hasBatch ? ' has-batch' : ''}${mode === 'relics' ? ' is-single' : ''}`}>{visibleSources.map(({ value, label }) => <section key={value} data-source={value} className={`import-source${!hasBatch && pasteTarget === value ? ' is-paste-target' : ''}${departing === value ? ' is-exiting' : ''}`} inert={departing === value} aria-hidden={departing === value ? true : undefined} aria-labelledby={`${value}-import-title`} aria-description={!hasBatch && pasteTarget === value ? 'Selected for screenshot paste' : undefined} onFocusCapture={() => choosePasteSource(value)} onPointerDownCapture={() => choosePasteSource(value)} onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && departing === value) setDeparting(null); }}>
       <div className="import-source-content">
       <div className="section-heading import-source-heading">
         <h2 id={`${value}-import-title`}>{label}</h2>
@@ -153,7 +183,7 @@ export function ScreenshotImport({ onImport }: { onImport: (observations: Equipm
     <input ref={node => { inputs.current[value] = node; }} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label={`Choose ${label.toLowerCase()} screenshots`} tabIndex={-1} onChange={event => { void processFiles([...event.target.files || []], value); event.target.value = ''; }} />
     {source === value && error && <p className="callout danger" role="alert">{error}</p>}
     <button type="button" className={`drop-zone ${scans.length && source === value ? 'drop-zone-compact' : ''} ${dragging === value ? 'dragging' : ''}`} aria-labelledby={`${value}-upload-label ${value}-upload-limits`} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); choosePasteSource(value); setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
-      {(!hasBatch || departing === value) && <img className="import-source-example" src={`/images/import/${value}-weapons.png`} width={1920} height={1200} alt={value === 'inventory' ? 'Example Warframe Inventory screen showing weapons and ranks' : 'Example Warframe Codex screen showing weapons and mastery badges'} draggable={false} />}
+      {value !== 'relics' && (!hasBatch || departing === value) && <img className="import-source-example" src={`/images/import/${value}-weapons.png`} width={1920} height={1200} alt={value === 'inventory' ? 'Example Warframe Inventory screen showing weapons and ranks' : 'Example Warframe Codex screen showing weapons and mastery badges'} draggable={false} />}
       <span id={`${value}-upload-label`}>{scans.length && source === value ? 'Add screenshots' : 'Drag and drop or Ctrl+V to paste. Or click to open file browser'}</span>
       <small id={`${value}-upload-limits`}>{scans.length && source === value ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
     </button>
@@ -168,7 +198,8 @@ export function ScreenshotImport({ onImport }: { onImport: (observations: Equipm
       </li>)}</ul>
     </section>}
     {!busy && status && <p className="import-status" role="status">{status}</p>}
-    {!!scans.length && (detections.length ? <section className="review-section" aria-labelledby="review-title">
+    {!!scans.length && source === 'relics' && (relicDetections.length ? <Suspense fallback={<p role="status">Loading review…</p>}><RelicScreenshotReview detections={relicDetections} existing={existingRelics} busy={busy} onUpdate={updateRelic} onSelectAll={() => setRelicDetections(current => current.map(detection => reviewRelicDetection(detection, { selected: !current.every(entry => entry.selected) })))} onImport={save} /></Suspense> : !busy && !status && !error && <p className="import-status" role="status">No relics matched.</p>)}
+    {!!scans.length && source !== 'relics' && (detections.length ? <section className="review-section" aria-labelledby="review-title">
       <div className="section-heading"><h3 id="review-title">Review matches</h3><div className="import-actions">
         <button type="button" className="button secondary" onClick={() => setDetections(current => current.map(detection => reviewDetection(detection, { selected: !current.every(entry => entry.selected) })))}>{detections.every(detection => detection.selected) ? 'Deselect all' : 'Select all'}</button>
         <button type="button" className="button primary" disabled={busy || !selected.length} title={busy ? 'Finish or cancel reading before importing.' : undefined} onClick={save}>Import {selected.length} {selected.length === 1 ? 'item' : 'items'}</button>

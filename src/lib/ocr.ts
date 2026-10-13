@@ -4,7 +4,7 @@ import type { OcrLine, ScreenshotSource } from './matching';
 import { findCodexLabels, hasCodexMasteryBadge } from './codex';
 import type { CodexLabel } from './codex';
 
-export interface OcrResult { text: string; lines: OcrLine[] }
+export interface OcrResult { text: string; lines: OcrLine[]; imageSize?: { width: number; height: number } }
 
 async function recognizeCodex(worker: Worker, canvas: HTMLCanvasElement, original: ImageData, labels: CodexLabel[], interrupted: Promise<never>): Promise<OcrResult> {
   // A single column of isolated labels stops the game artwork and card borders
@@ -86,7 +86,7 @@ export async function recognizeScreenshots(files: File[], onProgress: (message: 
         if (labels.length) {
           pass = 0; passes = 1;
           const result = await recognizeCodex(ready, canvas, original, labels, interrupted);
-          if (!signal.aborted) onResult(file, result);
+          if (!signal.aborted) onResult(file, { ...result, imageSize: { width: canvas.width, height: canvas.height } });
           continue;
         }
         passes = 2;
@@ -111,7 +111,7 @@ export async function recognizeScreenshots(files: File[], onProgress: (message: 
           texts.push(result.data.text);
           lines.push(...(recognized.length ? recognized : result.data.text.split('\n').filter(Boolean).map(text => ({ text, confidence: result.data.confidence, pass }))));
         }
-        if (!signal.aborted) onResult(file, { text: texts.join('\n'), lines });
+        if (!signal.aborted) onResult(file, { text: texts.join('\n'), lines, imageSize: { width: canvas.width, height: canvas.height } });
       } finally {
         canvas.width = 0; canvas.height = 0;
       }

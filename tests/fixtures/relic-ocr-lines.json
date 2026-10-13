@@ -1,0 +1,789 @@
+{
+  "imageSize": {
+    "width": 3200,
+    "height": 2000
+  },
+  "lines": [
+    {
+      "text": "x3",
+      "confidence": 94,
+      "bbox": {
+        "x0": 1256,
+        "y0": 348,
+        "x1": 1293,
+        "y1": 375
+      },
+      "pass": 0
+    },
+    {
+      "text": "x3",
+      "confidence": 94,
+      "bbox": {
+        "x0": 1616,
+        "y0": 348,
+        "x1": 1653,
+        "y1": 375
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi A21 Relic",
+      "confidence": 92,
+      "bbox": {
+        "x0": 205,
+        "y0": 571,
+        "x1": 399,
+        "y1": 600
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi A22 Relic",
+      "confidence": 93,
+      "bbox": {
+        "x0": 565,
+        "y0": 571,
+        "x1": 759,
+        "y1": 600
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi C4 Relic",
+      "confidence": 96,
+      "bbox": {
+        "x0": 934,
+        "y0": 571,
+        "x1": 1109,
+        "y1": 600
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi C12 Relic",
+      "confidence": 93,
+      "bbox": {
+        "x0": 1284,
+        "y0": 571,
+        "x1": 1479,
+        "y1": 600
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi D6 Relic",
+      "confidence": 96,
+      "bbox": {
+        "x0": 1654,
+        "y0": 571,
+        "x1": 1830,
+        "y1": 600
+      },
+      "pass": 0
+    },
+    {
+      "text": "x3",
+      "confidence": 95,
+      "bbox": {
+        "x0": 1617,
+        "y0": 752,
+        "x1": 1653,
+        "y1": 779
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi H4 Relic",
+      "confidence": 92,
+      "bbox": {
+        "x0": 573,
+        "y0": 939,
+        "x1": 750,
+        "y1": 969
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi H4 Relic",
+      "confidence": 93,
+      "bbox": {
+        "x0": 213,
+        "y0": 975,
+        "x1": 390,
+        "y1": 1004
+      },
+      "pass": 0
+    },
+    {
+      "text": "Radiant",
+      "confidence": 96,
+      "bbox": {
+        "x0": 607,
+        "y0": 976,
+        "x1": 718,
+        "y1": 1004
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi R2 Relic",
+      "confidence": 94,
+      "bbox": {
+        "x0": 934,
+        "y0": 975,
+        "x1": 1109,
+        "y1": 1004
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi S21 Relic",
+      "confidence": 95,
+      "bbox": {
+        "x0": 1285,
+        "y0": 975,
+        "x1": 1478,
+        "y1": 1004
+      },
+      "pass": 0
+    },
+    {
+      "text": "Axi V14 Relic",
+      "confidence": 88,
+      "bbox": {
+        "x0": 1644,
+        "y0": 975,
+        "x1": 1839,
+        "y1": 1004
+      },
+      "pass": 0
+    },
+    {
+      "text": "x9",
+      "confidence": 91,
+      "bbox": {
+        "x0": 176,
+        "y0": 1156,
+        "x1": 213,
+        "y1": 1183
+      },
+      "pass": 0
+    },
+    {
+      "text": "x6",
+      "confidence": 69,
+      "bbox": {
+        "x0": 1256,
+        "y0": 1156,
+        "x1": 1293,
+        "y1": 1183
+      },
+      "pass": 0
+    },
+    {
+      "text": "x6",
+      "confidence": 69,
+      "bbox": {
+        "x0": 1616,
+        "y0": 1156,
+        "x1": 1653,
+        "y1": 1183
+      },
+      "pass": 0
+    },
+    {
+      "text": "Li C15 Relic",
+      "confidence": 39,
+      "bbox": {
+        "x0": 1281,
+        "y0": 1304,
+        "x1": 1488,
+        "y1": 1383
+      },
+      "pass": 0
+    },
+    {
+      "text": "Lith A13 Relic",
+      "confidence": 92,
+      "bbox": {
+        "x0": 201,
+        "y0": 1379,
+        "x1": 404,
+        "y1": 1408
+      },
+      "pass": 0
+    },
+    {
+      "text": "[Radiant]",
+      "confidence": 96,
+      "bbox": {
+        "x0": 598,
+        "y0": 1377,
+        "x1": 726,
+        "y1": 1415
+      },
+      "pass": 0
+    },
+    {
+      "text": "Lith B86 Relic",
+      "confidence": 88,
+      "bbox": {
+        "x0": 930,
+        "y0": 1353,
+        "x1": 1114,
+        "y1": 1408
+      },
+      "pass": 0
+    },
+    {
+      "text": "[Radiant]",
+      "confidence": 96,
+      "bbox": {
+        "x0": 1317,
+        "y0": 1377,
+        "x1": 1446,
+        "y1": 1415
+      },
+      "pass": 0
+    },
+    {
+      "text": "Lith C15 Relic",
+      "confidence": 93,
+      "bbox": {
+        "x0": 1641,
+        "y0": 1379,
+        "x1": 1844,
+        "y1": 1408
+      },
+      "pass": 0
+    },
+    {
+      "text": "x3",
+      "confidence": 92,
+      "bbox": {
+        "x0": 176,
+        "y0": 1560,
+        "x1": 213,
+        "y1": 1587
+      },
+      "pass": 0
+    },
+    {
+      "text": "x5",
+      "confidence": 92,
+      "bbox": {
+        "x0": 536,
+        "y0": 1560,
+        "x1": 573,
+        "y1": 1587
+      },
+      "pass": 0
+    },
+    {
+      "text": "x12",
+      "confidence": 94,
+      "bbox": {
+        "x0": 1256,
+        "y0": 1560,
+        "x1": 1315,
+        "y1": 1587
+      },
+      "pass": 0
+    },
+    {
+      "text": "x2",
+      "confidence": 71,
+      "bbox": {
+        "x0": 1616,
+        "y0": 1560,
+        "x1": 1654,
+        "y1": 1587
+      },
+      "pass": 0
+    },
+    {
+      "text": "Lit G1 4 Relic",
+      "confidence": 93,
+      "bbox": {
+        "x0": 200,
+        "y0": 1732,
+        "x1": 405,
+        "y1": 1777
+      },
+      "pass": 0
+    },
+    {
+      "text": "Lith   L8 ell",
+      "confidence": 60,
+      "bbox": {
+        "x0": 932,
+        "y0": 1705,
+        "x1": 1113,
+        "y1": 1777
+      },
+      "pass": 0
+    },
+    {
+      "text": "Lith S18 hele",
+      "confidence": 78,
+      "bbox": {
+        "x0": 1641,
+        "y0": 1705,
+        "x1": 1844,
+        "y1": 1777
+      },
+      "pass": 0
+    },
+    {
+      "text": "Radiant",
+      "confidence": 96,
+      "bbox": {
+        "x0": 247,
+        "y0": 1783,
+        "x1": 358,
+        "y1": 1812
+      },
+      "pass": 0
+    },
+    {
+      "text": "Lith G1 4 Relic",
+      "confidence": 87,
+      "bbox": {
+        "x0": 560,
+        "y0": 1754,
+        "x1": 765,
+        "y1": 1822
+      },
+      "pass": 0
+    },
+    {
+      "text": "Radiant]",
+      "confidence": 96,
+      "bbox": {
+        "x0": 967,
+        "y0": 1781,
+        "x1": 1086,
+        "y1": 1819
+      },
+      "pass": 0
+    },
+    {
+      "text": "Lith L8 Relic",
+      "confidence": 94,
+      "bbox": {
+        "x0": 1292,
+        "y0": 1783,
+        "x1": 1473,
+        "y1": 1812
+      },
+      "pass": 0
+    },
+    {
+      "text": "Radiant",
+      "confidence": 96,
+      "bbox": {
+        "x0": 1687,
+        "y0": 1783,
+        "x1": 1798,
+        "y1": 1812
+      },
+      "pass": 0
+    },
+    {
+      "text": "x3",
+      "confidence": 87,
+      "bbox": {
+        "x0": 1257,
+        "y0": 349,
+        "x1": 1293,
+        "y1": 375
+      },
+      "pass": 1
+    },
+    {
+      "text": "x3",
+      "confidence": 87,
+      "bbox": {
+        "x0": 1617,
+        "y0": 349,
+        "x1": 1653,
+        "y1": 375
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi A] Relic",
+      "confidence": 56,
+      "bbox": {
+        "x0": 205,
+        "y0": 548,
+        "x1": 398,
+        "y1": 600
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi A22 Relic",
+      "confidence": 76,
+      "bbox": {
+        "x0": 565,
+        "y0": 533,
+        "x1": 758,
+        "y1": 610
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi cd Relic",
+      "confidence": 68,
+      "bbox": {
+        "x0": 935,
+        "y0": 533,
+        "x1": 1108,
+        "y1": 610
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi o] 2 Relic",
+      "confidence": 62,
+      "bbox": {
+        "x0": 1285,
+        "y0": 533,
+        "x1": 1478,
+        "y1": 610
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi D6 Relic",
+      "confidence": 94,
+      "bbox": {
+        "x0": 1655,
+        "y0": 548,
+        "x1": 1829,
+        "y1": 600
+      },
+      "pass": 1
+    },
+    {
+      "text": "x3",
+      "confidence": 86,
+      "bbox": {
+        "x0": 1617,
+        "y0": 753,
+        "x1": 1653,
+        "y1": 778
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi H4 Relic",
+      "confidence": 90,
+      "bbox": {
+        "x0": 574,
+        "y0": 929,
+        "x1": 750,
+        "y1": 968
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi H4 Relic",
+      "confidence": 70,
+      "bbox": {
+        "x0": 214,
+        "y0": 938,
+        "x1": 389,
+        "y1": 1013
+      },
+      "pass": 1
+    },
+    {
+      "text": "[Radiant]",
+      "confidence": 95,
+      "bbox": {
+        "x0": 599,
+        "y0": 974,
+        "x1": 725,
+        "y1": 1010
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi R2 Relic",
+      "confidence": 62,
+      "bbox": {
+        "x0": 935,
+        "y0": 938,
+        "x1": 1108,
+        "y1": 1013
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi 521 Relic",
+      "confidence": 65,
+      "bbox": {
+        "x0": 1285,
+        "y0": 938,
+        "x1": 1478,
+        "y1": 1013
+      },
+      "pass": 1
+    },
+    {
+      "text": "Axi V1 4 Relic",
+      "confidence": 74,
+      "bbox": {
+        "x0": 1645,
+        "y0": 938,
+        "x1": 1838,
+        "y1": 1013
+      },
+      "pass": 1
+    },
+    {
+      "text": "x9",
+      "confidence": 85,
+      "bbox": {
+        "x0": 177,
+        "y0": 1157,
+        "x1": 213,
+        "y1": 1183
+      },
+      "pass": 1
+    },
+    {
+      "text": "x6",
+      "confidence": 87,
+      "bbox": {
+        "x0": 1257,
+        "y0": 1157,
+        "x1": 1293,
+        "y1": 1183
+      },
+      "pass": 1
+    },
+    {
+      "text": "x6",
+      "confidence": 87,
+      "bbox": {
+        "x0": 1617,
+        "y0": 1157,
+        "x1": 1653,
+        "y1": 1183
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith A13 Relic",
+      "confidence": 92,
+      "bbox": {
+        "x0": 562,
+        "y0": 1332,
+        "x1": 763,
+        "y1": 1372
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith C15 Relic",
+      "confidence": 84,
+      "bbox": {
+        "x0": 1282,
+        "y0": 1332,
+        "x1": 1483,
+        "y1": 1372
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith A13 Relic",
+      "confidence": 92,
+      "bbox": {
+        "x0": 202,
+        "y0": 1380,
+        "x1": 403,
+        "y1": 1408
+      },
+      "pass": 1
+    },
+    {
+      "text": "[Radiant]",
+      "confidence": 95,
+      "bbox": {
+        "x0": 599,
+        "y0": 1377,
+        "x1": 725,
+        "y1": 1414
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith B6 Relic",
+      "confidence": 92,
+      "bbox": {
+        "x0": 932,
+        "y0": 1380,
+        "x1": 1113,
+        "y1": 1408
+      },
+      "pass": 1
+    },
+    {
+      "text": "[Radiant]",
+      "confidence": 95,
+      "bbox": {
+        "x0": 1319,
+        "y0": 1377,
+        "x1": 1445,
+        "y1": 1414
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith C15 Relic",
+      "confidence": 94,
+      "bbox": {
+        "x0": 1642,
+        "y0": 1380,
+        "x1": 1843,
+        "y1": 1408
+      },
+      "pass": 1
+    },
+    {
+      "text": "x3",
+      "confidence": 80,
+      "bbox": {
+        "x0": 177,
+        "y0": 1561,
+        "x1": 213,
+        "y1": 1586
+      },
+      "pass": 1
+    },
+    {
+      "text": "x5",
+      "confidence": 88,
+      "bbox": {
+        "x0": 537,
+        "y0": 1561,
+        "x1": 573,
+        "y1": 1586
+      },
+      "pass": 1
+    },
+    {
+      "text": "x12",
+      "confidence": 88,
+      "bbox": {
+        "x0": 1257,
+        "y0": 1561,
+        "x1": 1314,
+        "y1": 1586
+      },
+      "pass": 1
+    },
+    {
+      "text": "x2",
+      "confidence": 64,
+      "bbox": {
+        "x0": 1617,
+        "y0": 1561,
+        "x1": 1653,
+        "y1": 1586
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith G14 Relic",
+      "confidence": 93,
+      "bbox": {
+        "x0": 201,
+        "y0": 1734,
+        "x1": 404,
+        "y1": 1776
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith L8 Relic",
+      "confidence": 87,
+      "bbox": {
+        "x0": 932,
+        "y0": 1734,
+        "x1": 1112,
+        "y1": 1776
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith 518 Relic",
+      "confidence": 92,
+      "bbox": {
+        "x0": 1642,
+        "y0": 1734,
+        "x1": 1843,
+        "y1": 1776
+      },
+      "pass": 1
+    },
+    {
+      "text": "[Radiant]",
+      "confidence": 96,
+      "bbox": {
+        "x0": 239,
+        "y0": 1782,
+        "x1": 365,
+        "y1": 1818
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith G14 Relic",
+      "confidence": 95,
+      "bbox": {
+        "x0": 561,
+        "y0": 1784,
+        "x1": 764,
+        "y1": 1811
+      },
+      "pass": 1
+    },
+    {
+      "text": "[Radiant]",
+      "confidence": 96,
+      "bbox": {
+        "x0": 959,
+        "y0": 1782,
+        "x1": 1085,
+        "y1": 1818
+      },
+      "pass": 1
+    },
+    {
+      "text": "Lith L8 Relic",
+      "confidence": 93,
+      "bbox": {
+        "x0": 1292,
+        "y0": 1784,
+        "x1": 1472,
+        "y1": 1811
+      },
+      "pass": 1
+    },
+    {
+      "text": "[Radiant]",
+      "confidence": 96,
+      "bbox": {
+        "x0": 1679,
+        "y0": 1782,
+        "x1": 1805,
+        "y1": 1818
+      },
+      "pass": 1
+    }
+  ]
+}

@@ -17,7 +17,7 @@ export interface Detection {
   rank: number | null;
   filename: string;
 }
-export type ScreenshotSource = 'inventory' | 'codex';
+export type ScreenshotSource = 'inventory' | 'codex' | 'relics';
 
 function distance(a: string, b: string): number {
   let row = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -108,6 +108,7 @@ function wrappedRanks(lines: OcrLine[], source: ScreenshotSource): Map<OcrLine, 
 }
 
 export function matchOcrLines(lines: OcrLine[], catalog: CatalogItem[], filename: string, source: ScreenshotSource): Detection[] {
+  if (source === 'relics') return [];
   const indexed = catalog.map(item => ({ item, parts: tokens(item.name), key: normalizeName(item.name) })).sort((a, b) => b.parts.length - a.parts.length || b.key.length - a.key.length);
   const found = new Map<string, Detection>();
   const wrapped = wrappedRanks(lines, source);

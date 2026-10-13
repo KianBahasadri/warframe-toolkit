@@ -283,6 +283,11 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .import-page { display: flex; flex-direction: column; max-width: none; padding: 0; }
 .import-page > .callout { margin: 24px 40px 0; }
 .import-section { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; overflow: clip; }
+.import-type-options { display: flex; gap: 8px; padding: 16px 24px 0; }
+.import-type-options button[aria-pressed="true"] { color: var(--ink-strong); background: var(--surface); }
+.import-sources.is-single:not(.has-batch) { grid-template-rows: minmax(0, 1fr); min-height: 360px; }
+.import-sources.is-single:not(.has-batch) .import-source.is-paste-target { width: 100%; }
+.relic-review-table td:last-child small { display: block; margin-top: 6px; }
 .import-sources { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 560px; }
 .import-source { grid-area: 1 / 1; justify-self: start; display: flex; flex-direction: column; width: 50%; min-width: 0; padding: 40px 40px 32px; background: var(--canvas); transition: width 280ms cubic-bezier(.2,.8,.2,1), transform 280ms cubic-bezier(.2,.8,.2,1), background 120ms; }
 .import-source[data-source="codex"] { justify-self: end; }

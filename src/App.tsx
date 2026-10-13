@@ -20,6 +20,7 @@ import type { Equipment, Inventory } from './lib/model';
 import { downloadFile, inventoryCsv, relicsCsv, STORAGE_KEY, warframesCsv } from './lib/storage';
 import { relicKey } from './lib/relics';
 import { updateRelic } from './lib/relicCatalog';
+import { mergeRelicObservations } from './lib/relicMatching';
 import weaponsIcon from './assets/warframe/weapons.png';
 import warframesIcon from './assets/warframe/warframes.png';
 import relicsIcon from './assets/warframe/relics.png';
@@ -42,6 +43,7 @@ export default function App() {
   const [accountOpen, setAccountOpen] = useState<'login' | 'register' | null>(null);
   const inventoryRef = useRef(inventory); inventoryRef.current = inventory;
   const [page, setPage] = useState<Page>(pageFromHash);
+  const [importRelics, setImportRelics] = useState(false);
   const equipmentLabel = page === 'warframes' ? 'Warframe' : page === 'relics' ? 'relic' : 'weapon';
   const [editing, setEditing] = useState<Equipment | 'new' | null>(null);
   const [palette, setPalette] = useState(false);
@@ -75,6 +77,7 @@ export default function App() {
   }, [inventory, account.user, account.dirty, account.saving, account.error, notify]);
   useEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem('arsenal.theme', theme); } catch { /* Inventory saving reports its own failures. */ } }, [theme]);
   const navigate = (destination: Page) => { setPage(destination); location.hash = destination; };
+  const openImport = () => { setImportRelics(page === 'relics'); navigate('import'); };
   const exportCsv = () => {
     const rows = equipmentRows(inventoryRef.current.items, catalog);
     const warframes = page === 'warframes';
@@ -84,7 +87,7 @@ export default function App() {
   const exportRelics = () => { downloadFile(`grakata-relics-${new Date().toISOString().slice(0, 10)}.csv`, relicsCsv(inventoryRef.current.relics ?? []), 'text/csv;charset=utf-8'); notify('Relics CSV downloaded.', 'success'); };
   const commands: Command[] = [
     ...(['weapons', 'warframes', 'relics'].includes(page) ? [{ label: `Add ${page === 'relics' ? 'relic' : equipmentLabel}`, keys: ['Alt', 'N'], run: () => collectionActions.current?.add() }] : []),
-    { label: 'Import screenshots', keys: ['Alt', 'I'], run: () => navigate('import') },
+    { label: 'Import screenshots', keys: ['Alt', 'I'], run: openImport },
     { label: page === 'droptables' ? 'Export filtered drop tables CSV' : page === 'relics' ? 'Export relics CSV' : page === 'warframes' ? 'Export Warframes CSV' : 'Export inventory CSV', keys: ['Alt', 'E'], run: page === 'droptables' ? () => dropActions.current?.exportCsv() : page === 'relics' ? exportRelics : exportCsv },
     { label: 'Toggle theme', keys: ['Alt', 'Shift', 'T'], run: () => setTheme(value => value === 'dark' ? 'light' : 'dark') },
     { label: 'Keyboard shortcuts', keys: ['Alt', '/'], run: () => setShortcuts(true) },
@@ -119,8 +122,8 @@ export default function App() {
             if ((previous?.notes ?? '') === notes) return;
             const item = { ...(previous ?? editableRecord(row)), notes, updatedAt: new Date().toISOString() };
             if (commit({ ...current, items: previous ? current.items.map(entry => entry.id === item.id ? item : entry) : [...current.items, item] }, 600)) noteChanged('items', item.id, item.name, notes);
-          }} onAdd={() => setEditing('new')} onImport={() => navigate('import')} onExport={exportCsv} actionsRef={collectionActions} />}
-        {page === 'relics' && <Suspense fallback={<p role="status" className="small muted">Loading relics…</p>}><Relics key={account.user?.id ?? 'guest'} relics={relics} trackedOnlyDefault={Boolean(account.user)} onExport={exportRelics} actionsRef={collectionActions} onSave={relic => {
+          }} onAdd={() => setEditing('new')} onImport={openImport} onExport={exportCsv} actionsRef={collectionActions} />}
+        {page === 'relics' && <Suspense fallback={<p role="status" className="small muted">Loading relics…</p>}><Relics key={account.user?.id ?? 'guest'} relics={relics} trackedOnlyDefault={Boolean(account.user)} onExport={exportRelics} onImport={openImport} actionsRef={collectionActions} onSave={relic => {
           const current = inventoryRef.current;
           const existing = current.relics ?? [];
           return commit({ ...current, relics: existing.some(entry => entry.id === relic.id) ? existing.map(entry => entry.id === relic.id ? relic : entry) : [...existing, relic] });
@@ -135,7 +138,13 @@ export default function App() {
           const relics = updateRelic(current.relics, relic, { quantityChange: change });
           if (relics !== current.relics) commit({ ...current, relics });
         }} /></Suspense>}
-        {page === 'import' && <ScreenshotImport onImport={(observations, files) => {
+        {page === 'import' && <ScreenshotImport key={account.user?.id ?? 'guest'} initialSource={importRelics ? 'relics' : 'inventory'} existingRelics={relics} onRelicImport={(observations, files) => {
+          const current = inventoryRef.current;
+          const merged = mergeRelicObservations(current.relics, observations);
+          if (!commit({ ...current, relics: merged.relics, imports: [{ id: crypto.randomUUID(), date: new Date().toISOString(), files, added: merged.added, updated: merged.updated }, ...current.imports].slice(0, 100) })) return false;
+          navigate('relics');
+          return true;
+        }} onImport={(observations, files) => {
           const merged = mergeObservations(inventoryRef.current.items, observations);
           const next = { ...inventoryRef.current, items: merged.items, imports: [{ id: crypto.randomUUID(), date: new Date().toISOString(), files, added: merged.added, updated: merged.updated }, ...inventoryRef.current.imports].slice(0, 100) };
           if (!commit(next)) return false;

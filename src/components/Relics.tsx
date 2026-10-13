@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Ref } from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, ScanLine } from 'lucide-react';
 import { Dialog } from './Dialog';
 import { Select } from './Select';
 import { TableNotes } from './TableNotes';
@@ -153,16 +153,17 @@ const relicDefinition: CollectionDefinition<RelicRow> = {
     : { title: 'No matching relics.', resetLabel: 'Clear filters' },
 };
 
-export function Relics({ relics, trackedOnlyDefault, onSave, onDelete, onQuantityChange, onNotesChange, onExport, actionsRef }: {
+export function Relics({ relics, trackedOnlyDefault, onSave, onDelete, onQuantityChange, onNotesChange, onExport, onImport, actionsRef }: {
   relics: Relic[]; onSave: (item: Relic) => boolean; onDelete: (id: string) => boolean;
   trackedOnlyDefault: boolean; onNotesChange: (item: RelicRow, notes: string) => void;
-  onQuantityChange: (item: RelicRow, change: number) => void; onExport: () => void; actionsRef?: Ref<CollectionActions>;
+  onQuantityChange: (item: RelicRow, change: number) => void; onExport: () => void; onImport: () => void; actionsRef?: Ref<CollectionActions>;
 }) {
   const [editing, setEditing] = useState<Relic | 'new' | null>(null);
   const rows = useMemo(() => relicRows(relics, relicCatalog), [relics]);
   const definition = { ...relicDefinition, filters: relicDefinition.filters.map(field => field.key === 'trackedOnly' ? { ...field, defaultValue: trackedOnlyDefault } : field) };
   return <>
     <CollectionTable definition={definition} items={rows} onEdit={row => setEditing(editableRelic(row))} onAdd={() => setEditing('new')} onExport={onExport} actionsRef={actionsRef}
+      extraActions={<button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
       renderCell={(relic, column) => column.key === 'name' ? <>{relic.catalogItem && <img className="equipment-image" src={relic.catalogItem.image} alt="" width="88" height="56" loading="lazy" />}<span className="equipment-label">{relic.name}</span></>
         : column.key === 'quantity' ? <div className="quantity-control"><button type="button" className="icon-button" aria-label={`Decrease ${relic.name} ${relic.refinement} quantity`} title="Decrease quantity" disabled={relic.quantity === 0} onClick={() => onQuantityChange(relic, -1)}><Minus size={14} /></button><span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span><button type="button" className="icon-button" aria-label={`Increase ${relic.name} ${relic.refinement} quantity`} title="Increase quantity" disabled={relic.quantity === MAX_RELIC_QUANTITY} onClick={() => onQuantityChange(relic, 1)}><Plus size={14} /></button></div>
         : column.key === 'notes' ? <TableNotes name={`${relic.name} ${relic.refinement}`} value={relic.notes} onChange={notes => onNotesChange(relic, notes)} />
