@@ -90,6 +90,26 @@ main:has(> .modder-page.is-upgrades) { max-width: 1760px; padding: 16px 3vw 32px
 .modder-arsenal-panel .arsenal-ability-icons { min-height: 46px; }
 .modder-arsenal-panel .arsenal-ability-icons button { min-height: 40px; }
 .modder-arsenal-panel .arsenal-ability-icons span { height: 34px; }
+.modder-arsenal-panel.is-weapon .modder-stat-panel { height: 416px; min-height: 0; }
+.modder-weapon-stats { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--gold) var(--line); }
+.modder-arsenal-panel .modder-weapon-stats { flex: 1; }
+.modder-arsenal-panel.is-weapon .modder-capacity, .modder-arsenal-panel.is-weapon .modder-rank-bonuses { flex-shrink: 0; }
+.arsenal-overview-stats .modder-weapon-stats { max-height: 390px; }
+.modder-stat-group .modder-stat-row dt { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.modder-stat-row dd { flex-shrink: 0; }
+.modder-stat-row.is-base dd { text-decoration: underline dotted var(--faint); text-underline-offset: 3px; }
+.modder-stat-row dt > button { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.modder-stat-row dt > button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 2px; }
+.modder-stat-group dl > .modder-stat-subrows { display: block; padding: 3px 0 5px 8px; }
+.modder-stat-group dl > .modder-stat-subrows[hidden] { display: none; }
+.modder-stat-subrows > dd { text-align: left; font-weight: 400; }
+.modder-stat-group h2 > small { display: block; font-size: 10px; text-transform: none; color: var(--muted); font-weight: 400; }
+.modder-damage-icon { display: inline-block; width: 15px; height: 15px; object-fit: contain; flex-shrink: 0; }
+.modder-damage-components { display: inline-flex; align-items: center; gap: 1px; }
+.modder-damage-components .modder-damage-icon { width: 12px; height: 12px; }
+.modder-riven-disposition { display: flex; align-items: center; gap: 2px; }
+.modder-riven-disposition > i { display: block; width: 10px; height: 10px; border: 1px solid var(--gold-bright); border-radius: 50%; padding: 1px; }
+.modder-riven-disposition > .is-filled { background: var(--gold-bright); background-clip: content-box; }
 .modder-config-bar { justify-content: space-between; min-height: 36px; gap: 8px; margin-bottom: 18px; border: 0; background: color-mix(in srgb, var(--surface-raised) 70%, transparent); }
 .modder-configs { display: flex; align-items: stretch; gap: 8px; min-width: 0; flex: 1; }
 .modder-configs .modder-name { flex: 0 1 160px; min-width: 90px; }
@@ -102,8 +122,9 @@ main:has(> .modder-page.is-upgrades) { max-width: 1760px; padding: 16px 3vw 32px
 .modder-extra-grid { gap: 14px; width: calc(50% - 7px); margin-bottom: 14px; }
 .modder-mod-grid { gap: 14px; }
 .modder-arcane-grid { gap: 14px; grid-auto-rows: 1fr; }
-.modder-slot-layout.is-firearm { padding-top: 24px; padding-bottom: 12px; }
-.modder-slot-layout.is-firearm .modder-slot-grid { align-self: center; }
+.modder-slot-layout.is-firearm { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; padding: 12px 0; align-items: start; }
+.modder-slot-layout.is-firearm .modder-slot-grid { grid-column: span 4; padding-top: 64px; }
+.modder-slot-layout.is-firearm .modder-arcane-grid { grid-auto-rows: auto; gap: 22px; align-self: start; }
 .modder-face-name { font-family: 'Roboto Condensed', var(--ui); font-size: clamp(14px, 10.8cqw, 25px); top: 51%; line-height: 1.06; }
 .modder-face-interior > img { filter: grayscale(.55) brightness(.45); }
 .modder-face-drain { font-family: 'Roboto Condensed', var(--ui); font-size: clamp(12px, 8.2cqw, 21px); }
@@ -127,8 +148,20 @@ main:has(> .modder-page.is-upgrades) { max-width: 1760px; padding: 16px 3vw 32px
 .modder-face.is-arcane { min-height: 92px; justify-content: center; }
 .modder-arcane-socket { width: min(84px, 90%); height: 56px; overflow: hidden; }
 .modder-empty-arcane { position: absolute; width: 180%; height: 180%; left: -40%; top: -40%; object-fit: contain; opacity: .55; }
-.modder-face.is-arcane .modder-face-name { margin-top: 0; font-size: clamp(13px, 12cqw, 16px); font-weight: 500; line-height: 1.05; }
-.modder-arcane-art { inset: 0; width: 100%; height: 100%; }
+.modder-face.is-arcane .modder-face-name { margin-top: 0; font-size: clamp(13px, 12cqw, 16px); font-weight: 600; line-height: 1.05; text-transform: none; }
+.modder-arcane-surround { position: absolute; left: 50%; top: 50%; width: 156%; height: auto; transform: translate(-50%, -50%); filter: sepia(.9) saturate(1.8) brightness(.8) contrast(1.15); }
+.modder-face[data-rarity=uncommon] .modder-arcane-surround { filter: none; }
+.modder-face[data-rarity=common] .modder-arcane-surround { filter: sepia(.75) saturate(1.2) brightness(.7); }
+.modder-arcane-art { inset: 4% 14% auto; width: 72%; height: 92%; }
+.modder-arcane-ranks { display: flex; gap: 3px; justify-content: center; margin-top: 4px; }
+.modder-arcane-ranks > i { position: relative; display: block; width: 10px; height: 12px; background: var(--gold-line); mask: url('/images/arsenal/arcaneRank.png') center / 178% 178% no-repeat; }
+.modder-arcane-ranks > i::before, .modder-arcane-ranks > .is-ranked::after { content: ''; position: absolute; inset: 1px; background: var(--canvas); mask: url('/images/arsenal/arcaneRank.png') center / 178% 178% no-repeat; }
+.modder-arcane-ranks > .is-ranked { background: var(--gold); }
+.modder-arcane-ranks > .is-ranked::after { inset: 3px; background: var(--gold-bright); }
+:root[data-theme=light] .modder-empty-rim { background: #645c54; opacity: .75; }
+:root[data-theme=light] .modder-empty-polarity, :root[data-theme=light] .modder-exilus-symbol { color: #645c54; opacity: .7; }
+:root[data-theme=light] .modder-empty-glass { background: linear-gradient(140deg, #645c5426, #645c5408 45%, #645c5426 46%, #645c540c 58%); }
+:root[data-theme=light] .modder-empty-arcane { filter: brightness(.55); }
 .modder-upgrade.is-selected::after { display: none; }
 .modder-slot-adjust { opacity: 0; width: 28px; height: 28px; padding: 4px; }
 .modder-slot-adjust[aria-pressed=true] { opacity: 0; }
@@ -218,6 +251,11 @@ main:has(> .modder-page.is-upgrades) { max-width: 1760px; padding: 16px 3vw 32px
   .modder-slot-layout { grid-template-columns: minmax(0, 1fr); }
   .modder-arcane-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 300px; margin: 12px auto 0; }
   .modder-slot-layout.is-firearm { padding: 0; }
+  .modder-slot-layout.is-firearm { grid-template-columns: minmax(0, 1fr); }
+  .modder-slot-layout.is-firearm .modder-slot-grid { grid-column: auto; padding-top: 0; }
+  .modder-slot-layout.is-firearm .modder-arcane-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; }
+  .modder-arsenal-panel.is-weapon .modder-stat-panel { display: flex; height: 330px; }
+  .modder-weapon-stats .modder-stat-group h2 { display: block; }
   .modder-slot-adjust, .modder-slot-adjust[aria-pressed=true] { opacity: 1; width: 32px; height: 32px; }
   .modder-config-bar { margin-bottom: 20px; }
   .modder-library-heading > .modder-drag-hint { display: none; }

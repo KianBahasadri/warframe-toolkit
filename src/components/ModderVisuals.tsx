@@ -9,6 +9,13 @@ export function GameIcon({ name, size = 24 }: { name: GameIconName; size?: numbe
   return <span className="modder-game-icon" aria-hidden="true" style={{ width: size, height: size, maskImage: `url(/images/arsenal/${name}.png)` }} />;
 }
 
+const damageSymbols: Record<string, string> = Object.fromEntries(['impact', 'puncture', 'slash', 'heat', 'cold', 'electricity', 'toxin', 'blast', 'radiation', 'gas', 'magnetic', 'viral', 'corrosive', 'void'].map(type => [type, type]));
+damageSymbols.tau = 'sentient';
+damageSymbols.true = 'true';
+export function DamageIcon({ type }: { type: string }) {
+  return damageSymbols[type] ? <img className="modder-damage-icon" src={`/images/arsenal/damage-${damageSymbols[type]}.png`} alt="" aria-hidden="true" draggable={false} /> : null;
+}
+
 export const rankText = (mod: Upgrade, rank: number) => [...new Set((mod.ranks[rank] ?? ['Rank unavailable']).flatMap(text => text.split('\n')).map(line => line.trim()).filter(Boolean))].join('\n');
 
 // The texture names are the game's original polarity names.
@@ -49,14 +56,14 @@ export function UpgradeFace({ mod, rank = 0, drain, polarity = '', label, arcane
   const style = { '--rarity-color': color } as CSSProperties;
   const crest = mod?.set && setCrests[mod.id.match(/\/Sets\/([^/]+)\//)?.[1] ?? ''];
 
-  if (arcane) return <span className={`modder-face is-arcane${mod ? ' is-filled' : ''}`} style={style}>
+  if (arcane) return <span className={`modder-face is-arcane${mod ? ' is-filled' : ''}`} style={style} data-rarity={rarity}>
     <span className="modder-arcane-socket" aria-hidden="true">
       {!mod && <img className="modder-empty-arcane" src="/images/arsenal/arcane.png" alt="" draggable={false} />}
+      {mod && <img className="modder-arcane-surround" src="/images/arsenal/arcaneSurround.png" alt="" draggable={false} />}
       {mod?.image && <img className="modder-arcane-art" src={mod.image} alt="" loading="lazy" draggable={false} />}
-      {mod && <span className="modder-face-drain">R{rank}</span>}
     </span>
     <strong className="modder-face-name">{name}</strong>
-    {mod && <RankDots rank={rank} maxRank={mod.maxRank} />}
+    {mod && <span className="modder-arcane-ranks" role="img" aria-label={`Rank ${rank} of ${mod.maxRank}`}>{Array.from({ length: mod.maxRank }, (_, index) => <i key={index} className={index < rank ? 'is-ranked' : ''} />)}</span>}
   </span>;
 
   if (!mod && !unavailable) return <span className="modder-face is-empty">

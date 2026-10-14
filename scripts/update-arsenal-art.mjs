@@ -33,11 +33,15 @@ const ui = {
   ornament: 'Icons/StarChartLoadoutSwap/FadedLines.png',
   arcane: 'Icons/StarChartLoadoutSwap/NoArcane.png',
   arcaneBacker: 'Graphics/Arcanes/ArcaneBacker.png',
+  arcaneSurround: 'Icons/CosmeticEnhancers/Arcanes/Progression/ArcaneProgressIcon1.png',
+  arcaneRank: 'Icons/PipDiamond_d.png',
+  'damage-true': 'Icons/Damage/Finisher_d.png',
   emptyMod: 'Graphics/Mods/AntiqueModDockBacker.png',
   modGlass: 'Graphics/Mods/ModGlassGlow.png',
   modMask: 'Graphics/Mods/ModGlassMask.png',
   emptyNotch: 'Graphics/Mods/EmptyNotch.png',
   filledNotch: 'Graphics/Mods/FilledNotch.png',
+  ...Object.fromEntries(['Impact', 'Puncture', 'Slash', 'Heat', 'Cold', 'Electricity', 'Toxin', 'Blast', 'Radiation', 'Gas', 'Magnetic', 'Viral', 'Corrosive', 'Void', 'Sentient'].map(type => [`damage-${type.toLowerCase()}`, `Icons/StatSymbols/${type}Symbol.png`])),
 };
 const sources = {};
 async function download(url, filename) {
@@ -100,7 +104,7 @@ await pool([...new Set(modder.mods.filter(mod => mod.set).map(mod => mod.id.matc
   const path = await download(url, `${stem}Header.png`);
   if (path) crests[set] = path;
 });
-const sorted = values => Object.fromEntries(Object.entries(values).sort());
+const sorted = values => Object.fromEntries(Object.keys(values).sort().map(key => [key, values[key]]));
 await writeFile(new URL('src/data/arsenalArt.json', root), JSON.stringify({ portraits: sorted(portraits), abilities: sorted(abilities), crests: sorted(crests) }, null, 2) + '\n');
 await writeFile(new URL('sources.json', directory), JSON.stringify({ retrievedAt: new Date().toISOString().slice(0, 10), references: references.sort(), files: Object.fromEntries(Object.entries(sources).sort()) }, null, 2) + '\n');
 console.log(`Downloaded ${Object.keys(abilities).length} ability icons and ${Object.keys(ui).length} UI textures.`);

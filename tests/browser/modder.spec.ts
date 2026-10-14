@@ -253,6 +253,44 @@ test('arcanes drag between slots with active stacks and right-click clears speci
 
 test.describe('guest workshop', () => {
   test.use({ signedIn: false });
+  test('weapon attributes show elemental icons, source details and full-size firearm Exilus beneath a framed arcane', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.goto('/#modder');
+    await page.getByRole('button', { name: 'Edit secondary', exact: true }).click();
+    await page.getByRole('button', { name: 'Swap', exact: true }).click();
+    await page.getByRole('searchbox', { name: 'Search equipment' }).fill('Atomos');
+    await page.getByRole('button', { name: 'Equip Atomos', exact: true }).click();
+    await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
+    for (const [index, name] of ['Frostbite', 'Pistol Pestilence', 'Scorch', 'Hornet Strike'].entries()) await equip(page, `Mod ${index + 1}`, name);
+    await equip(page, 'Arcane 1', 'Secondary Enervate');
+    const attributes = page.getByRole('region', { name: 'Weapon attributes' });
+    await expect(attributes.locator('[data-arsenal-stat="Status / projectile"]')).toHaveText('58.8 %');
+    await expect(attributes.locator('[data-arsenal-stat="heat"]')).toHaveText('148.48');
+    await expect(attributes.locator('[data-arsenal-stat="viral"]')).toHaveText('111.36');
+    await expect(attributes.locator('[data-arsenal-stat="Accuracy"]')).toHaveText('Low');
+    await expect(attributes.locator('[data-arsenal-stat="Beam Range"]')).toHaveText('15 m');
+    await expect(attributes.getByRole('img', { name: '3 of 5' })).toBeVisible();
+    await attributes.getByRole('button', { name: 'Magazine details', exact: true }).click();
+    await expect(attributes.locator('[data-arsenal-stat="Ammo Maximum"]')).toHaveText('350');
+    await attributes.getByRole('button', { name: 'Magazine details', exact: true }).click();
+    await attributes.locator('[data-arsenal-stat="Incarnon Form Radial Attack: blast"]').scrollIntoViewIfNeeded();
+    await expect(attributes.locator('[data-arsenal-stat="Incarnon Form Radial Attack: blast"]')).toBeInViewport();
+    await expect(attributes.getByRole('heading', { name: 'Incarnon Form Evolutions excluded', exact: true })).toBeVisible();
+    for (const icon of await attributes.locator('.modder-damage-icon').all()) expect(await icon.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+    const arcane = page.getByRole('button', { name: 'Arcane 1: Secondary Enervate', exact: true });
+    await expect(arcane.locator('.modder-arcane-surround')).toBeVisible();
+    await expect(arcane.getByRole('img', { name: 'Rank 5 of 5' })).toBeVisible();
+    const arcaneBox = await arcane.boundingBox();
+    const exilusBox = await page.getByRole('button', { name: 'Exilus: empty', exact: true }).boundingBox();
+    const modBox = await page.getByRole('button', { name: 'Mod 4: Hornet Strike', exact: true }).boundingBox();
+    expect(Math.abs(exilusBox!.width - modBox!.width)).toBeLessThan(1);
+    expect(exilusBox!.x).toBeGreaterThan(modBox!.x + modBox!.width);
+    expect(exilusBox!.y).toBeGreaterThan(arcaneBox!.y + arcaneBox!.height);
+    expect(Math.abs(exilusBox!.x - arcaneBox!.x)).toBeLessThan(1);
+    await arcane.click({ button: 'right' });
+    await expect(page.getByRole('button', { name: 'Arcane 1: empty', exact: true }).locator('.modder-empty-arcane')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
   test('compact Arsenal keeps calculations beside the slots and dock while editing', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await open(page);

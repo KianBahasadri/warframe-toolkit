@@ -4,6 +4,7 @@ import { catalog } from '../data/catalog';
 import { arcanes, calculate, capacity, compatible, equipItem, fmt, frames, modderData, mods, slotDrain, upgradeEffects, upgrades, validateEquipment, weaponSourceStats } from '../lib/modder';
 import type { Calculation, CalculationStep, UpgradeKind } from '../lib/modder';
 import { arsenalSlots, emptyUpgrade, newArsenal, polarities } from '../lib/modderModel';
+import { weaponReferenceSources } from '../lib/arsenalStats';
 import type { ArsenalBuild, ArsenalSlot, EquipmentBuild, ModderConditions, Polarity, UpgradeSlot } from '../lib/modderModel';
 import { placeUpgrade } from '../lib/modderUpgrades';
 import type { UpgradeSource, UpgradeTarget } from '../lib/modderUpgrades';
@@ -11,6 +12,7 @@ import { ModderLibrary, targetLabel } from './ModderLibrary';
 import type { PickerTarget } from './ModderLibrary';
 import { GameIcon, PolarityIcon, rankText, UpgradeFace } from './ModderVisuals';
 import { AbilitiesDialog, AbilityIcons, ArsenalOverview } from './ArsenalOverview';
+import { ArsenalWeaponStats } from './ArsenalWeaponStats';
 import { Select } from './Select';
 import './QuantitySlider.css';
 import './Modder.css';
@@ -170,12 +172,12 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
     </div>;
   };
   const changeSlot = (next: ArsenalSlot) => { setSlot(next); setActive({ kind: 'mod', index: 0 }); setPicker(null); };
-  const statGroups = slot === 'Warframe' ? [['Health', 'Shields', 'Armor', 'Energy'], ['Ability duration', 'Ability efficiency', 'Ability range', 'Ability strength']] : [['Critical chance', 'Critical multiplier', 'Status / projectile', 'Fire rate', 'Attack speed', 'Projectiles / trigger', 'Magazine', 'Reload time'], ['Damage / projectile', 'Average hit', 'Average trigger', 'Burst DPS', 'Base-swing DPS', 'Sustained DPS']];
+  const statGroups = [['Health', 'Shields', 'Armor', 'Energy'], ['Ability duration', 'Ability efficiency', 'Ability range', 'Ability strength']];
   const baseKeys = slot === 'Warframe' ? ['health', 'shield', 'armor', 'energy'] : ['criticalChance', 'criticalMultiplier', 'procChance', 'fireRate', 'multishot', 'magazineSize', 'reloadTime'];
   const baseLabels: Record<string, string> = { health: 'Health', shield: 'Shields', armor: 'Armor', energy: 'Energy', criticalChance: 'Critical chance (0–1)', criticalMultiplier: 'Critical multiplier', procChance: 'Status chance (0–1)', fireRate: 'Fire / attack rate', multishot: 'Base projectile count', magazineSize: 'Magazine', reloadTime: 'Reload seconds' };
   const jumpTo = (id: string) => { const element = document.getElementById(id); if (element instanceof HTMLDetailsElement) element.open = true; element?.scrollIntoView({ block: 'start' }); element?.focus({ preventScroll: true }); };
   const navigate = (next: 'arsenal' | 'upgrades') => { setView(next); setPicker(null); setAbilitiesOpen(false); endDrag(); requestAnimationFrame(() => { document.querySelector<HTMLElement>('.modder-title h1')?.focus({ preventScroll: true }); window.scrollTo({ top: 0 }); }); };
-  const stats = <>{statGroups.map((group, index) => <div className="modder-stat-group" key={index}>{index === 1 && <h2>{slot === 'Warframe' ? 'Ability' : 'Damage'}</h2>}<dl>{group.map(label => { const step = result.steps.find(step => step.label === label); return step && <div key={label}><dt>{label.replace('Ability ', '')}</dt><dd data-arsenal-stat={label}>{valueText(step)}</dd></div>; })}</dl></div>)}<span className="modder-stats-note">{slot === 'Warframe' ? Object.keys(equipment.overrides).length ? 'Custom base stats' : 'Rank 30 base stats' : 'Modeled results'}</span></>;
+  const stats = slot !== 'Warframe' ? <ArsenalWeaponStats build={build} slot={slot} items={items} result={result} /> : <>{statGroups.map((group, index) => <div className="modder-stat-group" key={index}>{index === 1 && <h2>Ability</h2>}<dl>{group.map(label => { const step = result.steps.find(step => step.label === label); return step && <div key={label}><dt>{label.replace('Ability ', '')}</dt><dd data-arsenal-stat={label}>{valueText(step)}</dd></div>; })}</dl></div>)}<span className="modder-stats-note">{Object.keys(equipment.overrides).length ? 'Custom base stats' : 'Rank 30 base stats'}</span></>;
   const name = <ArsenalName key={build.id} name={build.name} disabled={disabled} onChange={name => save({ ...build, name })} />;
   const buildActions = <div className="modder-build-actions">
       {builds.length > 1 && <Select label="Arsenal build" value={build.id} options={builds.map(build => ({ value: build.id, label: build.name }))} onChange={id => { setSelected(id); setCompareId(''); }} />}
@@ -192,11 +194,11 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
     <div className="modder-upgrades-layout">
     <div className="modder-workbench">
     <div className="modder-workspace">
-      <aside className="modder-arsenal-panel" aria-label="Arsenal and stats">
+      <aside className={`modder-arsenal-panel${slot !== 'Warframe' ? ' is-weapon' : ''}`} aria-label="Arsenal and stats">
         <div className="modder-stat-panel">
           <div className="modder-capacity"><div><span>Capacity</span><strong className={cap.used > cap.total ? 'error-text' : ''}>{cap.total - cap.used} / {cap.total}</strong></div><progress aria-label="Mod capacity remaining" value={Math.max(0, cap.total - cap.used)} max={Math.max(1, cap.total)} /><span>{cap.used} used · {cap.total - cap.used < 0 ? `${cap.used - cap.total} over` : `${cap.total - cap.used} remaining`}</span></div>
           {stats}
-          <button type="button" className="modder-rank-bonuses" onClick={() => jumpTo('modder-base-stats')}><GameIcon name="stats" size={22} />Rank bonuses</button>
+          <button type="button" className="modder-rank-bonuses" onClick={() => jumpTo('modder-base-stats')}><GameIcon name="stats" size={22} />{slot === 'Warframe' ? 'Rank bonuses' : 'Base stats & attack'}</button>
         </div>
         <AbilityIcons item={item} onOpen={() => setAbilitiesOpen(true)} />
       </aside>
@@ -243,7 +245,13 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
         </div></details>
       </>}
       <details className="modder-settings"><summary>Build notes<GameIcon name="down" size={16} /></summary><textarea aria-label="Build notes" rows={4} maxLength={10000} value={build.notes} disabled={disabled} onChange={event => save({ ...build, notes: event.target.value })} placeholder="Rotation, testing assumptions, or equipment to try…" /></details>
-      <details className="modder-settings modder-sources"><summary>Sources & model coverage<GameIcon name="down" size={16} /></summary><div className="modder-setting-body"><p>{mods.length} mods and {arcanes.length} arcanes from the <a href={modderData.source} target="_blank" rel="noreferrer">equipment data snapshot</a>. Effects marked Partial or Reference only are listed under calculation limits. Rank values in descriptions are rounded; linear modifiers use the maximum value scaled by rank.</p><p>Warframe rank bonuses follow <a href={modderData.rankSource} target="_blank" rel="noreferrer">Update 34</a> where available, added to this snapshot’s unranked stats. Verify later balance changes with the editable base stats.</p><p><a href="https://support.warframe.com/hc/en-us/articles/200500194-Mod-Guide-Use-Fusion-Transmutation-Sale" target="_blank" rel="noreferrer">Mod capacity and polarity</a> · <a href="https://wiki.warframe.com/w/Damage/Calculation" target="_blank" rel="noreferrer">Damage mechanics</a></p><p>Companions, Exalted equipment, Rivens, shards, set bonuses, ability-specific simulations, and Incarnon evolutions are outside this model. Alternate attacks calculate one component at a time.</p></div></details>
+      <details className="modder-settings modder-sources"><summary>Sources & model coverage<GameIcon name="down" size={16} /></summary><div className="modder-setting-body">
+        <p>{mods.length} mods and {arcanes.length} arcanes from the <a href={modderData.source} target="_blank" rel="noreferrer">equipment data snapshot</a>. Effects marked Partial or Reference only are listed under calculation limits. Rank values in descriptions are rounded; linear modifiers use the maximum value scaled by rank.</p>
+        <p>Warframe rank bonuses follow <a href={modderData.rankSource} target="_blank" rel="noreferrer">Update 34</a> where available, added to this snapshot’s unranked stats. Verify later balance changes with the editable base stats.</p>
+        <p>Weapon reference attributes from WARFRAME Wiki contributors: {weaponReferenceSources.map((source, index) => <span key={source.url}>{index > 0 && ' · '}<a href={source.url} target="_blank" rel="noreferrer">{['Primary', 'Secondary', 'Melee'][index]}</a></span>)} (<a href="https://creativecommons.org/licenses/by-nc-sa/3.0/" target="_blank" rel="noreferrer">CC BY-NC-SA 3.0</a>). Dotted values are base references; their modifiers are not simulated.</p>
+        <p><a href="https://support.warframe.com/hc/en-us/articles/200500194-Mod-Guide-Use-Fusion-Transmutation-Sale" target="_blank" rel="noreferrer">Mod capacity and polarity</a> · <a href="https://wiki.warframe.com/w/Damage/Calculation" target="_blank" rel="noreferrer">Damage mechanics</a></p>
+        <p>Companions, Exalted equipment, Rivens, shards, set bonuses, ability-specific simulations, and Incarnon evolutions are outside this model. Alternate attacks calculate one component at a time.</p>
+      </div></details>
       {!canSave && <button type="button" className="button quiet" onClick={onSignIn}>Sign in to save arsenals</button>}
     </div>
     </div>
