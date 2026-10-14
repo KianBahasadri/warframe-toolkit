@@ -92,6 +92,106 @@ test('mod ordering, compatibility, capacity and active stacks remain inspectable
   expect((await account.profile()).arsenals[0].equipment.Primary.mods).toHaveLength(8);
 });
 
+test('dragging from the tray and swapping slots preserves settings; right-click removes and saves', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  await open(page);
+  await expect(page.locator('.modder-equipment-backdrop')).toHaveCount(0);
+  const library = page.getByRole('region', { name: 'Compatible upgrades' });
+  await library.getByRole('searchbox').fill('Intensify');
+  await library.getByRole('button', { name: 'Install Intensify', exact: true }).dragTo(page.getByRole('button', { name: 'Mod 5: empty', exact: true }));
+  await expect(page.getByRole('button', { name: 'Mod 5: Intensify', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await select(page, 'Mod 5 polarity', 'Madurai');
+  await page.getByRole('spinbutton', { name: 'Mod 5 rank', exact: true }).fill('0');
+  await page.getByRole('checkbox', { name: 'Include mod 5', exact: true }).uncheck();
+  await equip(page, 'Mod 1', 'Vitality');
+  await select(page, 'Mod 1 polarity', 'Vazarin');
+  const before = await account.profile(), mods = before.arsenals[0].equipment.Warframe.mods;
+  await page.locator('.modder-upgrade-stage').scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'Mod 5: Intensify', exact: true }).dragTo(page.getByRole('button', { name: 'Mod 1: Vitality', exact: true }));
+  await expect(page.getByRole('button', { name: 'Mod 5: Vitality', exact: true })).toBeVisible();
+  await expect(page.getByRole('spinbutton', { name: 'Mod 1 rank', exact: true })).toHaveValue('0');
+  await expect(page.getByRole('checkbox', { name: 'Include mod 1', exact: true })).not.toBeChecked();
+  const swapped = (await account.profile()).arsenals[0].equipment.Warframe.mods;
+  expect(swapped[0]).toEqual({ ...mods[4], polarity: 'vazarin' });
+  expect(swapped[4]).toEqual({ ...mods[0], polarity: 'madurai' });
+  await page.getByRole('button', { name: 'Mod 1: Intensify', exact: true }).dragTo(page.getByRole('button', { name: 'Mod 8: empty', exact: true }));
+  await expect(page.getByRole('button', { name: 'Mod 1: empty', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Mod 8: Intensify', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Mod 8: Intensify', exact: true }).click({ button: 'right' });
+  await expect(page.getByRole('button', { name: 'Mod 8: empty', exact: true })).toBeVisible();
+  await expect(page.locator('.is-drop-allowed, .is-drop-target, .is-drag-source')).toHaveCount(0);
+  const removed = await account.profile();
+  expect(removed.inventory).toEqual(before.inventory);
+  expect(removed.arsenals[0].equipment.Warframe.mods[0]).toEqual({ id: '', rank: 0, enabled: true, stacks: 0, polarity: 'vazarin' });
+  expect(removed.arsenals[0].equipment.Warframe.mods[7].id).toBe('');
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Mod 5: Vitality', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Mod 8: empty', exact: true })).toBeVisible();
+});
+
+test('dragging validates the actual destination and leaves incompatible or cancelled moves untouched', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  await open(page);
+  await equip(page, 'Mod 1', 'Flow');
+  await page.getByRole('button', { name: 'Adjust mod 2', exact: true }).click();
+  const library = page.getByRole('region', { name: 'Compatible upgrades' });
+  await library.getByRole('searchbox').fill('Primed Flow');
+  const primed = library.getByRole('button', { name: 'Install Primed Flow', exact: true });
+  await expect(primed).toHaveAttribute('aria-disabled', 'true');
+  await primed.dragTo(page.getByRole('button', { name: 'Mod 1: Flow', exact: true }));
+  await expect(page.getByRole('button', { name: 'Mod 1: Primed Flow', exact: true })).toBeVisible();
+  await equip(page, 'Exilus', 'Power Drift');
+  const before = (await account.profile()).arsenals;
+  await page.locator('.modder-upgrade-stage').scrollIntoViewIfNeeded();
+  const flow = page.getByRole('button', { name: 'Mod 1: Primed Flow', exact: true });
+  const exilus = page.getByRole('button', { name: 'Exilus: Power Drift', exact: true });
+  await flow.dragTo(exilus);
+  await exilus.dragTo(flow); // The displaced Flow cannot fit Exilus either.
+  await flow.hover();
+  const bounds = (await flow.boundingBox())!, x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height / 2;
+  await page.mouse.down();
+  await page.mouse.move(x + 20, y, { steps: 4 });
+  await page.mouse.move(x, y, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await flow.dragTo(page.getByRole('heading', { name: 'Upgrades / Excalibur' }));
+  await expect(page.locator('.is-drop-allowed, .is-drop-target, .is-drag-source')).toHaveCount(0);
+  expect((await account.profile()).arsenals).toEqual(before);
+
+  await exilus.dragTo(page.getByRole('button', { name: 'Mod 2: empty', exact: true }));
+  await expect(page.getByRole('button', { name: 'Exilus: empty', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Mod 2: Power Drift', exact: true })).toBeVisible();
+  await library.getByRole('searchbox').fill('Flow');
+  await library.getByRole('button', { name: 'Install Flow', exact: true }).dragTo(page.getByRole('button', { name: 'Mod 3: empty', exact: true }));
+  await expect(page.getByRole('button', { name: 'Mod 3: empty', exact: true })).toBeVisible();
+  await expect(flow).toBeVisible();
+  await page.getByRole('button', { name: 'Mod 2: Power Drift', exact: true }).dragTo(page.getByRole('button', { name: 'Exilus: empty', exact: true }));
+  await expect(exilus).toBeVisible();
+  await exilus.click({ button: 'right' });
+  await expect(page.getByRole('button', { name: 'Exilus: empty', exact: true })).toBeVisible();
+});
+
+test('arcanes drag between slots with active stacks and right-click clears special slots', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  await open(page);
+  await equip(page, 'Aura', 'Steel Charge');
+  await select(page, 'Aura polarity', 'Madurai');
+  await page.getByRole('button', { name: 'Aura: Steel Charge', exact: true }).click({ button: 'right' });
+  await expect(page.getByRole('button', { name: 'Aura: empty', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Aura polarity', exact: true })).toContainText('Madurai');
+  await equip(page, 'Arcane 1', 'Arcane Avenger');
+  await page.getByRole('spinbutton', { name: 'Arcane 1 rank', exact: true }).fill('0');
+  await page.getByRole('spinbutton', { name: 'Arcane 1 active stacks', exact: true }).fill('1');
+  await page.locator('.modder-upgrade-stage').scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'Arcane 1: Arcane Avenger', exact: true }).dragTo(page.getByRole('button', { name: 'Arcane 2: empty', exact: true }));
+  await expect(page.getByRole('spinbutton', { name: 'Arcane 2 rank', exact: true })).toHaveValue('0');
+  await expect(page.getByRole('spinbutton', { name: 'Arcane 2 active stacks', exact: true })).toHaveValue('1');
+  await expect(page.getByRole('button', { name: 'Arcane 1: empty', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Arcane 2: Arcane Avenger', exact: true }).click({ button: 'right' });
+  expect((await account.profile()).arsenals[0].equipment.Warframe.arcanes.every(arcane => !arcane.id)).toBe(true);
+});
+
 test.describe('guest workshop', () => {
   test.use({ signedIn: false });
   test('Arsenal layout and dock equip the selected slot with exact polarity and rank controls', async ({ page }) => {

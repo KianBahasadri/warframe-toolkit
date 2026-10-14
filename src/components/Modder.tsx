@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, DragEvent } from 'react';
 import { ArrowLeft, ArrowRight, ChevronDown, Copy, Plus, SlidersHorizontal, X } from 'lucide-react';
 import { catalog } from '../data/catalog';
 import { arcanes, calculate, capacity, compatible, equipItem, fmt, frames, modderData, mods, slotDrain, upgradeEffects, upgrades, validateEquipment, weaponSourceStats } from '../lib/modder';
 import type { Calculation, CalculationStep, UpgradeKind } from '../lib/modder';
 import { arsenalSlots, emptyUpgrade, newArsenal, polarities } from '../lib/modderModel';
 import type { ArsenalBuild, ArsenalSlot, EquipmentBuild, ModderConditions, Polarity, UpgradeSlot } from '../lib/modderModel';
+import { placeUpgrade } from '../lib/modderUpgrades';
+import type { UpgradeSource, UpgradeTarget } from '../lib/modderUpgrades';
 import { ModderLibrary, targetLabel } from './ModderLibrary';
 import type { PickerTarget } from './ModderLibrary';
 import { PolarityIcon, rankText, UpgradeFace } from './ModderVisuals';
@@ -14,6 +16,7 @@ import './QuantitySlider.css';
 import './Modder.css';
 
 const items = new Map(catalog.map(item => [item.id, item]));
+const upgradeDragType = 'application/x-warframe-upgrade';
 const valueText = (step: CalculationStep) => step.value === null ? 'Unavailable' : `${fmt(step.value)}${step.unit ? ` ${step.unit}` : ''}`;
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const polarityOptions = polarities.map(value => ({ value, label: value ? titleCase(value) : 'No polarity', content: <span className="modder-polarity-option"><PolarityIcon polarity={value} />{value ? titleCase(value) : 'No polarity'}</span> }));
@@ -85,9 +88,19 @@ function Conditions({ value, onChange, disabled, slot }: { value: ModderConditio
 export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds: ArsenalBuild[]; onSave: (builds: ArsenalBuild[]) => boolean; canSave: boolean; disabled: boolean; onSignIn: () => void }) {
   const [draft] = useState(starter), [selected, setSelected] = useState(builds[0]?.id ?? ''), [slot, setSlot] = useState<ArsenalSlot>('Warframe');
   const [picker, setPicker] = useState<PickerTarget | null>(null), [compareId, setCompareId] = useState('');
-  const [active, setActive] = useState<{ kind: UpgradeKind; index: number }>({ kind: 'mod', index: 0 });
+  const [active, setActive] = useState<UpgradeTarget>({ kind: 'mod', index: 0 });
+  const [drag, setDrag] = useState<{ source: UpgradeSource; context: string } | null>(null), [hovered, setHovered] = useState('');
   const build = builds.find(build => build.id === selected) ?? builds[0] ?? draft;
   const equipment = build.equipment[slot], item = items.get(equipment.id), cap = capacity(equipment);
+  const dragContext = `${build.id}:${slot}:${equipment.id}`;
+  const dragged = !disabled && drag?.context === dragContext ? drag.source : null;
+  const endDrag = () => { setDrag(null); setHovered(''); };
+  const beginDrag = (event: DragEvent<HTMLElement>, source: UpgradeSource) => {
+    if (disabled || !upgrades.has(source.id)) { event.preventDefault(); return; }
+    event.dataTransfer.setData(upgradeDragType, source.id);
+    event.dataTransfer.effectAllowed = source.from ? 'move' : 'copy';
+    setDrag({ source, context: dragContext }); setHovered('');
+  };
   const compareBuild = builds.find(build => build.id === compareId && build.id !== selected);
   const result = useMemo(() => calculate(build, slot, items), [build, slot]);
   const compared = useMemo(() => compareBuild ? calculate(compareBuild, slot, items) : undefined, [compareBuild, slot]);
@@ -106,23 +119,46 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
       next.arcanes = next.arcanes.map((fresh, index) => retain(equipment.arcanes[index], fresh, 'arcane'));
       updateEquipment(next);
     } else {
-      const old = target.kind === 'mod' ? equipment.mods[target.index] : target.kind === 'arcane' ? equipment.arcanes[target.index] : equipment[target.kind];
-      editUpgrade(target.kind, target.index, { ...emptyUpgrade(old.polarity), id, rank: upgrades.get(id)!.maxRank });
+      const next = placeUpgrade(equipment, item, { id }, target as UpgradeTarget);
+      if (!next) return;
+      updateEquipment(next);
     }
     setPicker(null);
   };
   const moveMod = (index: number, direction: number) => {
-    const mods = [...equipment.mods], other = index + direction;
-    [mods[index], mods[other]] = [{ ...mods[other], polarity: mods[index].polarity }, { ...mods[index], polarity: mods[other].polarity }];
-    updateEquipment({ ...equipment, mods });
+    if (disabled) return;
+    const other = index + direction;
+    const next = placeUpgrade(equipment, item, { id: equipment.mods[index].id, from: { kind: 'mod', index } }, { kind: 'mod', index: other });
+    if (!next) return;
+    updateEquipment(next);
     setActive({ kind: 'mod', index: other });
   };
   const selectedUpgrade = active.kind === 'mod' ? equipment.mods[active.index] : active.kind === 'arcane' ? equipment.arcanes[active.index] : equipment[active.kind];
   const editor = (kind: UpgradeKind, index: number, label: string, value: UpgradeSlot) => {
     const mod = upgrades.get(value.id), current = active.kind === kind && active.index === index;
+    const target = { kind, index }, key = `${kind}-${index}`;
+    const placement = dragged && placeUpgrade(equipment, item, dragged, target);
+    const dragging = dragged?.from?.kind === kind && dragged.from.index === index;
     const match = mod && value.polarity ? value.polarity === mod.polarity || value.polarity === 'universal' ? 'is-match' : 'is-mismatch' : '';
-    return <div key={`${kind}-${index}`} className={`modder-upgrade${current ? ' is-selected' : ''}${!value.enabled ? ' is-muted' : ''}`}>
-      <button type="button" className="modder-slot-button" aria-label={`${label}: ${mod?.name ?? (value.id ? 'Unavailable upgrade' : 'empty')}`} disabled={disabled} onClick={() => { setActive({ kind, index }); setPicker({ kind, index }); }}>
+    return <div key={key} className={`modder-upgrade${current ? ' is-selected' : ''}${!value.enabled ? ' is-muted' : ''}${dragging ? ' is-drag-source' : ''}${placement ? ' is-drop-allowed' : ''}${placement && hovered === key ? ' is-drop-target' : ''}`}
+      onDragOver={event => {
+        if (!dragged || !event.dataTransfer.types.includes(upgradeDragType)) return;
+        setHovered(key);
+        event.dataTransfer.dropEffect = placement ? dragged.from ? 'move' : 'copy' : 'none';
+        if (placement) event.preventDefault();
+      }}
+      onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHovered(''); }}
+      onDrop={event => {
+        if (!dragged || !event.dataTransfer.types.includes(upgradeDragType)) return;
+        event.preventDefault();
+        if (placement) { updateEquipment(placement); setActive(target); }
+        endDrag();
+      }}
+      onContextMenu={event => {
+        event.preventDefault();
+        if (!disabled && value.id) { editUpgrade(kind, index, emptyUpgrade(value.polarity)); setActive(target); endDrag(); }
+      }}>
+      <button type="button" className="modder-slot-button" aria-label={`${label}: ${mod?.name ?? (value.id ? 'Unavailable upgrade' : 'empty')}`} title={value.id ? 'Drag to move · Right-click to remove' : undefined} disabled={disabled} draggable={!disabled && Boolean(mod)} onDragStart={event => beginDrag(event, { id: value.id, from: target })} onDragEnd={endDrag} onClick={() => { setActive(target); setPicker(target); }}>
         <UpgradeFace mod={mod} label={label} rank={value.rank} drain={slotDrain(value, kind === 'special')} polarity={mod?.polarity || value.polarity} arcane={kind === 'arcane'} match={match} unavailable={Boolean(value.id)} />
       </button>
       <button type="button" className="modder-slot-adjust" aria-label={`Adjust ${label.toLowerCase()}`} title={`Adjust ${label.toLowerCase()}`} aria-pressed={current} onClick={() => { setActive({ kind, index }); requestAnimationFrame(() => document.querySelector('.modder-upgrade-controls')?.scrollIntoView({ block: 'nearest' })); }}>
@@ -162,7 +198,6 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
         <div className="modder-config-bar modder-name-row"><ArsenalName key={build.id} name={build.name} disabled={disabled} onChange={name => save({ ...build, name })} /><button type="button" className="button quiet" onClick={() => { const results = document.getElementById('modder-results'); results?.scrollIntoView({ block: 'start' }); results?.focus({ preventScroll: true }); }}>Calculations<ArrowRight size={14} aria-hidden="true" /></button>{builds.length > 1 && <Select label="Compare with arsenal" value={compareBuild?.id ?? ''} options={[{ value: '', label: 'No comparison' }, ...builds.filter(entry => entry.id !== build.id).map(entry => ({ value: entry.id, label: `Compare: ${entry.name}` }))]} onChange={setCompareId} />}{builds.some(entry => entry.id === build.id) && <button type="button" className="button quiet" disabled={disabled} onClick={() => { const remaining = builds.filter(entry => entry.id !== build.id); if (onSave(remaining)) { setSelected(remaining[0]?.id ?? ''); setCompareId(''); } }}>Delete arsenal</button>}</div>
         {item && <>
           <div className="modder-upgrade-stage">
-            {item.image && <img className="modder-equipment-backdrop" src={item.image} alt="" />}
             <div className="modder-slot-layout">
               <div className="modder-slot-grid">
                 <div className="modder-extra-grid">{(slot === 'Warframe' || slot === 'Melee') && editor('special', 0, slot === 'Warframe' ? 'Aura' : 'Stance', equipment.special)}{editor('exilus', 0, 'Exilus', equipment.exilus)}</div>
@@ -176,7 +211,7 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
         </>}
       </div>
     </div>
-    {item && <ModderLibrary key={`${slot}-${active.kind}`} inline target={active} item={item} slot={slot} equipment={equipment} conditions={build.conditions} disabled={disabled} onChoose={id => choose(id, active)} />}
+    {item && <ModderLibrary key={`${slot}-${active.kind}`} inline target={active} item={item} slot={slot} equipment={equipment} conditions={build.conditions} disabled={disabled} onChoose={id => choose(id, active)} onDragUpgrade={(event, id) => beginDrag(event, { id })} onDragEnd={endDrag} />}
     {item && <div className="modder-inspector">
       <UpgradeControls label={targetLabel(active, slot)} kind={active.kind} index={active.index} value={selectedUpgrade} conditions={build.conditions} disabled={disabled} onChange={value => editUpgrade(active.kind, active.index, value)} onPick={() => setPicker(active)} onMove={active.kind === 'mod' ? direction => moveMod(active.index, direction) : undefined} />
     </div>}

@@ -4,6 +4,7 @@ import data from '../src/data/catalog.json' with { type: 'json' };
 import type { CatalogItem } from '../src/lib/model.ts';
 import { arcanes, calculate, capacity, compatible, elementalDamage, equipItem, frames, modFamily, mods, slotDrain, upgradeEffects } from '../src/lib/modder.ts';
 import { emptyUpgrade, newArsenal, validateArsenals } from '../src/lib/modderModel.ts';
+import { placeUpgrade } from '../src/lib/modderUpgrades.ts';
 import { emptyProfile, validateProfile } from '../src/lib/account.ts';
 
 const catalog = data.items as unknown as CatalogItem[];
@@ -130,6 +131,64 @@ test('compatibility and variants exclude conflicting mod families and preserve r
   assert.equal(modFamily(get('Critical Delay')), modFamily(get('Point Strike')));
   assert.ok(upgradeEffects(mod('Hunter Munitions'), arsenal().conditions).omitted.length);
   assert.equal(upgradeEffects(mod('Umbral Intensify'), arsenal().conditions).effects.length, 0);
+});
+
+test('placing and swapping upgrades preserves mod settings and each slot polarity without mutating the original', () => {
+  const frame = item('Excalibur'), build = equipItem(frame, 'Warframe');
+  build.mods[0] = { ...mod('Intensify', 0, 2), enabled: false, polarity: 'madurai' };
+  build.mods[4] = { ...mod('Vitality', 6), polarity: 'vazarin' };
+  const before = structuredClone(build);
+  const swapped = placeUpgrade(build, frame, { id: build.mods[0].id, from: { kind: 'mod', index: 0 } }, { kind: 'mod', index: 4 })!;
+  assert.deepEqual(swapped.mods[0], { ...build.mods[4], polarity: 'madurai' });
+  assert.deepEqual(swapped.mods[4], { ...build.mods[0], polarity: 'vazarin' });
+  assert.deepEqual(build, before);
+  const moved = placeUpgrade(swapped, frame, { id: swapped.mods[4].id, from: { kind: 'mod', index: 4 } }, { kind: 'mod', index: 7 })!;
+  assert.deepEqual(moved.mods[4], emptyUpgrade('vazarin'));
+  assert.deepEqual(moved.mods[7], { ...build.mods[0], polarity: '' });
+  const installed = placeUpgrade(moved, frame, { id: mod('Streamline').id }, { kind: 'mod', index: 4 })!;
+  assert.deepEqual(installed.mods[4], { ...mod('Streamline'), polarity: 'vazarin' });
+  assert.equal(installed.mods[7].rank, 0);
+  assert.equal(installed.mods[7].enabled, false);
+});
+
+test('placements reject duplicates, stale sources and incompatible swaps but allow replacing the same mod family', () => {
+  const frame = item('Excalibur'), build = equipItem(frame, 'Warframe');
+  build.mods[0] = mod('Flow');
+  build.exilus = mod('Power Drift');
+  const before = structuredClone(build);
+  const flow = { id: build.mods[0].id, from: { kind: 'mod' as const, index: 0 } };
+  assert.equal(placeUpgrade(build, frame, flow, { kind: 'exilus', index: 0 }), null);
+  assert.equal(placeUpgrade(build, frame, { id: build.exilus.id, from: { kind: 'exilus', index: 0 } }, { kind: 'mod', index: 0 }), null);
+  assert.equal(placeUpgrade(build, frame, { id: mod('Primed Flow').id }, { kind: 'mod', index: 1 }), null);
+  assert.equal(placeUpgrade(build, frame, flow, { kind: 'mod', index: 0 }), null);
+  assert.equal(placeUpgrade(build, frame, flow, { kind: 'mod', index: 8 }), null);
+  assert.equal(placeUpgrade(build, frame, flow, { kind: 'mod', index: -1 }), null);
+  assert.equal(placeUpgrade(build, frame, flow, { kind: 'mod', index: .5 }), null);
+  assert.equal(placeUpgrade(build, frame, { ...flow, id: mod('Vitality').id }, { kind: 'mod', index: 1 }), null);
+  assert.equal(placeUpgrade(build, frame, { id: '/future/mod' }, { kind: 'mod', index: 1 }), null);
+  assert.equal(placeUpgrade(build, item('Braton'), flow, { kind: 'mod', index: 1 }), null);
+  const replaced = placeUpgrade(build, frame, { id: mod('Primed Flow').id }, { kind: 'mod', index: 0 })!;
+  assert.deepEqual(replaced.mods[0], { ...mod('Primed Flow'), polarity: build.mods[0].polarity });
+  const moved = placeUpgrade(build, frame, { id: build.exilus.id, from: { kind: 'exilus', index: 0 } }, { kind: 'mod', index: 1 })!;
+  assert.equal(moved.mods[1].id, build.exilus.id);
+  assert.equal(moved.exilus.id, '');
+  assert.deepEqual(build, before);
+});
+
+test('aura and arcane drops respect slot types, duplicate rules and active stacks', () => {
+  const frame = item('Excalibur'), build = equipItem(frame, 'Warframe');
+  build.special = { ...mod('Steel Charge'), polarity: 'madurai' };
+  build.arcanes[0] = { ...mod('Arcane Avenger', 0, 1), enabled: false };
+  build.arcanes[1] = mod('Arcane Guardian', 3, 1);
+  const source = { id: build.arcanes[0].id, from: { kind: 'arcane' as const, index: 0 } };
+  const swapped = placeUpgrade(build, frame, source, { kind: 'arcane', index: 1 })!;
+  assert.deepEqual(swapped.arcanes, [build.arcanes[1], build.arcanes[0]]);
+  assert.equal(placeUpgrade(build, frame, { id: source.id }, { kind: 'arcane', index: 1 }), null);
+  assert.equal(placeUpgrade(build, frame, source, { kind: 'mod', index: 0 }), null);
+  assert.equal(placeUpgrade(build, frame, { id: build.special.id }, { kind: 'mod', index: 0 }), null);
+  const aura = placeUpgrade(build, frame, { id: mod('Infested Impedance').id }, { kind: 'special', index: 0 })!;
+  assert.equal(aura.special.polarity, 'madurai');
+  assert.equal(capacity(aura).bonus, slotDrain(aura.special, true));
 });
 
 test('unknown cycle values stay unknown and unsupported effects stay visible', () => {
