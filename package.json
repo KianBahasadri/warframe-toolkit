@@ -16,6 +16,7 @@
     "catalog:relics": "node --experimental-strip-types scripts/update-relics.mjs",
     "catalog:drop-art": "node --experimental-strip-types scripts/update-drop-art.mjs",
     "catalog:modder": "node scripts/update-modder.mjs",
+    "catalog:arsenal-art": "node scripts/update-arsenal-art.mjs",
     "postinstall": "node scripts/copy-ocr-assets.mjs"
   },
   "dependencies": {

@@ -3,7 +3,15 @@ import type { Page } from '@playwright/test';
 
 async function open(page: Page) {
   await page.goto('/#modder');
+  await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mod 1: empty', exact: true })).toBeEnabled();
+}
+async function editEquipment(page: Page, slot: string) {
+  const back = page.getByRole('button', { name: 'Return to Arsenal', exact: true });
+  if (await back.isVisible()) await back.click();
+  await page.getByRole('button', { name: `Edit ${slot}`, exact: true }).click();
+  await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
 }
 async function equip(page: Page, slot: string, name: string) {
   await page.getByRole('button', { name: new RegExp(`^${slot}:`) }).click();
@@ -15,6 +23,56 @@ async function select(page: Page, label: string, option: string) {
   await page.getByRole('listbox', { name: label, exact: true }).getByRole('option', { name: option, exact: true }).click();
 }
 const result = (page: Page, label: string) => page.locator(`[data-result="${label}"]`);
+
+test('Arsenal opens first, shows real artwork and abilities, and preserves upgrades across equipment navigation', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto('/#modder');
+  await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Eight mod slots' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Edit warframe', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.arsenal-equipment-preview img').evaluate((image: HTMLImageElement) => image.decode());
+  expect(await page.locator('.arsenal-equipment-preview img').evaluate((image: HTMLImageElement) => image.naturalHeight)).toBeGreaterThan(500);
+  await page.getByRole('button', { name: 'Abilities', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Excalibur abilities' })).toContainText('Exalted Blade');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Select primary', exact: true }).click();
+  await page.getByRole('button', { name: 'Swap', exact: true }).click();
+  await page.getByRole('searchbox', { name: 'Search equipment' }).fill('Boltor');
+  await page.getByRole('button', { name: 'Equip Boltor', exact: true }).click();
+  await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Upgrades / Boltor', exact: true })).toBeVisible();
+  await equip(page, 'Mod 1', 'Serration');
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Edit primary', exact: true })).toContainText('Boltor');
+  await expect(page.getByRole('button', { name: 'Edit primary', exact: true })).toContainText('1 / 8 mods');
+  await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Mod 1: Serration', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Return to Arsenal', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeFocused();
+  const saved = await account.profile();
+  expect(saved.arsenals[0].equipment.Primary.mods[0].id).not.toBe('');
+});
+
+test('configuration copies are independent and Remove all preserves slot polarity and other equipment', async ({ page, account }) => {
+  await open(page);
+  await equip(page, 'Mod 1', 'Intensify');
+  await select(page, 'Mod 1 polarity', 'Madurai');
+  await page.getByRole('button', { name: 'Add configuration', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Arsenal name', exact: true })).toHaveValue('Config B');
+  await page.getByRole('spinbutton', { name: 'Mod 1 rank', exact: true }).fill('0');
+  const before = await account.profile();
+  await page.getByRole('button', { name: 'Remove all', exact: true }).click();
+  const after = await account.profile();
+  expect(after.arsenals[0]).toEqual(before.arsenals[0]);
+  expect(after.arsenals[1].equipment.Primary).toEqual(before.arsenals[1].equipment.Primary);
+  expect(after.arsenals[1].equipment.Warframe.mods[0]).toMatchObject({ id: '', polarity: 'madurai' });
+  expect(after.inventory).toEqual(before.inventory);
+  await page.getByRole('button', { name: 'Config A', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Mod 1: Intensify', exact: true })).toBeVisible();
+  await expect(page.locator('[data-arsenal-stat="Ability strength"]')).toHaveText('130 %');
+});
 
 test('whole loadout ranks, shared arcanes, formulas and comparisons save without changing inventory', async ({ page, account }) => {
   await open(page); const before = await account.profile();
@@ -28,7 +86,7 @@ test('whole loadout ranks, shared arcanes, formulas and comparisons save without
   await expect(result(page, 'Health')).toHaveText('403.64');
   await equip(page, 'Arcane 1', 'Arcane Avenger');
   await page.getByRole('spinbutton', { name: 'Arcane 1 active stacks', exact: true }).fill('1');
-  await page.getByRole('button', { name: 'Edit primary', exact: true }).click();
+  await editEquipment(page, 'primary');
   await equip(page, 'Mod 1', 'Serration');
   await expect(result(page, 'Critical chance')).toHaveText('57 %');
   await expect(result(page, 'Damage / projectile')).toHaveText('63.6');
@@ -36,20 +94,20 @@ test('whole loadout ranks, shared arcanes, formulas and comparisons save without
   await expect(page.locator('.modder-equation').filter({ hasText: 'Serration · rank 10' }).first()).toContainText('+165%');
   await page.getByRole('spinbutton', { name: 'Mod 1 rank', exact: true }).fill('0');
   await expect(result(page, 'Damage / projectile')).toHaveText('27.6');
-  await page.getByRole('button', { name: 'Edit secondary', exact: true }).click(); await equip(page, 'Mod 1', 'Hornet Strike');
-  await page.getByRole('button', { name: 'Edit melee', exact: true }).click(); await equip(page, 'Mod 1', 'Pressure Point');
+  await editEquipment(page, 'secondary'); await equip(page, 'Mod 1', 'Hornet Strike');
+  await editEquipment(page, 'melee'); await equip(page, 'Mod 1', 'Pressure Point');
   const saved = await account.profile();
   expect(saved.inventory).toEqual(before.inventory); expect(saved.craftingPlans).toEqual(before.craftingPlans); expect(saved.dropViews).toEqual(before.dropViews);
   expect(saved.arsenals).toHaveLength(1);
   for (const slot of ['Warframe', 'Primary', 'Secondary', 'Melee'] as const) expect(saved.arsenals[0].equipment[slot].mods[0].id).not.toBe('');
-  await page.getByRole('button', { name: 'Edit primary', exact: true }).click();
+  await editEquipment(page, 'primary');
   await page.getByRole('button', { name: 'Duplicate', exact: true }).click();
   await page.getByRole('spinbutton', { name: 'Mod 1 rank', exact: true }).fill('10');
   await expect(page.getByRole('complementary', { name: 'Calculated results' })).toContainText('Changes from Workshop A');
   await expect(page.locator('.modder-calculations details').filter({ has: result(page, 'Damage / projectile') }).locator('.modder-delta')).toHaveText('+36');
   await account.profile(); await page.reload();
   await select(page, 'Arsenal build', 'Workshop A (copy)');
-  await page.getByRole('button', { name: 'Edit primary', exact: true }).click();
+  await editEquipment(page, 'primary');
   await expect(page.getByRole('spinbutton', { name: 'Mod 1 rank', exact: true })).toHaveValue('10');
   await page.getByRole('link', { name: 'Weapons', exact: true }).click(); await page.getByRole('link', { name: 'Modding Calculator', exact: true }).click();
   expect((await account.profile()).arsenals).toHaveLength(2);
@@ -57,7 +115,7 @@ test('whole loadout ranks, shared arcanes, formulas and comparisons save without
 
 test('mod ordering, compatibility, capacity and active stacks remain inspectable', async ({ page, account }) => {
   await page.setViewportSize({ width: 1600, height: 1100 }); await open(page);
-  await page.getByRole('button', { name: 'Edit primary', exact: true }).click();
+  await editEquipment(page, 'primary');
   for (const [i, name] of ['Serration', 'Split Chamber', 'Point Strike', 'Vital Sense', 'Infected Clip', 'Cryo Rounds', 'Hellfire', 'Fast Hands'].entries()) {
     await equip(page, `Mod ${i + 1}`, name);
     await select(page, `Mod ${i + 1} polarity`, ['Madurai', 'Madurai', 'Madurai', 'Madurai', 'Naramon', 'Vazarin', 'Naramon', 'Naramon'][i]);
@@ -126,6 +184,7 @@ test('dragging from the tray and swapping slots preserves settings; right-click 
   expect(removed.arsenals[0].equipment.Warframe.mods[0]).toEqual({ id: '', rank: 0, enabled: true, stacks: 0, polarity: 'vazarin' });
   expect(removed.arsenals[0].equipment.Warframe.mods[7].id).toBe('');
   await page.reload();
+  await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mod 5: Vitality', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mod 8: empty', exact: true })).toBeVisible();
 });
@@ -239,7 +298,7 @@ test.describe('guest workshop', () => {
     await expect(page.locator('.modder-mobile-results')).toContainText('105 %');
     await page.getByRole('button', { name: 'Results', exact: true }).click();
     await expect(page.getByRole('complementary', { name: 'Calculated results' })).toBeFocused();
-    await page.getByRole('button', { name: 'Edit primary', exact: true }).click();
+    await editEquipment(page, 'primary');
     await page.getByRole('button', { name: 'Mod 1: empty', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Search mods and effects' }).fill('Serration');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -252,9 +311,12 @@ test.describe('guest workshop', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Mod 1: Serration', exact: true })).toBeFocused();
     await page.getByRole('link', { name: 'Weapons', exact: true }).click(); await page.getByRole('link', { name: 'Modding Calculator', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Mod 1: Intensify', exact: true })).toBeVisible();
     expect(await page.evaluate(() => Object.keys(localStorage).filter(key => /arsenal|modder|key/i.test(key) && key !== 'arsenal.theme'))).toEqual([]);
     page.on('dialog', dialog => void dialog.accept()); await page.reload();
+    await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Mod 1: empty', exact: true })).toBeVisible();
   });
 });

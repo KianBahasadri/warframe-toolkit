@@ -1,5 +1,13 @@
 import type { CSSProperties } from 'react';
 import type { Upgrade } from '../lib/modder';
+import artwork from '../data/arsenalArt.json';
+
+const setCrests: Record<string, string> = artwork.crests;
+
+export type GameIconName = 'warframe' | 'primary' | 'secondary' | 'melee' | 'aura' | 'stance' | 'exilus' | 'all' | 'search' | 'copy' | 'edit' | 'add' | 'back' | 'forward' | 'down' | 'close' | 'stats' | 'reactor' | 'polarize' | 'swap';
+export function GameIcon({ name, size = 24 }: { name: GameIconName; size?: number }) {
+  return <span className="modder-game-icon" aria-hidden="true" style={{ width: size, height: size, maskImage: `url(/images/arsenal/${name}.png)` }} />;
+}
 
 export const rankText = (mod: Upgrade, rank: number) => [...new Set((mod.ranks[rank] ?? ['Rank unavailable']).flatMap(text => text.split('\n')).map(line => line.trim()).filter(Boolean))].join('\n');
 
@@ -39,15 +47,26 @@ export function UpgradeFace({ mod, rank = 0, drain, polarity = '', label, arcane
   const backer = rarity === 'amalgam' || rarity === 'galvanized' ? 'Silver' : prefix;
   const name = mod?.name ?? (unavailable ? 'Unavailable upgrade' : arcane ? 'Empty arcane slot' : label);
   const style = { '--rarity-color': color } as CSSProperties;
+  const crest = mod?.set && setCrests[mod.id.match(/\/Sets\/([^/]+)\//)?.[1] ?? ''];
 
   if (arcane) return <span className={`modder-face is-arcane${mod ? ' is-filled' : ''}`} style={style}>
     <span className="modder-arcane-socket" aria-hidden="true">
-      <svg viewBox="0 0 120 76" fill="none"><path d="M39 5h15l4-3h5l4 3h14l3 5h15l1 12 7 8-2 10 10 17-8 8H80l-6 7H47l-7-7H12L5 57l10-17-2-10 7-8 1-12h14Z" fill="currentColor" fillOpacity=".045" stroke="currentColor" strokeOpacity=".6" /><path d="M25 10h10m48 0h12M14 58l4 3h22m41 0h21l4-3M48 68h25" stroke="currentColor" strokeWidth="2" strokeOpacity=".7" /></svg>
+      {!mod && <img className="modder-empty-arcane" src="/images/arsenal/arcane.png" alt="" draggable={false} />}
       {mod?.image && <img className="modder-arcane-art" src={mod.image} alt="" loading="lazy" draggable={false} />}
       {mod && <span className="modder-face-drain">R{rank}</span>}
     </span>
     <strong className="modder-face-name">{name}</strong>
     {mod && <RankDots rank={rank} maxRank={mod.maxRank} />}
+  </span>;
+
+  if (!mod && !unavailable) return <span className="modder-face is-empty">
+    <span className="modder-empty-glass" aria-hidden="true" />
+    <span className="modder-empty-rim" aria-hidden="true" />
+    <img className="modder-glass-glow" src="/images/arsenal/modGlass.png" alt="" draggable={false} />
+    <span className="modder-empty-label">{label}</span>
+    {label === 'Exilus' && <span className="modder-exilus-symbol"><GameIcon name="exilus" size={40} /></span>}
+    {(label === 'Aura' || label === 'Stance') && <span className="modder-aura-symbol"><GameIcon name={label === 'Aura' ? 'aura' : 'stance'} size={22} /></span>}
+    {polarity && <span className="modder-empty-polarity"><PolarityIcon polarity={polarity} /></span>}
   </span>;
 
   return <span className={`modder-face${mod ? ' is-filled' : ' is-empty'}${rarity === 'amalgam' || rarity === 'galvanized' ? ' is-ornate' : ''}`} data-rarity={rarity} style={style}>
@@ -57,8 +76,9 @@ export function UpgradeFace({ mod, rank = 0, drain, polarity = '', label, arcane
     </span>
     <img className="modder-frame-top" src={`${path}${prefix}FrameTop.webp`} alt="" draggable={false} />
     <img className="modder-frame-bottom" src={`${path}${prefix}FrameBottom.webp`} alt="" draggable={false} />
+    {crest && <img className="modder-set-crest" src={crest} alt="" draggable={false} />}
     <span className="modder-face-label">{label}</span>
-    {label === 'Aura' && <span className="modder-aura-symbol" aria-hidden="true" />}
+    {(mod?.compat === 'AURA' || mod?.type === 'Stance Mod' || mod?.exilus) && <span className="modder-aura-symbol"><GameIcon name={mod.compat === 'AURA' ? 'aura' : mod.type === 'Stance Mod' ? 'stance' : 'exilus'} size={20} /></span>}
     {(mod || polarity) && <span className={`modder-face-drain ${match}`} title={match === 'is-match' ? 'Matching polarity' : match === 'is-mismatch' ? 'Mismatched polarity' : undefined}>
       {mod && <img src={`${path}${backer}TopRightBacker.webp`} alt="" draggable={false} />}
       <span>{mod && drain}<PolarityIcon polarity={polarity} /></span>

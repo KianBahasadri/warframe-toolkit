@@ -1,6 +1,5 @@
 import { useDeferredValue, useState } from 'react';
 import type { DragEvent } from 'react';
-import { Infinity, Search } from 'lucide-react';
 import { catalog } from '../data/catalog';
 import type { CatalogItem } from '../lib/model';
 import { arcanes, compatible, modFamily, mods, upgradeEffects, upgrades } from '../lib/modder';
@@ -9,12 +8,12 @@ import { emptyUpgrade, polarities } from '../lib/modderModel';
 import type { ArsenalSlot, EquipmentBuild, ModderConditions } from '../lib/modderModel';
 import { Dialog } from './Dialog';
 import { Select } from './Select';
-import { PolarityIcon, rankText, UpgradeFace } from './ModderVisuals';
+import { GameIcon, PolarityIcon, rankText, UpgradeFace } from './ModderVisuals';
 
 export type PickerTarget = { kind: UpgradeKind | 'equipment'; index: number };
 export const targetLabel = (target: PickerTarget, slot: ArsenalSlot) => target.kind === 'mod' ? `Mod ${target.index + 1}` : target.kind === 'arcane' ? `Arcane ${target.index + 1}` : target.kind === 'special' ? slot === 'Warframe' ? 'Aura' : 'Stance' : target.kind === 'exilus' ? 'Exilus' : slot;
 export function ModderLibrary({ target, item, slot, equipment, conditions, onChoose, onClose, onDragUpgrade, onDragEnd, inline = false, disabled = false }: { target: PickerTarget; item?: CatalogItem; slot: ArsenalSlot; equipment: EquipmentBuild; conditions: ModderConditions; onChoose: (id: string) => void; onClose?: () => void; onDragUpgrade?: (event: DragEvent<HTMLButtonElement>, id: string) => void; onDragEnd?: () => void; inline?: boolean; disabled?: boolean }) {
-  const [query, setQuery] = useState(''), [calculated, setCalculated] = useState(false), [limit, setLimit] = useState(40), [polarity, setPolarity] = useState('all'), [sort, setSort] = useState('name');
+  const [query, setQuery] = useState(''), [calculated, setCalculated] = useState(false), [limit, setLimit] = useState(40), [polarity, setPolarity] = useState('all'), [sort, setSort] = useState('drain');
   const terms = useDeferredValue(query.toLowerCase().trim()).split(/\s+/);
   const isEquipment = target.kind === 'equipment', arcane = target.kind === 'arcane';
   const installed = target.kind === 'mod' ? equipment.mods[target.index] : arcane ? equipment.arcanes[target.index] : target.kind === 'exilus' ? equipment.exilus : equipment.special;
@@ -30,9 +29,9 @@ export function ModderLibrary({ target, item, slot, equipment, conditions, onCho
   const coverageFilter = <label><input type="checkbox" checked={calculated} onChange={event => { setCalculated(event.target.checked); setLimit(40); }} />Fully calculated only</label>;
   const content = <>
     <div className="modder-library-filters">
-      <label className="search-field"><Search size={16} aria-hidden="true" /><input type="search" aria-label={inline ? 'Search compatible upgrades' : isEquipment ? 'Search equipment' : 'Search mods and effects'} placeholder="Search…" value={query} onChange={event => { setQuery(event.target.value); setLimit(40); }} autoFocus={!inline} /></label>
+      <label className="search-field"><GameIcon name="search" size={24} /><input type="search" aria-label={inline ? 'Search compatible upgrades' : isEquipment ? 'Search equipment' : 'Search mods and effects'} placeholder="Search…" value={query} onChange={event => { setQuery(event.target.value); setLimit(40); }} autoFocus={!inline} /></label>
       {!isEquipment && !arcane && <div className="modder-polarity-filters" role="group" aria-label="Filter by polarity">
-        <button type="button" aria-label="All polarities" title="All polarities" aria-pressed={polarity === 'all'} onClick={() => { setPolarity('all'); setLimit(40); }}><Infinity size={22} aria-hidden="true" /><span>All</span></button>
+        <button type="button" aria-label="All polarities" title="All polarities" aria-pressed={polarity === 'all'} onClick={() => { setPolarity('all'); setLimit(40); }}><GameIcon name="all" size={28} /><span>All</span></button>
         {polarities.filter(value => value && value !== 'universal').map(value => <button type="button" key={value} aria-label={`${value.charAt(0).toUpperCase() + value.slice(1)} polarity`} title={`${value.charAt(0).toUpperCase() + value.slice(1)} polarity`} aria-pressed={polarity === value} onClick={() => { setPolarity(value); setLimit(40); }}><PolarityIcon polarity={value} /></button>)}
       </div>}
       {!isEquipment && <Select label="Sort upgrades" value={sort} options={[{ value: 'name', label: 'Name' }, { value: 'drain', label: 'Drain' }]} onChange={setSort} />}
@@ -45,10 +44,10 @@ export function ModderLibrary({ target, item, slot, equipment, conditions, onCho
       return <button type="button" key={entry.id} className="modder-library-result" aria-label={`${inline ? 'Install' : 'Equip'} ${entry.name}`} title={mod ? `${entry.name}\n${rankText(mod, mod.maxRank)}${conflict ? '\nConflicts with an equipped upgrade' : effects!.omitted.length ? '\n' + (effects!.effects.length ? 'Partly calculated' : 'Reference only') : ''}` : entry.name} disabled={disabled || !inline && Boolean(conflict)} aria-disabled={Boolean(conflict) || undefined} draggable={inline && !disabled && Boolean(mod && onDragUpgrade)} onDragStart={event => onDragUpgrade?.(event, entry.id)} onDragEnd={onDragEnd} onClick={() => { if (!conflict) onChoose(entry.id); }}>
         {mod ? <><UpgradeFace mod={mod} rank={mod.maxRank} drain={Math.abs(mod.drain) + mod.maxRank} polarity={mod.polarity} label={mod.rarity ?? ''} arcane={arcane} /><span className="modder-library-description">{rankText(mod, mod.maxRank)}</span><span className="modder-library-coverage">{conflict ? 'Already equipped / conflicts' : effects!.omitted.length ? effects!.effects.length ? 'Partly calculated' : 'Reference only' : 'Calculated'}</span></> : <>{(entry as CatalogItem).image && <img src={(entry as CatalogItem).image} alt="" loading="lazy" />}<span><strong>{entry.name}</strong><small>{(entry as CatalogItem).weaponType} · {(entry as CatalogItem).variant}</small></span></>}
       </button>;
-    })}</div>
+    })}{inline && matches.length > limit && <button type="button" className="modder-library-more" onClick={() => setLimit(limit + 40)}><GameIcon name="add" size={32} />Show more</button>}</div>
     {inline && <div className="modder-library-heading"><h2>{arcane ? 'Arcanes' : 'Mods'}</h2><span>Equip to <strong>{targetLabel(target, slot)}</strong></span><span className="modder-drag-hint">Drag to equip · Right-click to remove</span>{coverageFilter}<span role="status">{matches.length} compatible</span></div>}
     {!matches.length && <p className="small muted">No compatible results. Try another name or clear the filters.</p>}
-    {matches.length > limit && <button type="button" className="button secondary" onClick={() => setLimit(limit + 40)}>Show more</button>}
+    {!inline && matches.length > limit && <button type="button" className="button secondary" onClick={() => setLimit(limit + 40)}>Show more</button>}
   </>;
   return inline ? <section className="modder-library-dock" aria-label="Compatible upgrades">{content}</section> : <Dialog title={title} onClose={onClose!} className="modder-library modder-theme" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose?.(); } }}>{content}</Dialog>;
 }
