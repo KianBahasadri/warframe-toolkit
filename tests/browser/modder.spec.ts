@@ -253,9 +253,24 @@ test('arcanes drag between slots with active stacks and right-click clears speci
 
 test.describe('guest workshop', () => {
   test.use({ signedIn: false });
-  test('Arsenal layout and dock equip the selected slot with exact polarity and rank controls', async ({ page }) => {
-    await page.setViewportSize({ width: 1600, height: 1100 });
+  test('compact Arsenal keeps calculations beside the slots and dock while editing', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
     await open(page);
+    await page.evaluate(() => document.fonts.ready);
+    const calculations = page.getByRole('complementary', { name: 'Calculated results' });
+    const library = page.getByRole('region', { name: 'Compatible upgrades' });
+    for (const width of [1920, 1600, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      const resultsBox = await calculations.boundingBox();
+      const trayBox = await library.boundingBox();
+      const statsBox = await page.getByRole('complementary', { name: 'Arsenal and stats' }).boundingBox();
+      expect(resultsBox!.x).toBeGreaterThan(trayBox!.x + trayBox!.width);
+      expect(Math.abs(resultsBox!.y - statsBox!.y)).toBeLessThan(1);
+      await expect(calculations.getByRole('status', { name: 'Build results' })).toBeInViewport();
+      await expect(library.getByRole('searchbox')).toBeInViewport();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.setViewportSize({ width: 1600, height: 900 });
     const aura = await page.getByRole('button', { name: 'Aura: empty', exact: true }).boundingBox();
     const first = await page.getByRole('button', { name: 'Mod 1: empty', exact: true }).boundingBox();
     const fourth = await page.getByRole('button', { name: 'Mod 4: empty', exact: true }).boundingBox();
@@ -269,7 +284,6 @@ test.describe('guest workshop', () => {
     expect(stats!.x + stats!.width).toBeLessThan(first!.x);
 
     await page.getByRole('button', { name: 'Adjust mod 5', exact: true }).click();
-    const library = page.getByRole('region', { name: 'Compatible upgrades' });
     await library.getByRole('searchbox', { name: 'Search compatible upgrades' }).fill('Intensify');
     await library.getByRole('button', { name: 'Vazarin polarity', exact: true }).click();
     await expect(library.getByRole('button', { name: 'Install Intensify', exact: true })).toHaveCount(0);
@@ -278,16 +292,24 @@ test.describe('guest workshop', () => {
     await expect(page.getByRole('button', { name: 'Mod 5: Intensify', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Mod 1: empty', exact: true })).toBeVisible();
     await expect(page.locator('[data-arsenal-stat="Ability strength"]')).toHaveText('130 %');
+    await expect(calculations.getByRole('status', { name: 'Build results' })).toContainText('130 %');
     await select(page, 'Mod 5 polarity', 'Madurai');
     await expect(page.getByRole('button', { name: 'Mod 5: Intensify', exact: true }).locator('.modder-face-drain')).toHaveText('6');
     await page.getByRole('spinbutton', { name: 'Mod 5 rank', exact: true }).fill('0');
     await expect(page.locator('[data-arsenal-stat="Ability strength"]')).toHaveText('105 %');
+    await expect(calculations.getByRole('status', { name: 'Build results' })).toContainText('105 %');
+    await expect(calculations.getByRole('status', { name: 'Build results' })).toBeInViewport();
     await page.getByRole('checkbox', { name: 'Include mod 5', exact: true }).uncheck();
     await expect(page.locator('[data-arsenal-stat="Ability strength"]')).toHaveText('100 %');
     await expect(page.getByRole('button', { name: 'Adjust mod 5', exact: true })).toContainText('Excluded');
     await page.getByRole('button', { name: 'Remove mod 5', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Mod 5: empty', exact: true })).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Mod 5 polarity', exact: true })).toHaveText('Madurai');
+    await calculations.getByRole('button', { name: 'Expand all', exact: true }).click();
+    await expect(calculations.getByRole('button', { name: 'Collapse all', exact: true })).toBeVisible();
+    await calculations.locator('details').last().scrollIntoViewIfNeeded();
+    await expect(calculations.locator('details').last()).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
   test('mobile editing keeps live results available and stores no builds or access keys', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 }); await open(page);
@@ -298,6 +320,7 @@ test.describe('guest workshop', () => {
     await expect(page.locator('.modder-mobile-results')).toContainText('105 %');
     await page.getByRole('button', { name: 'Results', exact: true }).click();
     await expect(page.getByRole('complementary', { name: 'Calculated results' })).toBeFocused();
+    expect(await page.getByRole('complementary', { name: 'Calculated results' }).evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true);
     await editEquipment(page, 'primary');
     await page.getByRole('button', { name: 'Mod 1: empty', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Search mods and effects' }).fill('Serration');

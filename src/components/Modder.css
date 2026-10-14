@@ -199,7 +199,7 @@ main:has(> .modder-page) { max-width: 1760px; }
 .is-equipment .modder-library-result > span { display: grid; gap: 4px; }
 .is-equipment strong { font-size: 13px; color: var(--gold-bright); font-weight: 500; }
 .is-equipment small { font-size: 10px; color: var(--muted); }
-.modder-lower-workspace { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 40px; margin-top: 32px; border-top: 1px solid var(--gold-line); padding-top: 24px; }
+.modder-settings-column { min-width: 0; margin-top: 24px; border-top: 1px solid var(--gold-line); padding-top: 24px; }
 .modder-number, .modder-field { display: grid; gap: 8px; min-width: 0; font-weight: 400; font-size: 12px; }
 .modder-number input { width: 100%; font-family: var(--mono); padding: 6px 8px; font-size: 12px; }
 .modder-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -289,7 +289,6 @@ main:has(> .modder-page) { max-width: 1760px; }
   .modder-name-row > .select-trigger { flex-basis: 100%; max-width: none; }
 }
 @media (max-width: 900px) {
-  .modder-lower-workspace { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .modder-results { border: 0; padding: 16px 0 0; }
   .modder-page { padding-bottom: 72px; }
   .modder-mobile-results { position: fixed; display: flex; align-items: center; justify-content: space-between; gap: 12px; bottom: 0; left: 0; right: 0; padding: 12px 16px; z-index: 20; background: var(--surface-raised); border-top: 1px solid var(--gold-line); }

@@ -64,7 +64,7 @@ function Results({ result, compared, compareName }: { result: Calculation; compa
     return old?.value !== null && old?.value !== undefined && step.value !== null ? step.value - old.value : null;
   };
   return <aside id="modder-results" className="modder-results" aria-label="Calculated results" tabIndex={-1}>
-    <div className="modder-section-title"><h2>Results</h2><span className="badge modder-modeled">Modeled</span></div>
+    <div className="modder-section-title"><h2>Calculations</h2><span className="badge modder-modeled">Modeled</span></div>
     {compareName && <p className="small muted">Changes from {compareName}</p>}
     <div className="modder-metrics" role="status" aria-label="Build results">{result.headline.map(step => <div key={step.label}><span>{step.label}</span><strong>{valueText(step)}</strong></div>)}</div>
     {!!result.damage.length && <div className="modder-damage" aria-label="Damage distribution"><h3>Damage / projectile</h3>{result.damage.map(part => <div key={part.type}><span>{titleCase(part.type)}</span><meter min={0} max={result.damage.reduce((sum, value) => sum + value.value, 0)} value={part.value} aria-label={`${titleCase(part.type)} damage`} /><strong>{fmt(part.value)}</strong></div>)}</div>}
@@ -189,6 +189,8 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
   }}>
     <div className="modder-toolbar"><div className="modder-title"><h1 tabIndex={-1}>{view === 'arsenal' ? 'Arsenal' : <><span>Upgrades /</span> {item?.name ?? slot}</>}</h1></div><span className="modder-session-note">{canSave ? 'Account arsenal' : 'Temporary arsenal'}</span>{view === 'upgrades' && <button type="button" className="modder-game-button modder-header-back" aria-label="Return to Arsenal" onClick={() => navigate('arsenal')}><GameIcon name="back" size={18} />Arsenal</button>}</div>
     {view === 'arsenal' ? <ArsenalOverview build={build} slot={slot} item={item} name={name} stats={stats} actions={<>{!canSave && <button type="button" className="modder-game-button" onClick={onSignIn}>Sign in to save</button>}{buildActions}</>} disabled={disabled} onSlot={changeSlot} onSwap={() => setPicker({ kind: 'equipment', index: 0 })} onUpgrade={() => navigate('upgrades')} onAbilities={() => setAbilitiesOpen(true)} /> : <>
+    <div className="modder-upgrades-layout">
+    <div className="modder-workbench">
     <div className="modder-workspace">
       <aside className="modder-arsenal-panel" aria-label="Arsenal and stats">
         <div className="modder-stat-panel">
@@ -225,7 +227,7 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
     {item && <div className="modder-inspector">
       <UpgradeControls label={targetLabel(active, slot)} kind={active.kind} index={active.index} value={selectedUpgrade} conditions={build.conditions} disabled={disabled} onChange={value => editUpgrade(active.kind, active.index, value)} onPick={() => setPicker(active)} onMove={active.kind === 'mod' ? direction => moveMod(active.index, direction) : undefined} />
     </div>}
-    <div className="modder-lower-workspace"><div className="modder-settings-column">
+    <div className="modder-settings-column">
       <div id="modder-actions" className="modder-build-settings" tabIndex={-1}><h2>Arsenal actions</h2>{buildActions}
         <div className="modder-capacity-options"><GameIcon name="reactor" size={42} /><label><input type="checkbox" checked={equipment.doubled} disabled={disabled} onChange={event => updateEquipment({ ...equipment, doubled: event.target.checked })} />{slot === 'Warframe' ? 'Orokin Reactor' : 'Orokin Catalyst'}</label><Numeric label="Base capacity" value={equipment.capacity} max={40} onChange={capacity => updateEquipment({ ...equipment, capacity })} disabled={disabled} />{cap.bonus > 0 && <span className="small muted">+{cap.bonus} from {slot === 'Warframe' ? 'aura' : 'stance'}</span>}</div>
         {builds.length > 1 && <Select label="Compare with arsenal" value={compareBuild?.id ?? ''} options={[{ value: '', label: 'No comparison' }, ...builds.filter(entry => entry.id !== build.id).map(entry => ({ value: entry.id, label: `Compare: ${entry.name}` }))]} onChange={setCompareId} />}
@@ -243,7 +245,10 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
       <details className="modder-settings"><summary>Build notes<GameIcon name="down" size={16} /></summary><textarea aria-label="Build notes" rows={4} maxLength={10000} value={build.notes} disabled={disabled} onChange={event => save({ ...build, notes: event.target.value })} placeholder="Rotation, testing assumptions, or equipment to try…" /></details>
       <details className="modder-settings modder-sources"><summary>Sources & model coverage<GameIcon name="down" size={16} /></summary><div className="modder-setting-body"><p>{mods.length} mods and {arcanes.length} arcanes from the <a href={modderData.source} target="_blank" rel="noreferrer">equipment data snapshot</a>. Effects marked Partial or Reference only are listed under calculation limits. Rank values in descriptions are rounded; linear modifiers use the maximum value scaled by rank.</p><p>Warframe rank bonuses follow <a href={modderData.rankSource} target="_blank" rel="noreferrer">Update 34</a> where available, added to this snapshot’s unranked stats. Verify later balance changes with the editable base stats.</p><p><a href="https://support.warframe.com/hc/en-us/articles/200500194-Mod-Guide-Use-Fusion-Transmutation-Sale" target="_blank" rel="noreferrer">Mod capacity and polarity</a> · <a href="https://wiki.warframe.com/w/Damage/Calculation" target="_blank" rel="noreferrer">Damage mechanics</a></p><p>Companions, Exalted equipment, Rivens, shards, set bonuses, ability-specific simulations, and Incarnon evolutions are outside this model. Alternate attacks calculate one component at a time.</p></div></details>
       {!canSave && <button type="button" className="button quiet" onClick={onSignIn}>Sign in to save arsenals</button>}
-    </div><Results key={slot} result={result} compared={compared} compareName={compareBuild?.name} /></div>
+    </div>
+    </div>
+    <Results key={slot} result={result} compared={compared} compareName={compareBuild?.name} />
+    </div>
     {!!result.headline.length && <div className="modder-mobile-results"><span><small>{result.headline[0].label}</small><strong>{valueText(result.headline[0])}</strong></span><span><small>{result.headline[1].label}</small><strong>{valueText(result.headline[1])}</strong></span><button type="button" className="button secondary" onClick={() => { const results = document.getElementById('modder-results'); results?.scrollIntoView({ block: 'start' }); results?.focus({ preventScroll: true }); }}>Results<GameIcon name="forward" size={14} /></button></div>}
     </>}
     {picker && <ModderLibrary key={`${slot}-${picker.kind}-${picker.index}`} target={picker} item={item} slot={slot} equipment={equipment} conditions={build.conditions} disabled={disabled} onChoose={id => choose(id)} onClose={() => setPicker(null)} />}
