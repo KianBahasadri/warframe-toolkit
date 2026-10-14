@@ -63,10 +63,12 @@ test('mod ordering, compatibility, capacity and active stacks remain inspectable
     await select(page, `Mod ${i + 1} polarity`, ['Madurai', 'Madurai', 'Madurai', 'Madurai', 'Naramon', 'Vazarin', 'Naramon', 'Naramon'][i]);
   }
   await expect(page.getByRole('meter', { name: 'Viral damage', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Adjust mod 7', exact: true }).click();
   await page.getByRole('button', { name: 'Move mod 7 earlier', exact: true }).click();
   await expect(page.getByRole('meter', { name: 'Gas damage', exact: true })).toBeVisible();
   await expect(page.getByRole('meter', { name: 'Cold damage', exact: true })).toBeVisible();
   await select(page, 'Mod 6 polarity', 'Naramon');
+  await page.getByRole('button', { name: 'Adjust mod 7', exact: true }).click();
   await select(page, 'Mod 7 polarity', 'Vazarin');
   await equip(page, 'Arcane 1', 'Primary Merciless');
   const before = await result(page, 'Damage / projectile').textContent();
@@ -92,6 +94,42 @@ test('mod ordering, compatibility, capacity and active stacks remain inspectable
 
 test.describe('guest workshop', () => {
   test.use({ signedIn: false });
+  test('Arsenal layout and dock equip the selected slot with exact polarity and rank controls', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1100 });
+    await open(page);
+    const aura = await page.getByRole('button', { name: 'Aura: empty', exact: true }).boundingBox();
+    const first = await page.getByRole('button', { name: 'Mod 1: empty', exact: true }).boundingBox();
+    const fourth = await page.getByRole('button', { name: 'Mod 4: empty', exact: true }).boundingBox();
+    const fifth = await page.getByRole('button', { name: 'Mod 5: empty', exact: true }).boundingBox();
+    const arcane = await page.getByRole('button', { name: 'Arcane 1: empty', exact: true }).boundingBox();
+    const stats = await page.getByRole('complementary', { name: 'Arsenal and stats' }).boundingBox();
+    expect(aura!.y + aura!.height).toBeLessThan(first!.y);
+    expect(Math.abs(first!.y - fourth!.y)).toBeLessThan(1);
+    expect(fifth!.y).toBeGreaterThan(first!.y);
+    expect(arcane!.x).toBeGreaterThan(fourth!.x);
+    expect(stats!.x + stats!.width).toBeLessThan(first!.x);
+
+    await page.getByRole('button', { name: 'Adjust mod 5', exact: true }).click();
+    const library = page.getByRole('region', { name: 'Compatible upgrades' });
+    await library.getByRole('searchbox', { name: 'Search compatible upgrades' }).fill('Intensify');
+    await library.getByRole('button', { name: 'Vazarin polarity', exact: true }).click();
+    await expect(library.getByRole('button', { name: 'Install Intensify', exact: true })).toHaveCount(0);
+    await library.getByRole('button', { name: 'Madurai polarity', exact: true }).click();
+    await library.getByRole('button', { name: 'Install Intensify', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Mod 5: Intensify', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Mod 1: empty', exact: true })).toBeVisible();
+    await expect(page.locator('[data-arsenal-stat="Ability strength"]')).toHaveText('130 %');
+    await select(page, 'Mod 5 polarity', 'Madurai');
+    await expect(page.getByRole('button', { name: 'Mod 5: Intensify', exact: true }).locator('.modder-face-drain')).toHaveText('6');
+    await page.getByRole('spinbutton', { name: 'Mod 5 rank', exact: true }).fill('0');
+    await expect(page.locator('[data-arsenal-stat="Ability strength"]')).toHaveText('105 %');
+    await page.getByRole('checkbox', { name: 'Include mod 5', exact: true }).uncheck();
+    await expect(page.locator('[data-arsenal-stat="Ability strength"]')).toHaveText('100 %');
+    await expect(page.getByRole('button', { name: 'Adjust mod 5', exact: true })).toContainText('Excluded');
+    await page.getByRole('button', { name: 'Remove mod 5', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Mod 5: empty', exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Mod 5 polarity', exact: true })).toHaveText('Madurai');
+  });
   test('mobile editing keeps live results available and stores no builds or access keys', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 }); await open(page);
     await equip(page, 'Mod 1', 'Intensify');

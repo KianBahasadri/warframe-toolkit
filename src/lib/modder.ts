@@ -5,6 +5,7 @@ import type { ArsenalBuild, ArsenalSlot, EquipmentBuild, ModderConditions, Polar
 
 export interface Upgrade {
   id: string; name: string; type: string; compat: string; polarity: string; drain: number;
+  rarity?: string; image?: string;
   maxRank: number; exilus: boolean; set: boolean; ranks: string[][]; url: string;
 }
 export const modderData = snapshot;

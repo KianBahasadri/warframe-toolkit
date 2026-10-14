@@ -1,4 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { parseDocument } from 'htmlparser2';
 
 // Reuse the equipment snapshot's revisions so a refresh cannot mix game versions.
@@ -27,8 +28,10 @@ for (const item of mods) {
   const previous = byName.get(item.name);
   if (!previous || item.uniqueName.length < previous.uniqueName.length) byName.set(item.name, item);
 }
+const imagePath = name => `/images/mods/${createHash('sha256').update(name).digest('hex').slice(0, 16)}.${name.split('.').at(-1).toLowerCase()}`;
 const upgrade = item => ({
   id: item.uniqueName, name: item.name, type: item.type, compat: item.compatName ?? '',
+  rarity: item.rarity ?? '', image: item.imageName ? imagePath(item.imageName) : '',
   polarity: item.polarity ?? '', drain: item.baseDrain ?? 0,
   maxRank: item.fusionLimit ?? item.levelStats.length - 1,
   exilus: Boolean(item.isExilus || item.isUtility), set: Boolean(item.modSet),
@@ -56,5 +59,19 @@ const data = { source, rankSource, retrievedAt: new Date().toISOString(),
   frames: frameData,
 };
 if (data.mods.length < 600 || data.arcanes.length < 60 || frameData.filter(frame => frame.verified).length < 80) throw new Error('Incomplete Modding Calculator source data; snapshot kept.');
+// Keep artwork local so opening the workshop never contacts an image service.
+await mkdir(new URL('../public/images/mods/', import.meta.url), { recursive: true });
+const wanted = new Set([...data.mods, ...data.arcanes].map(item => item.id));
+const images = [...new Set([...mods, ...arcanes].filter(item => wanted.has(item.uniqueName)).map(item => item.imageName).filter(Boolean))];
+let cursor = 0;
+await Promise.all(Array.from({ length: 6 }, async () => {
+  while (cursor < images.length) {
+    const name = images[cursor++], file = new URL(`../public${imagePath(name)}`, import.meta.url);
+    try { await access(file); continue; } catch { /* Download uncached artwork. */ }
+    const response = await fetch(`${raw}/data/img/${encodeURIComponent(name)}`, { signal: AbortSignal.timeout(60_000) });
+    if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) throw new Error(`Missing mod artwork: ${name}`);
+    await writeFile(file, Buffer.from(await response.arrayBuffer()));
+  }
+}));
 await writeFile(new URL('../src/data/modder.json', import.meta.url), JSON.stringify(data) + '\n');
 console.log(`Saved ${data.mods.length} mods, ${data.arcanes.length} arcanes, ${frameData.length} Warframes (${frameData.filter(frame => frame.verified).length} with sourced rank bonuses).`);
