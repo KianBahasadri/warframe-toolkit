@@ -28,7 +28,6 @@ export function ModderLibrary({ target, item, slot, equipment, conditions, onCho
   const title = isEquipment ? `Choose ${slot.toLowerCase()}` : arcane ? 'Choose arcane' : target.kind === 'special' ? `Choose ${slot === 'Warframe' ? 'aura' : 'stance'}` : 'Choose mod';
   const coverageFilter = <label><input type="checkbox" checked={calculated} onChange={event => { setCalculated(event.target.checked); setLimit(40); }} />Fully calculated only</label>;
   const content = <>
-    {inline && <div className="modder-library-heading"><h2>{arcane ? 'Arcanes' : 'Mods'}</h2><span>Equip to <strong>{targetLabel(target, slot)}</strong></span>{coverageFilter}<span role="status">{matches.length} compatible</span></div>}
     <div className="modder-library-filters">
       <label className="search-field"><Search size={16} aria-hidden="true" /><input type="search" aria-label={inline ? 'Search compatible upgrades' : isEquipment ? 'Search equipment' : 'Search mods and effects'} placeholder="Search…" value={query} onChange={event => { setQuery(event.target.value); setLimit(40); }} autoFocus={!inline} /></label>
       {!isEquipment && !arcane && <div className="modder-polarity-filters" role="group" aria-label="Filter by polarity">
@@ -38,14 +37,15 @@ export function ModderLibrary({ target, item, slot, equipment, conditions, onCho
       {!isEquipment && <Select label="Sort upgrades" value={sort} options={[{ value: 'name', label: 'Name' }, { value: 'drain', label: 'Drain' }]} onChange={setSort} />}
     </div>
     {!inline && <div className="modder-library-tools"><span className="small muted" role="status">{matches.length} results</span>{!isEquipment && coverageFilter}</div>}
-    <div className={`modder-library-list${isEquipment ? ' is-equipment' : ''}`}>{matches.slice(0, limit).map(entry => {
+    <div className={`modder-library-list${isEquipment ? ' is-equipment' : ''}`} tabIndex={inline ? 0 : undefined}>{matches.slice(0, limit).map(entry => {
       const mod = isEquipment ? undefined : entry as Upgrade;
       const effects = mod ? upgradeEffects({ ...emptyUpgrade(), id: mod.id, rank: mod.maxRank }, conditions) : undefined;
       const conflict = mod && (arcane ? equipment.arcanes.some(arc => arc !== installed && arc.id === mod.id) : occupied.includes(modFamily(mod)));
-      return <button type="button" key={entry.id} className="modder-library-result" aria-label={`${inline ? 'Install' : 'Equip'} ${entry.name}`} title={mod ? `${entry.name}\n${rankText(mod, mod.maxRank)}${conflict ? '\nConflicts with an equipped upgrade' : ''}` : entry.name} disabled={disabled || Boolean(conflict)} onClick={() => onChoose(entry.id)}>
+      return <button type="button" key={entry.id} className="modder-library-result" aria-label={`${inline ? 'Install' : 'Equip'} ${entry.name}`} title={mod ? `${entry.name}\n${rankText(mod, mod.maxRank)}${conflict ? '\nConflicts with an equipped upgrade' : effects!.omitted.length ? '\n' + (effects!.effects.length ? 'Partly calculated' : 'Reference only') : ''}` : entry.name} disabled={disabled || Boolean(conflict)} onClick={() => onChoose(entry.id)}>
         {mod ? <><UpgradeFace mod={mod} rank={mod.maxRank} drain={Math.abs(mod.drain) + mod.maxRank} polarity={mod.polarity} label={mod.rarity ?? ''} arcane={arcane} /><span className="modder-library-description">{rankText(mod, mod.maxRank)}</span><span className="modder-library-coverage">{conflict ? 'Already equipped / conflicts' : effects!.omitted.length ? effects!.effects.length ? 'Partly calculated' : 'Reference only' : 'Calculated'}</span></> : <>{(entry as CatalogItem).image && <img src={(entry as CatalogItem).image} alt="" loading="lazy" />}<span><strong>{entry.name}</strong><small>{(entry as CatalogItem).weaponType} · {(entry as CatalogItem).variant}</small></span></>}
       </button>;
     })}</div>
+    {inline && <div className="modder-library-heading"><h2>{arcane ? 'Arcanes' : 'Mods'}</h2><span>Equip to <strong>{targetLabel(target, slot)}</strong></span>{coverageFilter}<span role="status">{matches.length} compatible</span></div>}
     {!matches.length && <p className="small muted">No compatible results. Try another name or clear the filters.</p>}
     {matches.length > limit && <button type="button" className="button secondary" onClick={() => setLimit(limit + 40)}>Show more</button>}
   </>;

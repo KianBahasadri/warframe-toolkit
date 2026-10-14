@@ -140,24 +140,26 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
       <button type="button" className="button secondary" disabled={disabled || builds.length >= 100} onClick={() => { const next = starter(); next.name = `Arsenal ${builds.length + 1}`; save(next); }}><Plus size={16} aria-hidden="true" />New arsenal</button>
       <button type="button" className="button secondary" disabled={disabled || builds.length >= 100} onClick={() => { const next = structuredClone(build); next.id = crypto.randomUUID(); next.name = `${build.name.slice(0, 93)} (copy)`; if (!builds.some(saved => saved.id === build.id)) { if (onSave([build, next])) { setSelected(next.id); setCompareId(build.id); } } else { save(next); setCompareId(build.id); } }}><Copy size={16} aria-hidden="true" />Duplicate</button>
     </div></div>
-    <div className="modder-name-row"><ArsenalName key={build.id} name={build.name} disabled={disabled} onChange={name => save({ ...build, name })} />{builds.length > 1 && <Select label="Compare with arsenal" value={compareBuild?.id ?? ''} options={[{ value: '', label: 'No comparison' }, ...builds.filter(entry => entry.id !== build.id).map(entry => ({ value: entry.id, label: `Compare: ${entry.name}` }))]} onChange={setCompareId} />}{builds.some(entry => entry.id === build.id) && <button type="button" className="button quiet" disabled={disabled} onClick={() => { const remaining = builds.filter(entry => entry.id !== build.id); if (onSave(remaining)) { setSelected(remaining[0]?.id ?? ''); setCompareId(''); } }}>Delete arsenal</button>}</div>
+    <div className="modder-equipment-bar">
+      <div className="modder-arsenal" role="group" aria-label="Arsenal equipment">{arsenalSlots.map(key => {
+        const selectedItem = items.get(build.equipment[key].id);
+        return <button type="button" key={key} aria-label={`Edit ${key.toLowerCase()}`} aria-pressed={slot === key} onClick={() => changeSlot(key)}>
+          <span><strong>{selectedItem?.name ?? 'Choose equipment'}</strong><small>{key} · {build.equipment[key].mods.filter(mod => mod.id).length} / 8 mods</small></span>{selectedItem?.image && <img src={selectedItem.image} alt="" />}
+        </button>;
+      })}</div>
+      <button type="button" className="button modder-swap" disabled={disabled} onClick={() => setPicker({ kind: 'equipment', index: 0 })}>Swap {slot.toLowerCase()}<ArrowRight size={14} aria-hidden="true" /></button>
+    </div>
     <div className="modder-workspace">
       <aside className="modder-arsenal-panel" aria-label="Arsenal and stats">
-        <div className="modder-arsenal" role="group" aria-label="Arsenal equipment">{arsenalSlots.map(key => {
-          const selectedItem = items.get(build.equipment[key].id);
-          return <button type="button" key={key} aria-label={`Edit ${key.toLowerCase()}`} aria-pressed={slot === key} onClick={() => changeSlot(key)}>
-            <span><strong>{selectedItem?.name ?? 'Choose equipment'}</strong><small>{key} · {build.equipment[key].mods.filter(mod => mod.id).length} / 8 mods</small></span>{selectedItem?.image && <img src={selectedItem.image} alt="" />}
-          </button>;
-        })}</div>
-        <button type="button" className="button modder-swap" disabled={disabled} onClick={() => setPicker({ kind: 'equipment', index: 0 })}>Swap {slot.toLowerCase()}<ArrowRight size={14} aria-hidden="true" /></button>
         <div className="modder-stat-panel">
           <div className="modder-capacity"><div><span>Capacity</span><strong className={cap.used > cap.total ? 'error-text' : ''}>{cap.total - cap.used} / {cap.total}</strong></div><progress aria-label="Mod capacity remaining" value={Math.max(0, cap.total - cap.used)} max={Math.max(1, cap.total)} /><span>{cap.used} used · {cap.total - cap.used < 0 ? `${cap.used - cap.total} over` : `${cap.total - cap.used} remaining`}</span></div>
           {statGroups.map((group, index) => <div className="modder-stat-group" key={index}>{index === 1 && <h2>{slot === 'Warframe' ? 'Ability' : 'Damage'}</h2>}<dl>{group.map(label => { const step = result.steps.find(step => step.label === label); return step && <div key={label}><dt>{label.replace('Ability ', '')}</dt><dd data-arsenal-stat={label}>{valueText(step)}</dd></div>; })}</dl></div>)}
           <span className="modder-stats-note">{slot === 'Warframe' ? Object.keys(equipment.overrides).length ? 'Custom base stats' : 'Rank 30 base stats' : 'Modeled results'}</span>
+          <div className="modder-capacity-options"><label><input type="checkbox" checked={equipment.doubled} disabled={disabled} onChange={event => updateEquipment({ ...equipment, doubled: event.target.checked })} />{slot === 'Warframe' ? 'Orokin Reactor' : 'Orokin Catalyst'}</label><Numeric label="Base capacity" value={equipment.capacity} max={40} onChange={capacity => updateEquipment({ ...equipment, capacity })} disabled={disabled} /><span className="small muted">{cap.bonus > 0 && `+${cap.bonus} from ${slot === 'Warframe' ? 'aura' : 'stance'}`}</span></div>
         </div>
       </aside>
       <div className="modder-editor">
-        <div className="modder-config-bar"><strong>{build.name}</strong><span>{slot === 'Warframe' ? 'Warframe' : item?.weaponType}</span><button type="button" className="button quiet" onClick={() => { const results = document.getElementById('modder-results'); results?.scrollIntoView({ block: 'start' }); results?.focus({ preventScroll: true }); }}>Calculations<ArrowRight size={14} aria-hidden="true" /></button></div>
+        <div className="modder-config-bar modder-name-row"><ArsenalName key={build.id} name={build.name} disabled={disabled} onChange={name => save({ ...build, name })} /><button type="button" className="button quiet" onClick={() => { const results = document.getElementById('modder-results'); results?.scrollIntoView({ block: 'start' }); results?.focus({ preventScroll: true }); }}>Calculations<ArrowRight size={14} aria-hidden="true" /></button>{builds.length > 1 && <Select label="Compare with arsenal" value={compareBuild?.id ?? ''} options={[{ value: '', label: 'No comparison' }, ...builds.filter(entry => entry.id !== build.id).map(entry => ({ value: entry.id, label: `Compare: ${entry.name}` }))]} onChange={setCompareId} />}{builds.some(entry => entry.id === build.id) && <button type="button" className="button quiet" disabled={disabled} onClick={() => { const remaining = builds.filter(entry => entry.id !== build.id); if (onSave(remaining)) { setSelected(remaining[0]?.id ?? ''); setCompareId(''); } }}>Delete arsenal</button>}</div>
         {item && <>
           <div className="modder-upgrade-stage">
             {item.image && <img className="modder-equipment-backdrop" src={item.image} alt="" />}
@@ -171,12 +173,13 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
           </div>
           {slot !== 'Warframe' && <p className="modder-order-note">Elements combine in slot order, 1–8.</p>}
           {!!problems.length && <div className="callout caution"><strong>Build needs attention:</strong> {problems.join(' ')}</div>}
-          <UpgradeControls label={targetLabel(active, slot)} kind={active.kind} index={active.index} value={selectedUpgrade} conditions={build.conditions} disabled={disabled} onChange={value => editUpgrade(active.kind, active.index, value)} onPick={() => setPicker(active)} onMove={active.kind === 'mod' ? direction => moveMod(active.index, direction) : undefined} />
-          <div className="modder-capacity-options"><label><input type="checkbox" checked={equipment.doubled} disabled={disabled} onChange={event => updateEquipment({ ...equipment, doubled: event.target.checked })} />{slot === 'Warframe' ? 'Orokin Reactor' : 'Orokin Catalyst'}</label><Numeric label="Base capacity" value={equipment.capacity} max={40} onChange={capacity => updateEquipment({ ...equipment, capacity })} disabled={disabled} /><span className="small muted">{cap.bonus > 0 && `+${cap.bonus} from ${slot === 'Warframe' ? 'aura' : 'stance'}`}</span></div>
         </>}
       </div>
     </div>
     {item && <ModderLibrary key={`${slot}-${active.kind}`} inline target={active} item={item} slot={slot} equipment={equipment} conditions={build.conditions} disabled={disabled} onChoose={id => choose(id, active)} />}
+    {item && <div className="modder-inspector">
+      <UpgradeControls label={targetLabel(active, slot)} kind={active.kind} index={active.index} value={selectedUpgrade} conditions={build.conditions} disabled={disabled} onChange={value => editUpgrade(active.kind, active.index, value)} onPick={() => setPicker(active)} onMove={active.kind === 'mod' ? direction => moveMod(active.index, direction) : undefined} />
+    </div>}
     <div className="modder-lower-workspace"><div className="modder-settings-column">
       {item && <>
         <Conditions value={build.conditions} onChange={conditions => save({ ...build, conditions })} disabled={disabled} slot={slot} />
