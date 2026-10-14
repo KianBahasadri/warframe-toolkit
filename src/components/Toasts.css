@@ -7,6 +7,7 @@
 .toast[data-tone="caution"] { border-radius: 4px; }
 .toast.is-archived { opacity: .2; transform: translate(18px,42px); box-shadow: 0 2px 6px rgba(0,0,0,.25); }
 .toast-container:hover .toast.is-archived, .toast-container:focus-within .toast.is-archived { opacity: .86; transform: translate(0,0); }
+.toast-container .toast.is-archived:hover, .toast-container .toast.is-archived:focus-within { opacity: 1; }
 @keyframes toast-enter { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .toast-main { align-self: stretch; flex: 1; min-width: 0; padding: 12px 16px; display: flex; align-items: center; gap: 14px; text-align: left; background: transparent; border: 0; }
 .toast-main:hover { background: var(--surface); }

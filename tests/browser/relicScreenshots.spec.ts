@@ -13,10 +13,13 @@ const synthetic = [
 ];
 
 async function screenshot(page: Page) {
-  const base64 = await page.evaluate(stacks => {
+  const base64 = await page.evaluate(async stacks => {
+    // Use the bundled font: system Arial fallbacks change the OCR input on CI.
+    const font = '24px "IBM Plex Sans"';
+    if (!(await document.fonts.load(font)).length) throw new Error('Screenshot fixture font did not load.');
     const canvas = document.createElement('canvas'); canvas.width = 1100; canvas.height = 760;
     const ctx = canvas.getContext('2d')!; ctx.fillStyle = '#101418'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#e0c878'; ctx.font = '24px Arial';
+    ctx.fillStyle = '#e0c878'; ctx.font = font;
     stacks.forEach((stack, index) => {
       const center = 180 + index % 3 * 300, bottom = 300 + Math.floor(index / 3) * 340;
       ctx.textAlign = 'center'; ctx.fillText(`${stack.name} Relic`, center, bottom - (stack.refinement === 'Intact' ? 0 : 32));
