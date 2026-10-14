@@ -55,7 +55,7 @@ test('plan dropdown supports keyboard traversal, escape, tab, pointer exit, and 
   await trigger.press('ArrowUp'); await expect(last).toBeFocused();
   await last.press('Shift+Tab'); await expect(trigger).toBeFocused(); await expect(menu).toHaveCount(0);
   await trigger.press('Space'); await expect(first).toBeFocused();
-  await first.press('Tab'); await expect(page.getByRole('link', { name: 'Modder', exact: true })).toBeFocused();
+  await first.press('Tab'); await expect(page.getByRole('link', { name: 'Modding Calculator', exact: true })).toBeFocused();
   await expect(menu).toHaveCount(0);
   await trigger.hover(); await expect(menu).toBeVisible();
   await page.getByRole('heading', { name: 'Choose an item', exact: true }).hover();

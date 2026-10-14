@@ -55,6 +55,6 @@ const data = { source, rankSource, retrievedAt: new Date().toISOString(),
   arcanes: arcanes.filter(item => /^(Warframe|Primary|Secondary|Melee|Shotgun|Bow) Arcane$/.test(item.type) && item.levelStats?.length).map(upgrade).sort((a, b) => a.name.localeCompare(b.name)),
   frames: frameData,
 };
-if (data.mods.length < 600 || data.arcanes.length < 60 || frameData.filter(frame => frame.verified).length < 80) throw new Error('Incomplete Modder source data; snapshot kept.');
+if (data.mods.length < 600 || data.arcanes.length < 60 || frameData.filter(frame => frame.verified).length < 80) throw new Error('Incomplete Modding Calculator source data; snapshot kept.');
 await writeFile(new URL('../src/data/modder.json', import.meta.url), JSON.stringify(data) + '\n');
 console.log(`Saved ${data.mods.length} mods, ${data.arcanes.length} arcanes, ${frameData.length} Warframes (${frameData.filter(frame => frame.verified).length} with sourced rank bonuses).`);

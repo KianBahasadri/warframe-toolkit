@@ -31,7 +31,7 @@ const Relics = lazy(() => import('./components/Relics').then(module => ({ defaul
 const Modder = lazy(() => import('./components/Modder').then(module => ({ default: module.Modder })));
 const Crafting = lazy(() => import('./components/Crafting').then(module => ({ default: module.Crafting })));
 
-const pageNames: Record<Page, string> = { weapons: 'Weapons', warframes: 'Warframes', relics: 'Relics', droptables: 'Drop Tables', crafting: 'Crafting', modder: 'Modder', import: 'Screenshot import' };
+const pageNames: Record<Page, string> = { weapons: 'Weapons', warframes: 'Warframes', relics: 'Relics', droptables: 'Drop Tables', crafting: 'Crafting', modder: 'Modding Calculator', import: 'Screenshot import' };
 const collectionTabs = [{ key: 'weapons', icon: weaponsIcon }, { key: 'warframes', icon: warframesIcon }, { key: 'relics', icon: relicsIcon }, { key: 'droptables', icon: '' }, { key: 'crafting', icon: '' }, { key: 'modder', icon: '' }] as const;
 
 function pageFromHash(): Page {
@@ -168,7 +168,7 @@ export default function App() {
           return true;
         }} />}
         {page === 'droptables' && <DropTables actionsRef={dropActions} savedViews={account.profile.dropViews} savedViewsError={account.viewsError} canSave={Boolean(account.user)} onSaveViews={account.commitViews} onSignIn={() => setAccountOpen('login')} />}
-        {page === 'modder' && <Suspense fallback={<p role="status" className="small muted">Loading Modder…</p>}><Modder key={account.user?.id ?? 'guest'} builds={account.profile.arsenals} onSave={account.commitArsenals} canSave={Boolean(account.user)} disabled={account.checking || account.unreadable} onSignIn={() => setAccountOpen('login')} /></Suspense>}
+        {page === 'modder' && <Suspense fallback={<p role="status" className="small muted">Loading Modding Calculator…</p>}><Modder key={account.user?.id ?? 'guest'} builds={account.profile.arsenals} onSave={account.commitArsenals} canSave={Boolean(account.user)} disabled={account.checking || account.unreadable} onSignIn={() => setAccountOpen('login')} /></Suspense>}
         {page === 'crafting' && <Suspense fallback={<p role="status" className="small muted">Loading crafting…</p>}><Crafting key={account.user?.id ?? 'guest'} plans={account.profile.craftingPlans} selected={craftingPlan} onSelect={setCraftingPlan} onSave={account.commitCrafting} canSave={Boolean(account.user)} disabled={account.checking || account.unreadable} onSignIn={() => setAccountOpen('login')} /></Suspense>}
       </main>
     </div>

@@ -18,7 +18,7 @@ const result = (page: Page, label: string) => page.locator(`[data-result="${labe
 
 test('whole loadout ranks, shared arcanes, formulas and comparisons save without changing inventory', async ({ page, account }) => {
   await open(page); const before = await account.profile();
-  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link').last()).toHaveText('Modder');
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link').last()).toHaveText('Modding Calculator');
   await page.getByRole('textbox', { name: 'Arsenal name', exact: true }).fill('');
   await expect(page.getByRole('textbox', { name: 'Arsenal name', exact: true })).toHaveValue('');
   await page.getByRole('textbox', { name: 'Arsenal name', exact: true }).fill('Workshop A');
@@ -51,7 +51,7 @@ test('whole loadout ranks, shared arcanes, formulas and comparisons save without
   await select(page, 'Arsenal build', 'Workshop A (copy)');
   await page.getByRole('button', { name: 'Edit primary', exact: true }).click();
   await expect(page.getByRole('spinbutton', { name: 'Mod 1 rank', exact: true })).toHaveValue('10');
-  await page.getByRole('link', { name: 'Weapons', exact: true }).click(); await page.getByRole('link', { name: 'Modder', exact: true }).click();
+  await page.getByRole('link', { name: 'Weapons', exact: true }).click(); await page.getByRole('link', { name: 'Modding Calculator', exact: true }).click();
   expect((await account.profile()).arsenals).toHaveLength(2);
 });
 
@@ -113,7 +113,7 @@ test.describe('guest workshop', () => {
     await page.screenshot({ path: 'test-results/modder-mobile-picker-light.png', fullPage: true });
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Mod 1: Serration', exact: true })).toBeFocused();
-    await page.getByRole('link', { name: 'Weapons', exact: true }).click(); await page.getByRole('link', { name: 'Modder', exact: true }).click();
+    await page.getByRole('link', { name: 'Weapons', exact: true }).click(); await page.getByRole('link', { name: 'Modding Calculator', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Mod 1: Intensify', exact: true })).toBeVisible();
     expect(await page.evaluate(() => Object.keys(localStorage).filter(key => /arsenal|modder|key/i.test(key) && key !== 'arsenal.theme'))).toEqual([]);
     page.on('dialog', dialog => void dialog.accept()); await page.reload();

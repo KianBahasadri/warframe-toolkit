@@ -29,7 +29,7 @@ export const newArsenal = (): ArsenalBuild => ({
 export const overrideKeys = ['health', 'shield', 'armor', 'energy', 'criticalChance', 'criticalMultiplier', 'procChance', 'fireRate', 'magazineSize', 'reloadTime', 'multishot'] as const;
 
 export function validateArsenals(value: unknown): ArsenalBuild[] {
-  const fail = (): never => { throw new Error('Modder builds could not be read. The original data has been kept.'); };
+  const fail = (): never => { throw new Error('Modding Calculator builds could not be read. The original data has been kept.'); };
   const object = (v: unknown): v is Record<string, unknown> => Boolean(v && typeof v === 'object' && !Array.isArray(v));
   const string = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max;
   const number = (v: unknown, min: number, max: number, integer = false): v is number => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max && (!integer || Number.isInteger(v));
