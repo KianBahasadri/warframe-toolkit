@@ -4,7 +4,7 @@ User-supplied English 1920 × 1200 screenshots; artwork © Digital Extremes. Tes
 
 - `inventory-screenshots.json`: 37 names/ranks across two Inventory images; Vasto is rank 0, all others rank 30.
 - `codex-screenshot.json`: 32 names/mastery laurels; establishes neither ownership nor rank.
-- `relic-screenshot.json`: 20 relic names/refinements/counts. `relic-ocr-lines.json` retains OCR text/positions; the user's original image was removed after validation.
+- `relic-screenshot.json`: 20 relic names/refinements/counts. `relic-ocr-lines.json` retains the original OCR text/positions. `relic-ocr-browser-lines.json` retains a Chromium reread of the supplied image, including `Axi $21` / `Axi 521` misreadings of Axi S21 and surrounding artwork noise. Neither trace contains image pixels; the user's image is not kept in the repository.
 
 Browser tests require exact variants and no extra matches; cover review, duplicate imports, persistence, and a resized/offset Codex image with obscured/false badges. Other capture conditions remain unverified. [Screenshot/mask provenance](../../public/images/import/SOURCES.md).
 

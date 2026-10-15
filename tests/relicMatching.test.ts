@@ -23,6 +23,39 @@ test('actual relic OCR text resolves all twenty stacks with quantities tied to t
   assert.equal(new Set(result.map(item => relicKey({ name: item.name, refinement: item.refinement! }))).size, 20);
 });
 
+test('browser OCR of the supplied screenshot suggests S for a misread dollar sign and requires review', () => {
+  const browserSample = read('./fixtures/relic-ocr-browser-lines.json');
+  const result = detect(browserSample.lines, browserSample.imageSize);
+  assert.deepEqual(fields(result), expected);
+  const corrected = result.find(item => item.name === 'Axi S21')!;
+  assert.match(corrected.rawText, /Axi \$21 Relic/);
+  assert.ok(corrected.issues.includes('Check name'));
+  assert.equal(corrected.selected, false);
+  assert.ok(result.filter(item => item.quantity === 1).every(item => !item.selected && item.issues.includes('Confirm quantity 1')));
+});
+
+test('relic glyph suggestions preserve exact variants, catalog membership and conflicting readings', () => {
+  const label = sample.lines.find(line => line.text === 'Axi S21 Relic')!;
+  const match = (...text: string[]) => detect(text.map((text, index) => ({ ...label, text, confidence: 99 - index, pass: index })));
+  assert.equal(match('Axi $21 Relic')[0].name, 'Axi S21');
+  assert.equal(match('Axi $ 2 1 Relic')[0].name, 'Axi S21');
+  for (const text of ['Axi $99999 Relic', 'Axi 521 Relic', 'Axi S2I Relic', 'Axi $2I Relic', 'Requiem $21 Relic']) {
+    const result = match(text)[0];
+    assert.equal(result.name, '', text);
+    assert.ok(result.issues.includes('Check name'), text);
+    assert.equal(result.selected, false, text);
+  }
+  assert.deepEqual(match('Axi $21 Rellc'), []);
+  const exact = match('Axi $21 Relic', 'Axi S21 Relic')[0];
+  assert.equal(exact.name, 'Axi S21');
+  assert.equal(exact.rawText, 'Axi S21 Relic');
+  assert.ok(!exact.issues.includes('Check name'));
+  const conflict = match('Axi $21 Relic', 'Axi S2 Relic')[0];
+  assert.equal(conflict.name, 'Axi S2');
+  assert.ok(conflict.issues.includes('Check name'));
+  assert.equal(conflict.selected, false);
+});
+
 test('geometry tolerates scaled and offset OCR coordinates without using screen totals as counts', () => {
   const lines = sample.lines.map(line => ({ ...line, bbox: line.bbox && { x0: line.bbox.x0 * 0.7 + 40, x1: line.bbox.x1 * 0.7 + 40, y0: line.bbox.y0 * 0.7 + 25, y1: line.bbox.y1 * 0.7 + 25 } }));
   lines.push({ text: 'COLLECTED 46/799 RADIANT 17/799', confidence: 99, bbox: { x0: 500, y0: 90, x1: 950, y1: 115 } });

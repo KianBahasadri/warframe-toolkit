@@ -28,8 +28,13 @@ function readName(line: OcrLine, names: Map<string, string>) {
   const complete = nameLabel.exec(clean(line.text));
   const match = complete ?? /^(Lith|Meso|Neo|Axi|Requiem|Vanguard)\s+([A-Z]\d+|[IV]+|Eterna)\s+(.+)$/i.exec(clean(line.text));
   if (!match) return null;
-  const parsed = parseRelicName(`${match[1]} ${match[2].replace(/\s+/g, '')}`);
-  return { name: parsed && names.get(parsed.name.toLowerCase()) || '', tail: match[3].trim(), complete: Boolean(complete) };
+  const code = match[2].replace(/\s+/g, '');
+  // The game's S can read as $. Only suggest that single glyph correction
+  // before digits in a complete label, and still require name review. Never
+  // substitute letters/digits in an otherwise valid relic code.
+  const corrected = Boolean(complete) && /^\$\d+$/.test(code);
+  const parsed = parseRelicName(`${match[1]} ${corrected ? `S${code.slice(1)}` : code}`);
+  return { name: parsed && names.get(parsed.name.toLowerCase()) || '', tail: match[3].trim(), complete: Boolean(complete), corrected };
 }
 
 /** Match text within its grid position; never attach the screen's totals or a
@@ -44,7 +49,8 @@ export function matchRelicOcrLines(lines: OcrLine[], catalogNames: string[], fil
       && Math.abs(middleY(line) - middleY(other)) < Math.max(height(line), height(other)) * 1.2));
     if (group) group.push(line); else groups.push([line]);
   }
-  const best = groups.map(group => [...group].sort((a, b) => Number(Boolean(readName(b, names)?.name)) - Number(Boolean(readName(a, names)?.name)) || b.confidence - a.confidence)[0]);
+  const best = groups.map(group => [...group].sort((a, b) => Number(Boolean(readName(b, names)?.name)) - Number(Boolean(readName(a, names)?.name))
+    || Number(readName(a, names)?.corrected) - Number(readName(b, names)?.corrected) || b.confidence - a.confidence)[0]);
   if (!best.length) return [];
   const textHeight = median(best.map(height));
   const rows: LocatedLine[][] = [];
@@ -62,7 +68,7 @@ export function matchRelicOcrLines(lines: OcrLine[], catalogNames: string[], fil
     const parsed = readName(line, names)!;
     const issues: string[] = [];
     const recognizedNames = new Set(group.map(line => readName(line, names)?.name).filter(Boolean));
-    if (!parsed.name || !parsed.complete || recognizedNames.size > 1 || line.confidence < 65) issues.push('Check name');
+    if (!parsed.name || !parsed.complete || parsed.corrected || recognizedNames.size > 1 || line.confidence < 65) issues.push('Check name');
     const row = rows.find(row => row.includes(line))!;
     const bottom = Math.max(...row.map(line => line.bbox.y1));
     const rowCounters = columnStep ? located.filter(counter => /^[x×]\s*[\d,]+$/i.test(clean(counter.text)) && counter.confidence >= 65
