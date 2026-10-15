@@ -1,10 +1,9 @@
 @font-face { font-family: 'Bebas Neue'; src: url('/fonts/BebasNeue-Regular.ttf') format('truetype'); font-style: normal; font-weight: 400; font-display: swap; }
 .modder-theme, body:has(.modder-page) > .select-menu {
+  /* Canvas, surfaces, and control backgrounds inherit the shared site palette. */
   --gold: #c5ad62; --gold-bright: #f0dfa1; --gold-line: #796b45;
-  --canvas: #121117; --surface: #1b1921; --surface-raised: #29262c;
   --ink: #e1ded9; --ink-strong: #f4ebd1; --muted: #b1a99e; --faint: #8d867f;
   --line: #39353a; --line-strong: #746649; --control-selected: #b39d58;
-  --action-primary: #403b2c; --action-primary-hover: #514935;
   --accent: var(--gold); --accent-soft: color-mix(in srgb, var(--gold) 12%, transparent);
   --good: #b4e675; --caution: #e4c681; --danger: #f19183;
   --derived: #c9bddf; --radius: 2px; --radius-sm: 2px;
@@ -12,15 +11,11 @@
 }
 :root[data-theme=light] .modder-theme, :root[data-theme=light] body:has(.modder-page) > .select-menu {
   --gold: #776027; --gold-bright: #4b3a13; --gold-line: #af9a6c;
-  --canvas: #eae5db; --surface: #f0ebe2; --surface-raised: #faf6ee;
   --ink: #302e32; --ink-strong: #322811; --muted: #696157; --faint: #777067;
   --line: #cfc5b7; --line-strong: #988351; --control-selected: #8a7135;
-  --action-primary: #e1d6bc; --action-primary-hover: #d4c69f;
   --good: #436a1e; --caution: #775b19; --danger: #aa392d; --derived: #6d568b;
   color-scheme: light;
 }
-.content-shell:has(.modder-page) { background: radial-gradient(ellipse at 68% 25%, #27212d 0, #17161c 35%, #0e1013 76%); }
-:root[data-theme=light] .content-shell:has(.modder-page) { background: radial-gradient(ellipse at 68% 25%, #e0d5c8, #eeebe4 70%); }
 main:has(> .modder-page) { max-width: 1760px; }
 .modder-page { min-width: 0; }
 .modder-theme .button, .modder-theme input:not([type=range]), .modder-theme .select-trigger, .modder-theme textarea { border-radius: 0; }

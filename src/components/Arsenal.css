@@ -3,7 +3,6 @@
 /* Geometry follows the 16:9 in-game Arsenal and Upgrade screens. */
 .modder-theme { --gold: #bfaa61; --gold-bright: #eee0ab; --gold-line: #71643c; font-family: 'Roboto Condensed', var(--ui); }
 .modder-theme button, .modder-theme input, .modder-theme select { font-family: inherit; }
-.content-shell:has(.modder-page) { background: #15151c; }
 main:has(> .modder-page) { max-width: 2200px; padding: 22px 5vw 32px; }
 .modder-game-icon { display: inline-block; flex-shrink: 0; background: currentColor; mask-position: center; mask-size: contain; mask-repeat: no-repeat; vertical-align: middle; }
 .modder-toolbar { min-height: 58px; padding-bottom: 12px; margin-bottom: 30px; border-bottom-color: color-mix(in srgb, var(--gold) 30%, transparent); }
