@@ -55,6 +55,37 @@ test('Arsenal opens first, shows real artwork and abilities, and preserves upgra
   expect(saved.arsenals[0].equipment.Primary.mods[0].id).not.toBe('');
 });
 
+test('Arsenal hover switches equipment and calculations without changing the saved loadout', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await open(page);
+  await equip(page, 'Mod 1', 'Intensify');
+  const saved = await account.profile();
+  await page.getByRole('button', { name: 'Return to Arsenal', exact: true }).click();
+  const calculations = page.getByRole('complementary', { name: 'Calculated results' });
+  await expect(result(page, 'Ability strength')).toHaveText('130 %');
+  for (const [slot, name] of [['primary', 'Braton'], ['secondary', 'Lato'], ['melee', 'Skana']]) {
+    const equipment = page.getByRole('button', { name: `Edit ${slot}`, exact: true });
+    await equipment.hover();
+    await expect(equipment).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.arsenal-equipment-preview img')).toHaveAttribute('alt', name);
+    await expect(page.getByRole('complementary', { name: 'Equipment details' }).getByRole('heading', { name, exact: true })).toBeVisible();
+    await expect(calculations.getByRole('status', { name: 'Build results' })).toBeInViewport();
+    await expect(result(page, 'Damage / projectile')).toBeVisible();
+    await expect(result(page, 'Health')).toHaveCount(0);
+  }
+  await page.getByRole('button', { name: 'Edit warframe', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Edit warframe', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(result(page, 'Ability strength')).toHaveText('130 %');
+  await page.getByRole('button', { name: 'Edit primary', exact: true }).hover();
+  await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Upgrades / Braton', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Return to Arsenal', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit warframe', exact: true }).hover();
+  await expect(result(page, 'Ability strength')).toHaveText('130 %');
+  expect(await account.profile()).toEqual(saved);
+});
+
 test('configuration copies are independent and Remove all preserves slot polarity and other equipment', async ({ page, account }) => {
   await open(page);
   await equip(page, 'Mod 1', 'Intensify');
@@ -291,11 +322,22 @@ test.describe('guest workshop', () => {
     await expect(page.getByRole('button', { name: 'Arcane 1: empty', exact: true }).locator('.modder-empty-arcane')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
-  test('compact Arsenal keeps calculations beside the slots and dock while editing', async ({ page }) => {
+  test('Arsenal and Upgrade keep calculations beside equipment and the editing workspace', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
-    await open(page);
+    await page.goto('/#modder');
+    await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     const calculations = page.getByRole('complementary', { name: 'Calculated results' });
+    for (const width of [1920, 1600, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      const resultsBox = await calculations.boundingBox();
+      const overviewBox = await page.locator('.arsenal-overview').boundingBox();
+      expect(resultsBox!.x).toBeGreaterThan(overviewBox!.x + overviewBox!.width);
+      expect(Math.abs(resultsBox!.y - overviewBox!.y)).toBeLessThan(1);
+      await expect(calculations.getByRole('status', { name: 'Build results' })).toBeInViewport();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
     const library = page.getByRole('region', { name: 'Compatible upgrades' });
     for (const width of [1920, 1600, 1280]) {
       await page.setViewportSize({ width, height: 900 });
@@ -350,7 +392,13 @@ test.describe('guest workshop', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
   test('mobile editing keeps live results available and stores no builds or access keys', async ({ page }) => {
-    await page.setViewportSize({ width: 320, height: 800 }); await open(page);
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto('/#modder');
+    await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole('button', { name: 'Results', exact: true }).click();
+    await expect(page.getByRole('complementary', { name: 'Calculated results' })).toBeFocused();
+    await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
     await equip(page, 'Mod 1', 'Intensify');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByRole('slider', { name: 'Mod 1 rank slider', exact: true }).focus(); await page.keyboard.press('Home');

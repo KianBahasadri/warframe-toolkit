@@ -190,8 +190,8 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
     }
   }}>
     <div className="modder-toolbar"><div className="modder-title"><h1 tabIndex={-1}>{view === 'arsenal' ? 'Arsenal' : <><span>Upgrades /</span> {item?.name ?? slot}</>}</h1></div><span className="modder-session-note">{canSave ? 'Account arsenal' : 'Temporary arsenal'}</span>{view === 'upgrades' && <button type="button" className="modder-game-button modder-header-back" aria-label="Return to Arsenal" onClick={() => navigate('arsenal')}><GameIcon name="back" size={18} />Arsenal</button>}</div>
-    {view === 'arsenal' ? <ArsenalOverview build={build} slot={slot} item={item} name={name} stats={stats} actions={<>{!canSave && <button type="button" className="modder-game-button" onClick={onSignIn}>Sign in to save</button>}{buildActions}</>} disabled={disabled} onSlot={changeSlot} onSwap={() => setPicker({ kind: 'equipment', index: 0 })} onUpgrade={() => navigate('upgrades')} onAbilities={() => setAbilitiesOpen(true)} /> : <>
-    <div className="modder-upgrades-layout">
+    <div className="modder-layout">
+    {view === 'arsenal' ? <ArsenalOverview build={build} slot={slot} item={item} name={name} stats={stats} actions={<>{!canSave && <button type="button" className="modder-game-button" onClick={onSignIn}>Sign in to save</button>}{buildActions}</>} disabled={disabled} onSlot={changeSlot} onSwap={() => setPicker({ kind: 'equipment', index: 0 })} onUpgrade={() => navigate('upgrades')} onAbilities={() => setAbilitiesOpen(true)} /> :
     <div className="modder-workbench">
     <div className="modder-workspace">
       <aside className={`modder-arsenal-panel${slot !== 'Warframe' ? ' is-weapon' : ''}`} aria-label="Arsenal and stats">
@@ -254,11 +254,10 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
       </div></details>
       {!canSave && <button type="button" className="button quiet" onClick={onSignIn}>Sign in to save arsenals</button>}
     </div>
-    </div>
+    </div>}
     <Results key={slot} result={result} compared={compared} compareName={compareBuild?.name} />
     </div>
     {!!result.headline.length && <div className="modder-mobile-results"><span><small>{result.headline[0].label}</small><strong>{valueText(result.headline[0])}</strong></span><span><small>{result.headline[1].label}</small><strong>{valueText(result.headline[1])}</strong></span><button type="button" className="button secondary" onClick={() => { const results = document.getElementById('modder-results'); results?.scrollIntoView({ block: 'start' }); results?.focus({ preventScroll: true }); }}>Results<GameIcon name="forward" size={14} /></button></div>}
-    </>}
     {picker && <ModderLibrary key={`${slot}-${picker.kind}-${picker.index}`} target={picker} item={item} slot={slot} equipment={equipment} conditions={build.conditions} disabled={disabled} onChoose={id => choose(id)} onClose={() => setPicker(null)} />}
     {abilitiesOpen && item && <AbilitiesDialog item={item} onClose={() => setAbilitiesOpen(false)} />}
   </section>;

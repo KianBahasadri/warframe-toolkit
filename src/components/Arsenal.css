@@ -16,7 +16,7 @@ main:has(> .modder-page) { max-width: 2200px; padding: 22px 5vw 32px; }
 .modder-game-footer > :first-child { margin-right: auto; }
 
 /* Arsenal: equipment and actions left, full render center, description and stats right. */
-.arsenal-overview { display: flex; flex-direction: column; min-height: calc(100dvh - 208px); }
+.arsenal-overview { display: flex; flex-direction: column; min-width: 0; min-height: calc(100dvh - 208px); }
 .arsenal-overview-grid { flex: 1; min-height: 560px; position: relative; display: grid; grid-template-columns: 26% minmax(0, 1fr) 23%; gap: 24px; }
 .arsenal-equipment-panel { position: relative; z-index: 2; padding-top: 10px; }
 .arsenal-loadout-name { display: flex; align-items: center; min-width: 0; height: 44px; border: 1px solid var(--gold-line); background: color-mix(in srgb, var(--canvas) 75%, transparent); }
@@ -32,9 +32,9 @@ main:has(> .modder-page) { max-width: 2200px; padding: 22px 5vw 32px; }
 .arsenal-equipment-select > span { display: flex; flex-direction: column; min-width: 0; }
 .arsenal-equipment-select strong { font-size: clamp(20px, 1.6vw, 30px); font-weight: 600; text-transform: uppercase; line-height: 1.1; overflow-wrap: anywhere; }
 .arsenal-equipment-select small { color: var(--ink); font-size: clamp(14px, 1.05vw, 20px); margin-top: 3px; }
-.arsenal-equipment-select img { width: 68px; height: 62px; object-fit: contain; opacity: .8; }
+.arsenal-equipment-select img { width: min(68px, 24%); height: 62px; object-fit: contain; opacity: .8; }
 .arsenal-equipment-row.is-current .arsenal-equipment-select { min-height: 114px; color: var(--gold-bright); border-color: var(--gold); box-shadow: inset 0 -3px var(--gold-bright); background: color-mix(in srgb, var(--gold) 5%, var(--canvas)); }
-.arsenal-equipment-row.is-current img { height: 96px; width: 92px; opacity: 1; }
+.arsenal-equipment-row.is-current img { height: 96px; width: min(92px, 28%); opacity: 1; }
 .arsenal-equipment-select:hover { background: var(--surface-raised); }
 .arsenal-equipment-actions { position: absolute; top: 1px; left: calc(100% + 5px); width: clamp(100px, 8vw, 152px); display: flex; flex-direction: column; gap: 3px; }
 .arsenal-equipment-actions > button { border: 0; border-bottom: 1px solid var(--gold-line); padding: 5px 12px; text-align: left; font-size: clamp(18px, 1.25vw, 24px); font-weight: 600; text-transform: uppercase; color: var(--gold); background: color-mix(in srgb, var(--surface-raised) 80%, transparent); }
@@ -65,7 +65,7 @@ main:has(> .modder-page) { max-width: 2200px; padding: 22px 5vw 32px; }
 main:has(> .modder-page.is-upgrades) { max-width: 1760px; padding: 16px 3vw 32px; }
 .is-upgrades .modder-toolbar { min-height: 48px; margin-bottom: 20px; padding-bottom: 8px; }
 .is-upgrades .modder-title h1 { font-size: clamp(28px, 2.2vw, 40px); }
-.modder-upgrades-layout { display: grid; grid-template-columns: minmax(0, 1fr) clamp(330px, 28vw, 440px); gap: 32px; align-items: start; }
+.modder-layout { display: grid; grid-template-columns: minmax(0, 1fr) clamp(330px, 28vw, 440px); gap: 32px; align-items: start; }
 .modder-workbench { min-width: 0; }
 .modder-workspace { grid-template-columns: clamp(170px, 14vw, 215px) minmax(0, 1fr); gap: 24px; }
 .modder-stat-panel { display: flex; flex-direction: column; min-height: 390px; border: 1px solid color-mix(in srgb, var(--gold-line) 50%, transparent); background: color-mix(in srgb, var(--canvas) 85%, transparent); }
@@ -205,7 +205,7 @@ main:has(> .modder-page.is-upgrades) { max-width: 1760px; padding: 16px 3vw 32px
   .arsenal-overview-grid { min-height: 520px; }
 }
 @media (max-width: 1200px) {
-  .modder-upgrades-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .modder-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .modder-results { position: static; max-height: none; overflow: visible; border-left: 0; border-top: 1px solid var(--gold-line); padding: 24px 0 0; }
 }
 @media (max-width: 1100px) {

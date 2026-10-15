@@ -44,7 +44,7 @@ export function ArsenalOverview({ build, slot, item, name, stats, actions, disab
         <div className="arsenal-equipment-list">{arsenalSlots.map(key => {
           const equipment = build.equipment[key], selectedItem = items.get(equipment.id), selected = key === slot;
           return <div key={key} className={`arsenal-equipment-row${selected ? ' is-current' : ''}`}>
-            <button type="button" className="arsenal-equipment-select" aria-label={`Edit ${key.toLowerCase()}`} aria-pressed={selected} onClick={() => onSlot(key)}>
+            <button type="button" className="arsenal-equipment-select" aria-label={`Edit ${key.toLowerCase()}`} aria-pressed={selected} onPointerMove={event => { if (event.pointerType === 'mouse' && !selected) onSlot(key); }} onClick={() => onSlot(key)}>
               <span><strong>{selectedItem?.name ?? `Choose ${key.toLowerCase()}`}</strong><small>{key} · {equipment.mods.filter(mod => mod.id).length} / 8 mods</small></span>
               {selectedItem?.image && <img src={selectedItem.image} alt="" draggable={false} />}
             </button>
