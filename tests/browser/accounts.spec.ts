@@ -391,9 +391,13 @@ test.describe('generated keys and personal bookmarks', () => {
     expect(link).not.toBe(oldLink);
     expect(await account.session()).toEqual(previous);
     await signOut(page, 'RotateTenno');
+    const rejectedLogin = page.waitForResponse(response => response.url().endsWith('/api/account/login') && response.request().method() === 'POST');
     await page.goto(oldLink);
+    expect((await rejectedLogin).status()).toBe(401);
     await expect(page.getByRole('alert')).toHaveText('Username or access key is incorrect.');
+    const acceptedLogin = page.waitForResponse(response => response.url().endsWith('/api/account/login') && response.request().method() === 'POST');
     await page.goto(link);
+    expect((await acceptedLogin).status()).toBe(200);
     await expect(page.getByRole('button', { name: 'Account: RotateTenno', exact: true })).toBeVisible();
     expect(await account.session()).toEqual(previous);
   });

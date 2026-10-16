@@ -296,7 +296,10 @@ test.describe('touch column dragging', () => {
     await expect.poll(() => order(page)).toEqual(['name', 'wfm', 'rank', 'owned', ...equipmentOrder.slice(4)]);
     await expect(menu(page)).toHaveCount(0);
     await expect(page.locator('.column-drag-layer')).toHaveCount(0);
-    await header(page, 'Rank').getByRole('button').tap();
+    const button = (await header(page, 'Rank').getByRole('button').boundingBox())!;
+    // Keep the next gesture on the same session and finish touchstart before touchend.
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: button.x + button.width / 2, y: button.y + button.height / 2 }] });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect(menu(page)).toBeVisible();
     await session.detach();
   });
