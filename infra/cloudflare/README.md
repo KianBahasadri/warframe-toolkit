@@ -1,6 +1,6 @@
 # Cloudflare deployment
 
-Terraform manages [bahasadri.com](https://bahasadri.com): Worker/assets, D1 accounts, Durable Objects, migrations, schedules, routing, DNS, and private R2 state. Deploy only through Terraform; no dashboard creation or `wrangler deploy`. Local and hosted accounts remain separate.
+Terraform manages [bahasadri.com](https://bahasadri.com): Worker/assets, D1 accounts, Durable Objects, migrations, schedules, routing, DNS, an Azure WFM relay, and private R2 state. Deploy only through Terraform; no dashboard creation or `wrangler deploy`. Local and hosted accounts remain separate.
 
 ## Setup
 
@@ -14,6 +14,10 @@ Set `CLOUDFLARE_API_TOKEN` in ignored `.env` or the environment. Required permis
 Scope the token to the deployment account and `bahasadri.com`. The wrapper discovers IDs and derives R2 credentials; optional paired overrides are documented in [`.env.example`](../../.env.example).
 
 [GitHub Actions](../../.github/workflows/deploy.yml) tests and deploys pushes to `main` or manual runs on that branch. It requires the `CLOUDFLARE_API_TOKEN` repository secret and a public repository. Manage GitHub secrets and authenticated pushes on the host; never forward GitHub credentials into the box or shared checkout. Pass secret values through stdin, never arguments or logs.
+
+Azure uses the `Azure for Students` subscription and the dedicated `warframe-toolkit-wfm` resource group in East US. For local Terraform, install the Azure CLI inside the box, sign in, and set `ARM_SUBSCRIPTION_ID` to the intended subscription. Keep the Azure session outside the checkout. The subscription must already have `Microsoft.Web`, `Microsoft.Storage`, and `Microsoft.ManagedIdentity` registered; CI deliberately does not register providers.
+
+Terraform creates a managed deployment identity with Contributor access only to that resource group. GitHub uses OIDC for the repository's `production` environment, whose deployment branch policy allows only `main`; set repository variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` from the corresponding Terraform outputs after the first local apply. No Azure client secret is required. The host agent manages these GitHub variables and the environment's branch policy.
 
 ## Manual deployment
 
@@ -45,8 +49,12 @@ CI uses [`scripts/deploy.mjs`](../../scripts/deploy.mjs), which requires existin
 
 Drop updates run hourly, retry after five minutes, and retain cached data on failure. Initial schedule propagation may delay availability; page reads never trigger upstream updates.
 
-WFM reads use the separate `wfm` object in the existing `DROPS` namespace for shared pacing and cached public prices. No WFM credentials or new namespace migration are needed.
+WFM reads use the separate `wfm` object in the existing `DROPS` namespace for shared pacing and cached public prices. Requests are spaced at least one second apart, honor upstream rate-limit backoff across restarts, and coalesce duplicate reads. No WFM credentials or new namespace migration are needed.
 
-WFM can challenge requests from Cloudflare even when the same public API works from a local machine. A `cf-mitigated: challenge` response requires WFM to allow the integration or an accessible hosting location for the market cache; frontend changes and passing mocked tests cannot restore upstream access. The deployed WFM check above detects this condition and also rejects stale cached successes.
+WFM challenges requests originating from Cloudflare, including descriptive, conservatively paced API requests. Production therefore sends only upstream reads through the Terraform-managed Azure Flex Consumption Function. Its private function key becomes a Worker secret binding; the browser never receives it. The relay allows only catalog, orders, and history paths, forwards an explicit header allowlist, bounds response sizes, refuses redirects, and preserves upstream status/Retry-After/challenge headers. Public callers cannot use it as an open proxy. Local development still contacts WFM directly.
+
+`npm run build:cloudflare` also builds the Node 24 relay package. Its reproducible ZIP filename includes the content hash so Terraform updates changed code and leaves unchanged packages alone across machines. The Function uses 512 MB, at most one instance, and no always-ready instances; it scales to zero. Azure storage and consumption charges remain subject to the subscription's pricing and credits. [Flex Consumption costs](https://learn.microsoft.com/en-us/azure/azure-functions/functions-consumption-costs) describe the billing model.
+
+The deployed WFM check above exercises catalog, orders, and history through the public application routes, rejecting challenges, missing data, and stale cached successes. Unit and Cloudflare runtime tests additionally exercise relay routing, credential isolation, response limits, pacing, and failure handling. A future WFM restriction on Azure will fail this live check too; the relay does not solve browser challenges.
 
 Review [R2 pricing](https://developers.cloudflare.com/r2/pricing/), [Workers limits](https://developers.cloudflare.com/workers/platform/limits/), [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/), and [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/) for current quotas and charges.

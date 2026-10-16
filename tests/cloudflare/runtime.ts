@@ -1,11 +1,11 @@
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFile, readdir } from 'node:fs/promises';
 
-export async function cloudflareRuntime(options: { origin?: string; persist?: string; outbound?: (request: Request) => Promise<Response> } = {}) {
+export async function cloudflareRuntime(options: { origin?: string; persist?: string; relay?: { url?: string; key?: string }; outbound?: (request: Request) => Promise<Response> } = {}) {
   const config = convertV4MiniflareOptions({
     name: 'warframe-toolkit', modules: true, scriptPath: 'build/cloudflare/worker.js',
     compatibilityDate: '2026-10-01', compatibilityFlags: ['nodejs_compat'],
-    bindings: { ACCOUNTS_ORIGIN: options.origin ?? 'https://toolkit.test', RELEASE: 'test' },
+    bindings: { ACCOUNTS_ORIGIN: options.origin ?? 'https://toolkit.test', RELEASE: 'test', ...(options.relay?.url ? { WFM_RELAY_URL: options.relay.url } : {}), ...(options.relay?.key ? { WFM_RELAY_KEY: options.relay.key } : {}) },
     d1Databases: ['DB'],
     durableObjects: { ACCOUNTS: { className: 'AccountGateway', useSQLite: true }, DROPS: { className: 'DropTables', useSQLite: true } },
     ...(options.outbound ? { outboundService: options.outbound } : {}),

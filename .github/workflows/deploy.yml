@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 # Never interrupt an apply. Terraform's remote lock also covers local deployments.
 concurrency:
@@ -52,4 +53,9 @@ jobs:
       - name: Deploy through Terraform and verify production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ARM_USE_OIDC: 'true'
+          ARM_USE_CLI: 'false'
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
         run: node scripts/deploy.mjs

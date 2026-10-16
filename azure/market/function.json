@@ -1,0 +1,8 @@
+{
+  "scriptFile": "../index.cjs",
+  "entryPoint": "relay",
+  "bindings": [
+    { "authLevel": "function", "type": "httpTrigger", "direction": "in", "name": "request", "methods": ["get"], "route": "wfm/{*path}" },
+    { "type": "http", "direction": "out", "name": "res" }
+  ]
+}

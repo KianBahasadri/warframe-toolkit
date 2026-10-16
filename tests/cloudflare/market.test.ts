@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { cloudflareRuntime } from './runtime.ts';
 import { wfmHistory, wfmItems, wfmOrders } from '../fixtures/wfm.ts';
+import { handleMarketRelay } from '../../azure/market/handler.ts';
 
 test('public WFM reads share a paced, persistent cache separate from accounts and official drops', async () => {
   const persist = await mkdtemp(join(tmpdir(), 'toolkit-wfm-'));
@@ -22,7 +23,7 @@ test('public WFM reads share a paced, persistent cache separate from accounts an
     assert.ok(responses.every(response => response.status === 200));
     const data = await responses[0].json(); assert.deepEqual(await responses[1].json(), data);
     assert.equal(calls.length, 3);
-    for (let index = 1; index < calls.length; index++) assert.ok(calls[index].time - calls[index - 1].time >= 400, 'shared queue spaces all API requests');
+    for (let index = 1; index < calls.length; index++) assert.ok(calls[index].time - calls[index - 1].time >= 950, 'shared queue spaces all API requests');
     await read('orders/ash_prime_set?platform=switch'); assert.equal(calls.length, 4);
     assert.equal(calls.at(-1)!.headers.get('Platform'), 'switch');
     await api.close(); api = await cloudflareRuntime({ persist, outbound });
@@ -33,4 +34,55 @@ test('public WFM reads share a paced, persistent cache separate from accounts an
     assert.equal((await api.mf.dispatchFetch('https://toolkit.test/api/wfm/items', { method: 'POST' })).status, 405);
     assert.equal((await read('orders/unknown')).status, 404); assert.equal(calls.length, 4);
   } finally { await api.close(); await rm(persist, { recursive: true, force: true }); }
+});
+
+test('the production relay route authenticates privately and keeps all platforms in the shared cache', async () => {
+  const calls: { path: string; time: number; platform: string | null }[] = [];
+  const api = await cloudflareRuntime({ relay: { url: 'https://relay.test', key: 'private-relay-key' }, outbound: async request => {
+    const url = new URL(request.url);
+    assert.equal(url.origin, 'https://relay.test', 'configured deployments must never call WFM directly from Cloudflare');
+    assert.equal(request.headers.get('x-functions-key'), 'private-relay-key');
+    assert.equal(request.headers.get('Cookie'), null); assert.equal(request.headers.get('Authorization'), null);
+    return handleMarketRelay(new Request(request.url, { headers: request.headers }), (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname, headers = new Headers(init?.headers);
+      assert.equal(headers.get('x-functions-key'), null);
+      calls.push({ path, time: Date.now(), platform: headers.get('Platform') });
+      return Response.json(path === '/v2/items' ? wfmItems : path.endsWith('/statistics') ? wfmHistory() : wfmOrders());
+    }) as typeof fetch);
+  } });
+  try {
+    const read = (path: string) => api.mf.dispatchFetch(`https://toolkit.test/api/wfm/${path}`, { headers: { Cookie: 'session=private', Authorization: 'Bearer private' } });
+    const responses = await Promise.all([read('orders/ash_prime_set?platform=switch'), read('orders/ash_prime_set?platform=switch'), read('history/ash_prime_set?platform=switch')]);
+    for (const response of responses) {
+      assert.equal(response.status, 200); const data = await response.json();
+      assert.equal(data.stale, false); assert.doesNotMatch(JSON.stringify(data), /private/);
+    }
+    assert.equal(calls.length, 3);
+    assert.deepEqual(calls.map(call => call.platform), ['pc', 'switch', 'switch']);
+    for (let index = 1; index < calls.length; index++) assert.ok(calls[index].time - calls[index - 1].time >= 950);
+  } finally { await api.close(); }
+});
+
+test('a challenge through the relay fails the public endpoint and does not cause an immediate retry', async () => {
+  let calls = 0;
+  const api = await cloudflareRuntime({ relay: { url: 'https://relay.test', key: 'private-relay-key' }, outbound: async () => {
+    calls++; return new Response('<html>Challenge</html>', { status: 403, headers: { 'cf-mitigated': 'challenge' } });
+  } });
+  try {
+    for (let index = 0; index < 2; index++) {
+      const response = await api.mf.dispatchFetch('https://toolkit.test/api/wfm/items');
+      assert.equal(response.status, 503); assert.match((await response.json()).error, /blocking requests/);
+    }
+    assert.equal(calls, 1);
+  } finally { await api.close(); }
+});
+
+test('an incomplete relay configuration fails without falling back to direct Cloudflare requests', async () => {
+  let calls = 0;
+  const api = await cloudflareRuntime({ relay: { url: 'https://relay.test' }, outbound: async () => { calls++; return Response.json(wfmItems); } });
+  try {
+    const response = await api.mf.dispatchFetch('https://toolkit.test/api/wfm/items');
+    assert.equal(response.status, 503); assert.match((await response.json()).error, /not configured/);
+    assert.equal(calls, 0);
+  } finally { await api.close(); }
 });

@@ -24,7 +24,7 @@ test('market API coalesces duplicates and shares a paced upstream queue across v
   const results = await Promise.all([service.handle(request('orders/ash_prime_set')), service.handle(request('orders/ash_prime_set')), service.handle(request('history/ash_prime_set')), service.handle(request('orders/ash_prime_set?platform=switch'))]);
   assert.ok(results.every(response => response.status === 200));
   assert.equal(f.requests.length, 4);
-  for (let index = 1; index < f.requests.length; index++) assert.ok(f.requests[index].time - f.requests[index - 1].time >= 450);
+  for (let index = 1; index < f.requests.length; index++) assert.ok(f.requests[index].time - f.requests[index - 1].time >= 1000);
   assert.ok(f.requests.some(entry => entry.headers.get('Platform') === 'switch'));
   assert.ok(f.requests.every(entry => !entry.headers.has('Authorization') && entry.headers.get('Crossplay') === 'false'));
   await service.handle(request('orders/ash_prime_set')); assert.equal(f.requests.length, 4);

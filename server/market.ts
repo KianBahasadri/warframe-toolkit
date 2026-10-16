@@ -1,5 +1,6 @@
 import { MARKET_HISTORY_TTL, MARKET_ITEMS_TTL, MARKET_ORDERS_TTL, marketPlatforms, parseMarketHistory, parseMarketItems, parseMarketOrders } from '../src/lib/market.ts';
 import type { MarketItem, MarketSnapshot } from '../src/lib/market.ts';
+import { MARKET_ORIGIN, marketHeaders } from './marketUpstream.ts';
 
 export interface MarketCacheStore { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }
 interface Cached { data?: unknown; fetchedAt?: string; retryAt: number; error?: string; touched: number }
@@ -22,10 +23,10 @@ export function createMarketService(options: Options = {}) {
         initialized = true;
       }
       if (nextAt > now()) await pause(nextAt - now());
-      nextAt = now() + 450;
+      nextAt = now() + 1000;
       await options.store?.set('throttle', nextAt).catch(() => {});
-      const response = await request(`https://api.warframe.market/${path}`, {
-        headers: { Accept: 'application/json', Language: 'en', Platform: platform, Crossplay: 'false', 'User-Agent': 'Grakata/0.1 (+https://github.com/KianBahasadri/warframe-toolkit)' },
+      const response = await request(`${MARKET_ORIGIN}/${path}`, {
+        headers: marketHeaders(platform), redirect: 'manual',
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(20_000)]),
       });
       if (!response.ok) {

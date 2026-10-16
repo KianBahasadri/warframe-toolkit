@@ -2,6 +2,7 @@ terraform {
   required_version = "= 1.16.5"
   required_providers {
     cloudflare = { source = "cloudflare/cloudflare", version = "= 5.27.0" }
+    azurerm    = { source = "hashicorp/azurerm", version = "= 5.10.0" }
   }
 }
 
@@ -108,6 +109,8 @@ resource "cloudflare_workers_script" "app" {
     { name = "DROPS", type = "durable_object_namespace", class_name = "DropTables" },
     { name = "ACCOUNTS_ORIGIN", type = "plain_text", text = "https://${var.hostname}" },
     { name = "RELEASE", type = "plain_text", text = var.release },
+    { name = "WFM_RELAY_URL", type = "plain_text", text = "https://${azurerm_function_app_flex_consumption.market.default_hostname}" },
+    { name = "WFM_RELAY_KEY", type = "secret_text", text = data.azurerm_function_app_host_keys.market.default_function_key },
   ]
   migrations = {
     # Both SQLite namespaces were provisioned by v1. The provider sends this

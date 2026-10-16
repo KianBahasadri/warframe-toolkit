@@ -54,7 +54,7 @@ export class DropTables extends DurableObject<Env> {
   }
   async alarm() { await this.refresh(); }
   async fetch(request: Request) {
-    if (new URL(request.url).pathname.startsWith('/api/wfm/')) return (this.market ??= createDurableMarket(this.ctx)).handle(request);
+    if (new URL(request.url).pathname.startsWith('/api/wfm/')) return (this.market ??= createDurableMarket(this.ctx, this.env)).handle(request);
     if (request.method !== 'GET') return new Response(null, { status: 405, headers: { Allow: 'GET' } });
     const meta = this.meta();
     if (!meta?.fetched_at) return Response.json({ error: meta?.error || 'The first drop-table update is being prepared.', refreshing: !meta?.error }, { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': meta?.error ? '60' : '5' } });

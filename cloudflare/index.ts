@@ -10,6 +10,8 @@ export interface Env {
   ASSETS: Fetcher;
   ACCOUNTS_ORIGIN: string;
   RELEASE: string;
+  WFM_RELAY_URL?: string;
+  WFM_RELAY_KEY?: string;
 }
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
