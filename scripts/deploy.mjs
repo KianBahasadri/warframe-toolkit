@@ -5,6 +5,7 @@ import { setTimeout } from 'node:timers/promises';
 import { loadCredentials } from './cloudflare-api.mjs';
 import { r2Credentials } from './r2-credentials.mjs';
 import { assertProductionState, assertSafePlan } from './deployment-checks.mjs';
+import { checkMarket } from './check-market.mjs';
 
 process.umask(0o077);
 loadCredentials();
@@ -56,4 +57,5 @@ const home = await fetch(origin, { signal: AbortSignal.timeout(15_000) });
 if (!home.ok || !(await home.text()).includes('<div id="root">')) throw new Error('The production frontend did not load.');
 const session = await fetch(`${origin}/api/account/session`, { signal: AbortSignal.timeout(15_000) });
 if (!session.ok || (await session.json()).user !== null) throw new Error('The production account endpoint did not respond correctly.');
+await checkMarket(origin);
 console.log(`Verified ${origin} (release ${release}).`);

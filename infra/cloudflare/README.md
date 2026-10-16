@@ -33,7 +33,7 @@ npm run infra -- apply deploy.tfplan
 npm run infra -- plan -detailed-exitcode  # 0: no drift
 ```
 
-CI uses [`scripts/deploy.mjs`](../../scripts/deploy.mjs), which requires existing production state, rejects infrastructure deletion/replacement, and verifies the live release, frontend, and guest account endpoint. It serializes applies; retain its guards.
+CI uses [`scripts/deploy.mjs`](../../scripts/deploy.mjs), which requires existing production state, rejects infrastructure deletion/replacement, and verifies the live release, frontend, guest account endpoint, and WFM catalog/orders/history through the deployed proxy. WFM checks reject stale or missing data and retry twice at 30-second intervals before failing the run. Run `node scripts/check-market.mjs` to repeat only the live WFM check. It serializes applies; retain its guards.
 
 ## Recovery and changes
 
@@ -46,5 +46,7 @@ CI uses [`scripts/deploy.mjs`](../../scripts/deploy.mjs), which requires existin
 Drop updates run hourly, retry after five minutes, and retain cached data on failure. Initial schedule propagation may delay availability; page reads never trigger upstream updates.
 
 WFM reads use the separate `wfm` object in the existing `DROPS` namespace for shared pacing and cached public prices. No WFM credentials or new namespace migration are needed.
+
+WFM can challenge requests from Cloudflare even when the same public API works from a local machine. A `cf-mitigated: challenge` response requires WFM to allow the integration or an accessible hosting location for the market cache; frontend changes and passing mocked tests cannot restore upstream access. The deployed WFM check above detects this condition and also rejects stale cached successes.
 
 Review [R2 pricing](https://developers.cloudflare.com/r2/pricing/), [Workers limits](https://developers.cloudflare.com/workers/platform/limits/), [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/), and [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/) for current quotas and charges.

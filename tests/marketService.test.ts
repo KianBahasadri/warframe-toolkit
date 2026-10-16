@@ -11,7 +11,7 @@ function fixture() {
     store: { async get(key: string) { return store.get(key); }, async set(key: string, data: unknown) { store.set(key, data); } },
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input); requests.push({ url, time, headers: new Headers(init?.headers) });
-      if (failure) return failure === 200 ? Response.json({ wrong: true }) : new Response('', { status: failure, headers: { 'Retry-After': '60' } });
+      if (failure) return failure === 200 ? Response.json({ wrong: true }) : new Response(failure === 403 ? '<html>Just a moment...</html>' : '', { status: failure, headers: { 'Retry-After': '60', ...(failure === 403 ? { 'cf-mitigated': 'challenge', 'Content-Type': 'text/html' } : {}) } });
       return Response.json(url.endsWith('/v2/items') ? wfmItems : url.endsWith('/statistics') ? wfmHistory() : wfmOrders());
     }) as typeof fetch,
   };
@@ -54,6 +54,25 @@ test('invalid upstream payloads preserve cached prices; a cold failure is unavai
   assert.equal(stale.stale, true); assert.deepEqual(stale.data, original.data);
   const cold = fixture(); cold.fail(503);
   assert.equal((await createMarketService(cold.options).handle(request('items'))).status, 503);
+});
+
+test('a WFM browser challenge reports the server block and retains dated prices without immediately retrying', async () => {
+  const cold = fixture(); cold.fail(403);
+  const unavailable = await createMarketService(cold.options).handle(request('items'));
+  assert.equal(unavailable.status, 503);
+  const error = await unavailable.json();
+  assert.match(error.error, /blocking requests from this server/);
+  assert.equal(error.data, undefined);
+
+  const f = fixture(), service = createMarketService(f.options);
+  const original = await (await service.handle(request('orders/ash_prime_set'))).json();
+  f.tick(MARKET_ORDERS_TTL + 1); f.fail(403);
+  const stale = await (await service.handle(request('orders/ash_prime_set'))).json();
+  assert.equal(stale.stale, true); assert.equal(stale.fetchedAt, original.fetchedAt);
+  assert.deepEqual(stale.data, original.data); assert.match(stale.error, /blocking requests from this server/);
+  const count = f.requests.length;
+  await service.handle(request('orders/ash_prime_set'));
+  assert.equal(f.requests.length, count);
 });
 
 test('public read endpoint rejects arbitrary upstream paths, unknown items and write methods', async () => {

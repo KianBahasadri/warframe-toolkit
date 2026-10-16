@@ -25,7 +25,7 @@ export function createMarketService(options: Options = {}) {
       nextAt = now() + 450;
       await options.store?.set('throttle', nextAt).catch(() => {});
       const response = await request(`https://api.warframe.market/${path}`, {
-        headers: { Accept: 'application/json', Language: 'en', Platform: platform, Crossplay: 'false', 'User-Agent': 'Grakata/0.1 (Warframe inventory toolkit)' },
+        headers: { Accept: 'application/json', Language: 'en', Platform: platform, Crossplay: 'false', 'User-Agent': 'Grakata/0.1 (+https://github.com/KianBahasadri/warframe-toolkit)' },
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(20_000)]),
       });
       if (!response.ok) {
@@ -35,6 +35,7 @@ export function createMarketService(options: Options = {}) {
           nextAt = now() + Math.max(30_000, Math.min(15 * 60_000, Number.isFinite(delay) ? delay : 30_000));
           await options.store?.set('throttle', nextAt).catch(() => {});
         }
+        if (response.headers.get('cf-mitigated') === 'challenge') throw new Error(`WFM is blocking requests from this server (${response.status}).`);
         throw new Error(response.status === 404 ? 'WFM has no data for this item.' : response.status === 429 || response.status === 509 ? 'WFM is rate limiting requests. Prices will retry shortly.' : `WFM is unavailable (${response.status}).`);
       }
       if (Number(response.headers.get('Content-Length') ?? 0) > 12_000_000) throw new Error('WFM response exceeded the size limit.');
