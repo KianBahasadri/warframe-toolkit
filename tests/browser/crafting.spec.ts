@@ -462,7 +462,7 @@ test('slider arrows add rounded gather quantities, commit once, and save progres
     element.dataset.changes = '0';
     element.addEventListener('change', () => { element.dataset.changes = String(Number(element.dataset.changes) + 1); });
   });
-  await arrow.focus(); await expect(page.getByRole('tooltip', { name: '+100 completed', exact: true })).toBeVisible();
+  await arrow.focus(); await expect(page.getByRole('tooltip', { name: '+100', exact: true })).toBeVisible();
   const track = (await slider.boundingBox())!, control = (await arrow.boundingBox())!;
   expect(control.x).toBeGreaterThanOrEqual(track.x + track.width);
   expect(control.width).toBe(28); expect(control.height).toBe(28);
@@ -488,7 +488,7 @@ test('slider arrows use each recipe output and clamp the last Foundry batch', as
   const slider = page.getByRole('slider', { name: 'Completed quantity for Pyrotic Alloy', exact: true });
   await expect(slider).toHaveAttribute('max', '90');
   const arrow = page.getByRole('button', { name: 'Add 20 completed Pyrotic Alloy', exact: true });
-  await arrow.hover(); await expect(page.getByRole('tooltip')).toHaveText('+20 · 20 per Foundry build');
+  await arrow.hover(); await expect(page.getByRole('tooltip')).toHaveText('+20');
   await arrow.click(); await expect(slider).toHaveValue('20');
   await expect(page.getByRole('slider', { name: 'Completed quantity for Pyrol', exact: true })).toHaveAttribute('max', '80');
   await slider.focus(); await slider.press('Enter');

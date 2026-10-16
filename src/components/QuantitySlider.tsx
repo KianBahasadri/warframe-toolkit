@@ -115,7 +115,7 @@ export function QuantitySlider({ name, value, max, batchSize, disabled, onChange
         onChange={() => {}} onInput={event => { live.current = Number(event.currentTarget.value); setDraft(live.current); if (!drag.current && !editingRef.current) commit(); }}
         onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}
         onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); openEditor(); } }} />
-      <Tooltip className="icon-button quantity-increment" label={`Add ${format(remainingIncrement)} completed ${name}`} content={`+${format(remainingIncrement)}${batchSize ? ` · ${format(batchSize)} per Foundry build` : ' completed'}`} disabled={disabled || dragging || draft >= max} onClick={() => { if (!disabled && !drag.current && !editingRef.current) write(live.current + increment); }}><ArrowRight size={14} aria-hidden="true" /></Tooltip>
+      <Tooltip className="icon-button quantity-increment" label={`Add ${format(remainingIncrement)} completed ${name}`} content={`+${format(remainingIncrement)}`} disabled={disabled || dragging || draft >= max} onClick={() => { if (!disabled && !drag.current && !editingRef.current) write(live.current + increment); }}><ArrowRight size={14} aria-hidden="true" /></Tooltip>
     </div>
     <span id={`${id}-help`} className="sr-only">Double-click the thumb, press Enter, or activate the quantity to type a value.</span>
     {shown && createPortal(<div ref={popup} className={`quantity-popup${editing ? ' is-editing' : ''}`} role={editing ? 'dialog' : undefined} aria-label={editing ? label : undefined} aria-hidden={editing ? undefined : true}>
