@@ -31,6 +31,47 @@ async function closeSelected(page: Page) {
   await page.locator('.craft-plan-tab').filter({ has: page.getByRole('tab', { selected: true }) }).getByRole('button', { name: /^Close / }).click();
 }
 
+test('Oxylus blueprint search exposes exact ingredients, nested batches, and saved progress', async ({ page, account }) => {
+  await open(page);
+  const before = (await account.profile()).inventory;
+  await select(page, 'Crafting category', 'Companions');
+  await page.getByRole('searchbox', { name: 'Search craftable items' }).fill('Oxylus blueprint');
+  await page.getByRole('button', { name: 'Craft Oxylus', exact: true }).click();
+  await expect(page.locator('.craft-root')).toContainText('Companions');
+  await expect(page.locator('.craft-root .craft-cost')).toContainText('15,000');
+  for (const [name, count] of [['Goblite Tears', '15'], ['Axidrol Alloy', '45'], ['Scrap', '40'], ['Longwinder Lathe Coagulant', '10']]) {
+    await expect(page.locator(`.craft-branches > .craft-branch[data-item="${name}"] > .craft-node .craft-quantity`)).toHaveText(`× ${count}`);
+  }
+  await expect(page.locator('.craft-branch[data-item="Goblite Tears"] > .craft-node .craft-cost')).toContainText('2 builds');
+  await expect(page.locator('.craft-branch[data-item="Axidrol Alloy"] > .craft-node .craft-cost')).toContainText('3 builds');
+  await expect(page.locator('.craft-progress')).toContainText('23,000');
+  await page.getByRole('button', { name: 'Add 20 completed Axidrol Alloy', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Completed quantity for Axidrol Alloy', exact: true })).toHaveValue('20');
+  expect(Object.values((await account.profile()).craftingPlans[0].progress!)).toEqual([20]);
+  await page.reload();
+  await page.getByRole('tab', { name: 'Oxylus', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Completed quantity for Axidrol Alloy', exact: true })).toHaveValue('20');
+  expect((await account.profile()).inventory).toEqual(before);
+});
+
+test('standalone categories are searchable and batch recipes retain their exact output', async ({ page }) => {
+  await open(page);
+  for (const [category, name] of [['Vehicles', 'Itzal'], ['Vehicles', 'Mantis'], ['Companions', 'Taxon'], ['Cosmetics', 'Ash Locust Helmet'], ['Materials', 'Anspatha Brace'], ['Gear', 'Orokin Catalyst']]) {
+    await select(page, 'Crafting category', category);
+    await page.getByRole('searchbox', { name: 'Search craftable items' }).fill(name);
+    await expect(page.getByRole('button', { name: `Craft ${name}`, exact: true })).toBeVisible();
+  }
+  await page.getByRole('searchbox', { name: 'Search craftable items' }).fill('Cipher blueprint');
+  await page.getByRole('button', { name: 'Craft Cipher', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'Craft quantity', exact: true }).fill('11');
+  await page.getByRole('combobox', { name: 'Recipe', exact: true }).click();
+  await page.getByRole('listbox', { name: 'Recipe', exact: true }).getByRole('option', { name: /10 \/ build · 9,000 credits/ }).click();
+  await expect(page.locator('.craft-root .craft-cost')).toContainText('2 builds');
+  await expect(page.locator('.craft-root .craft-cost')).toContainText('10 / build');
+  await expect(page.locator('.craft-branch[data-item="Ferrite"] .craft-quantity')).toHaveText('× 7,200');
+  await expect(page.locator('.craft-progress')).toContainText('18,000');
+});
+
 test('quantity scales every material immediately and inactive plans close independently', async ({ page, account }) => {
   await open(page); await page.getByRole('button', { name: 'Craft Rhino', exact: true }).click();
   const before = await account.profile();

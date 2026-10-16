@@ -1,4 +1,5 @@
 import { questSupplements } from './catalog-supplements.mjs';
+import { createRecipeResolver } from './recipe-resolver.mjs';
 
 const canonicalName = name => name.replace(/^mk1-/i, 'MK1-');
 const wiki = name => `https://wiki.warframe.com/w/${encodeURIComponent(name.replaceAll(' ', '_'))}`;
@@ -20,21 +21,6 @@ export function buildCatalog(lists, game, sources) {
   const all = Object.values(lists).flat();
   const byId = new Map(all.map(item => [item.uniqueName, item]));
   const translate = key => cleanText(game.dictionary[key] || (key?.startsWith('/') ? '' : key));
-  const nameOf = (id, seen = new Set()) => {
-    if (seen.has(id)) return '';
-    seen.add(id);
-    const item = byId.get(id);
-    if (item?.name && !['Blueprint', 'Barrel', 'Receiver', 'Blade', 'Handle', 'Link', 'Stock', 'Chassis', 'Neuroptics', 'Systems'].includes(item.name)) return canonicalName(item.name);
-    const named = translate(game.resources[id]?.name || game.weapons[id]?.name);
-    if (named) return named;
-    const recipe = game.recipes[id];
-    if (recipe) { const result = nameOf(recipe.resultType, seen); if (result) return `${result} Blueprint`; }
-    if (item?.name) {
-      const parent = all.find(entry => baseSlots[entry.category] && entry.components?.some(component => component.uniqueName === id));
-      return parent ? `${canonicalName(parent.name)} ${item.name}` : item.name;
-    }
-    return '';
-  };
   const selected = all.filter(item => baseSlots[item.category] && item.masterable !== false || item.category === 'SentinelWeapons' || item.type === 'Exalted Weapon' || item.category === 'Misc' && (/\/Barrels?\//.test(item.uniqueName) && /(?:KitGun|SUModular)/.test(item.uniqueName) || item.type === 'Kitgun Component' && item.masterable || item.type === 'Amp' && /Prism$/.test(item.name) && item.components));
   for (const [id, item] of Object.entries(game.weapons)) {
     const name = translate(item.name);
@@ -52,25 +38,7 @@ export function buildCatalog(lists, game, sources) {
   if (mote) unique.set('Mote Amp', { uniqueName: mote.uniqueName, name: 'Mote Amp', type: 'Amp', category: 'Operator', masterable: true, icon: '/Lotus/Interface/Icons/StoreIcons/Operator/Amps/SentTrainingAmpAssembled.png', imageName: null, description: 'Starter Amp from the Quills. Its assembled stats are not available in this catalog source.' });
   const companionIds = new Set((lists.SentinelWeapons || []).map(item => item.uniqueName));
   const equipmentIds = new Set([...unique.values()].map(item => item.uniqueName));
-  const recipeMap = new Map();
-  for (const [id, recipe] of Object.entries(game.recipes)) {
-    const current = recipeMap.get(recipe.resultType) || [];
-    current.push([id, recipe]);
-    recipeMap.set(recipe.resultType, current);
-  }
-  const missingNames = new Set();
-  const ingredient = (id, count, seen = new Set()) => {
-    const name = nameOf(id);
-    if (!name) missingNames.add(id);
-    const parts = seen.size < 8 && !seen.has(id) ? (recipeMap.get(id) || []).filter(([, recipe]) => !recipe.hidden && recipe.ingredients?.length).map(([recipeId, recipe]) => recipeInfo(recipeId, recipe, new Set([...seen, id]))) : [];
-    return { id, name: name || 'Unknown material', count, equipment: equipmentIds.has(id), ...(parts.length ? { recipes: parts } : {}) };
-  };
-  const groupedIngredients = recipe => [...(recipe.ingredients || []).reduce((map, entry) => map.set(entry.ItemType, (map.get(entry.ItemType) || 0) + entry.ItemCount), new Map())];
-  const recipeInfo = (id, recipe, seen = new Set([recipe.resultType])) => ({
-    id, name: nameOf(id) || `${nameOf(recipe.resultType)} Blueprint`, credits: recipe.buildPrice ?? null,
-    seconds: recipe.buildTime ?? null, quantity: recipe.num || 1,
-    ingredients: groupedIngredients(recipe).map(([id, count]) => ingredient(id, count, seen)),
-  });
+  const { recipeMap, ingredient, groupedIngredients, recipeInfo, missingNames } = createRecipeResolver(lists, game, equipmentIds);
   const quests = new Map();
   const addReward = (path, quest) => {
     const id = path.replace('/Lotus/StoreItems/', '/Lotus/');

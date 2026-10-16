@@ -1,6 +1,6 @@
 import { mkdir, writeFile, readFile, rename, unlink } from 'node:fs/promises';
 import { buildCatalog } from './build-catalog.mjs';
-import { buildCraftingMaterials } from './build-crafting.mjs';
+import { buildCraftingData } from './build-crafting.mjs';
 
 async function fetchChecked(url) {
   const response = await fetch(url, { signal: AbortSignal.timeout(60000) });
@@ -15,10 +15,19 @@ async function revision(repo, branch) {
 }
 const wfcdRepo = 'WFCD/warframe-items';
 const gameRepo = 'calamity-inc/warframe-public-export-plus';
-const [wfcdRevision, gameRevision] = await Promise.all([revision(wfcdRepo, 'master'), revision(gameRepo, 'senpai')]);
+// Rebuild generator changes against the existing snapshot without moving the
+// equipment versions used by Modding Calculator and supplemental arsenal data.
+const pinned = process.argv.includes('--pinned') ? JSON.parse(await readFile(new URL('../src/data/catalog.json', import.meta.url), 'utf8')).sources : null;
+async function sourceRevision(repo, branch) {
+  if (!pinned) return revision(repo, branch);
+  const sha = pinned.find(source => source.startsWith(`https://github.com/${repo}/tree/`))?.split('/tree/')[1];
+  if (!/^[a-f0-9]{40}$/.test(sha || '')) throw new Error(`Missing pinned revision for ${repo}`);
+  return sha;
+}
+const [wfcdRevision, gameRevision] = await Promise.all([sourceRevision(wfcdRepo, 'master'), sourceRevision(gameRepo, 'senpai')]);
 const wfcdRaw = `https://raw.githubusercontent.com/${wfcdRepo}/${wfcdRevision}`;
 const gameRaw = `https://raw.githubusercontent.com/${gameRepo}/${gameRevision}`;
-const categories = ['Primary', 'Secondary', 'Melee', 'Warframes', 'Arch-Gun', 'Arch-Melee', 'SentinelWeapons', 'Misc', 'Components', 'Resources'];
+const categories = ['Primary', 'Secondary', 'Melee', 'Warframes', 'Arch-Gun', 'Arch-Melee', 'SentinelWeapons', 'Misc', 'Components', 'Resources', 'Sentinels', 'Pets', 'Archwing', 'Gear', 'Skins', 'Quests', 'Arcanes', 'Fish'];
 const gameFiles = { weapons: 'ExportWeapons', recipes: 'ExportRecipes', resources: 'ExportResources', keys: 'ExportKeys', dictionary: 'dict.en', images: 'ExportImages' };
 const [lists, game, wfcdLicense, gameLicense] = await Promise.all([
   Promise.all(categories.map(async category => [category, await (await fetchChecked(`${wfcdRaw}/data/json/${category}.json`)).json()])).then(Object.fromEntries),
@@ -28,7 +37,8 @@ const [lists, game, wfcdLicense, gameLicense] = await Promise.all([
 const sources = { wfcd: `https://github.com/${wfcdRepo}/tree/${wfcdRevision}`, game: `https://github.com/${gameRepo}/tree/${gameRevision}`, wfcdRaw };
 const items = buildCatalog(lists, game, sources);
 if (items.length < 700) throw new Error(`Unexpectedly small catalog: ${items.length}`);
-const materials = buildCraftingMaterials(items, lists, game, sources);
+const crafting = buildCraftingData(items, lists, game, sources);
+const { materials } = crafting;
 const images = [...new Map([...items, ...materials].filter(item => item.image).map(item => [item.image, item.imageSource])).entries()];
 const previous = await readFile(new URL('../src/data/catalog.json', import.meta.url), 'utf8').then(text => new Map(JSON.parse(text).items.map(item => [item.image, item.imageSource]))).catch(() => new Map());
 const previousMaterials = await readFile(new URL('../src/data/crafting.json', import.meta.url), 'utf8').then(text => JSON.parse(text).materials).catch(() => []);
@@ -54,7 +64,7 @@ await Promise.all(Array.from({ length: 8 }, async () => {
 const out = new URL('../src/data/', import.meta.url);
 await mkdir(out, { recursive: true });
 const data = { source: `https://github.com/${wfcdRepo}`, sources: [sources.wfcd, sources.game], retrievedAt: new Date().toISOString(), items };
-await writeFile(new URL('crafting.json.tmp', out), JSON.stringify({ sources: data.sources, retrievedAt: data.retrievedAt, materials }, null, 2) + '\n');
+await writeFile(new URL('crafting.json.tmp', out), JSON.stringify({ sources: data.sources, retrievedAt: data.retrievedAt, ...crafting }, null, 2) + '\n');
 await rename(new URL('crafting.json.tmp', out), new URL('crafting.json', out));
 await writeFile(new URL('catalog.json.tmp', out), JSON.stringify(data, null, 2) + '\n');
 await rename(new URL('catalog.json.tmp', out), new URL('catalog.json', out));
@@ -65,3 +75,4 @@ for (const { image } of previousMaterials) if (/^\/images\/crafting\/[a-f0-9]{16
 await writeFile(new URL('CATALOG-LICENSE.txt', out), wfcdLicense);
 await writeFile(new URL('GAME-EXPORT-LICENSE.txt', out), gameLicense);
 console.log(`Saved ${items.filter(x => x.slot !== 'Warframe').length} weapons, ${items.filter(x => x.slot === 'Warframe').length} Warframes, and ${images.length} local images.`);
+console.log(`Crafting covers ${crafting.recipeCoverage.included}/${crafting.recipeCoverage.exported} exported recipes; ${crafting.recipeCoverage.excluded.length} excluded with recorded reasons.`);

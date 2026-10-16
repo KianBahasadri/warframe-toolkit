@@ -1,14 +1,17 @@
 import type { CatalogItem, Recipe } from './model.ts';
 import type { DropRow } from './dropTables.ts';
 
+export const craftingKinds = ['Weapons', 'Warframes', 'Companions', 'Vehicles', 'Gear', 'Cosmetics', 'Materials'] as const;
+export type CraftingKind = typeof craftingKinds[number];
 export interface CraftingMaterial {
   id: string; name: string; description: string; location: string; image?: string; wikiUrl: string;
   blueprintCredits: number | null; tradable: boolean;
+  kind?: CraftingKind; equipment?: boolean; recipes?: Recipe[]; modular?: string | null;
 }
 export interface CraftingItem {
   id: string; name: string; image?: string; wikiUrl: string; description: string; location: string;
-  kind: 'Weapons' | 'Warframes' | 'Materials'; equipment: boolean; recipes: Recipe[];
-  blueprintCredits: number | null; catalogItem?: CatalogItem;
+  kind: CraftingKind; equipment: boolean; recipes: Recipe[];
+  blueprintCredits: number | null; catalogItem?: CatalogItem; modular?: string | null;
 }
 export interface CraftingPlan {
   id: string; itemId: string; quantity: number;
@@ -50,9 +53,9 @@ export function validateCraftingPlans(value: unknown): CraftingPlan[] {
   });
 }
 
-/** Reuse the catalog's recipes; the index resolves shared subcomponents by game ID. */
+/** Combine inventory and standalone Foundry recipes, resolving shared ingredients by game ID. */
 export function craftingIndex(catalog: CatalogItem[], materials: CraftingMaterial[]): Map<string, CraftingItem> {
-  const index = new Map<string, CraftingItem>(materials.map(item => [item.id, { ...item, kind: 'Materials', equipment: false, recipes: [] }]));
+  const index = new Map<string, CraftingItem>(materials.map(item => [item.id, { ...item, kind: item.kind ?? 'Materials', equipment: item.equipment ?? false, recipes: item.recipes ?? [] }]));
   for (const item of catalog) index.set(item.id, { ...item, description: item.description || '', location: '', kind: item.slot === 'Warframe' ? 'Warframes' : 'Weapons', equipment: true, recipes: item.recipes || [], blueprintCredits: item.market?.blueprintCredits ?? null, catalogItem: item });
   const visited = new Set<Recipe>();
   function visit(recipe: Recipe) {
@@ -71,6 +74,7 @@ export function craftingIndex(catalog: CatalogItem[], materials: CraftingMateria
     }
   }
   for (const item of catalog) item.recipes?.forEach(visit);
+  for (const item of materials) item.recipes?.forEach(visit);
   return index;
 }
 

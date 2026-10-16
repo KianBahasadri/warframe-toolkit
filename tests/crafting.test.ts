@@ -8,7 +8,8 @@ import type { DropRow } from '../src/lib/dropTables.ts';
 import { emptyProfile, validateProfile } from '../src/lib/account.ts';
 
 const catalog: CatalogItem[] = JSON.parse(readFileSync(new URL('../src/data/catalog.json', import.meta.url), 'utf8')).items;
-const materials: CraftingMaterial[] = JSON.parse(readFileSync(new URL('../src/data/crafting.json', import.meta.url), 'utf8')).materials;
+const craftingData = JSON.parse(readFileSync(new URL('../src/data/crafting.json', import.meta.url), 'utf8'));
+const materials: CraftingMaterial[] = craftingData.materials;
 const index = craftingIndex(catalog, materials);
 const item = (name: string) => { const item = [...index.values()].find(item => item.name === name); assert.ok(item, name); return item; };
 const planFor = (name: string, quantity = 1): CraftingPlan => ({ id: 'plan', itemId: item(name).id, quantity, completed: [], choices: {} });
@@ -39,6 +40,49 @@ test('Rhino expands components but gathers optional rare resources by default', 
   assert.equal(summary.credits, 70000);
   assert.equal(summary.materials.find(part => part.item.name === 'Ferrite')?.quantity, 1500);
   assert.equal(buildCraftingTree(index, planFor('Morphics'))!.recipe?.credits, 15000);
+});
+
+test('Oxylus has its exact Foundry recipe and rounds nested gem and alloy batches', () => {
+  const tree = buildCraftingTree(index, planFor('Oxylus'))!;
+  assert.equal(tree.item.kind, 'Companions');
+  assert.equal(tree.item.id, '/Lotus/Types/Sentinels/SentinelPowersuits/RadarPowerSuit');
+  assert.equal(tree.recipe?.name, 'Oxylus Blueprint');
+  assert.equal(tree.recipe?.credits, 15000);
+  assert.equal(tree.recipe?.seconds, 86400);
+  assert.deepEqual(tree.children.map(node => [node.item.name, node.quantity]), [['Goblite Tears', 15], ['Axidrol Alloy', 45], ['Scrap', 40], ['Longwinder Lathe Coagulant', 10]]);
+  assert.deepEqual(tree.children.slice(0, 2).map(node => [node.recipe?.quantity, node.batches]), [[10, 2], [20, 3]]);
+  const summary = craftingSummary(tree);
+  assert.equal(summary.credits, 23000);
+  assert.deepEqual(Object.fromEntries(summary.materials.map(part => [part.item.name, part.quantity])), { Axidite: 60, Ferrite: 1500, Goblite: 20, 'Longwinder Lathe Coagulant': 10, Rubedo: 300, Scrap: 40 });
+  assert.equal(item('Oxylus Blueprint').blueprintCredits, null, 'Standing purchases are not credit prices.');
+});
+
+test('Foundry categories cover standalone equipment, gear, cosmetics, and modular parts', () => {
+  for (const [name, kind] of [['Taxon', 'Companions'], ['Carrier Prime', 'Companions'], ['Lambeo Moa', 'Companions'], ['Itzal', 'Vehicles'], ['Mantis', 'Vehicles'], ['Flatbelly', 'Vehicles'], ['Cipher', 'Gear'], ['Orokin Catalyst', 'Gear'], ['Helminth Segment', 'Gear'], ['Ash Locust Helmet', 'Cosmetics'], ['Loid Sentinel Skin', 'Cosmetics'], ['Anspatha Brace', 'Materials'], ['Peye', 'Materials']]) {
+    assert.equal(item(name).kind, kind, name);
+    assert.ok(item(name).recipes.length, name);
+  }
+  assert.notEqual(item('Carrier').id, item('Carrier Prime').id);
+  assert.match(item('Lambeo Moa').modular!, /component.*assembly/);
+  assert.match(item('Flatbelly').modular!, /component.*assembly/);
+  assert.deepEqual(item('Cipher').recipes.map(recipe => recipe.quantity).sort((a, b) => a - b), [1, 10, 100]);
+  for (const name of ['Sunpoint Plasma Drill', 'Test Forma', 'Pax Charge', 'The Silver Grove']) assert.ok(![...index.values()].some(item => item.name === name && item.recipes.length), name);
+  assert.ok(!catalog.some(item => item.name === 'Oxylus'), 'Foundry coverage must not change inventory categories.');
+});
+
+test('the generated audit accounts for every exported recipe without including excluded IDs', () => {
+  const recipes = new Set([...index.values()].flatMap(item => item.recipes.map(recipe => recipe.id)));
+  const coverage = craftingData.recipeCoverage;
+  assert.ok(coverage.exported > 1900);
+  assert.ok(coverage.included > 1700);
+  assert.equal(coverage.included + coverage.excluded.length, coverage.exported);
+  assert.equal(new Set(coverage.excluded.map((entry: { id: string }) => entry.id)).size, coverage.excluded.length);
+  for (const entry of coverage.excluded) {
+    assert.ok(entry.reason, entry.id);
+    assert.ok(!recipes.has(entry.id), entry.id);
+  }
+  // The inventory catalog also has a few sourced recipes without a Public Export ID.
+  assert.equal([...recipes].filter(id => !id.endsWith('#recipe')).length, coverage.included);
 });
 
 test('areas follow unfinished materials, including independent occurrences and recipe choices', () => {
@@ -179,12 +223,13 @@ test('gather and alternate recipe choices preserve independent branches and exac
   assert.equal(craftingSummary(buildCraftingTree(index, plan)!).materials.find(part => part.item.name === 'Lex Prime')?.quantity, 2);
 });
 
-test('catalog recipes expand without cycles, invalid quantities, or unresolved ingredients', () => {
-  for (const item of index.values()) if (item.recipes.length) {
-    const tree = buildCraftingTree(index, { id: 'test', itemId: item.id, quantity: 3, completed: [], choices: {} })!;
+test('all recipe alternatives expand without cycles, invalid quantities, or unresolved ingredients', () => {
+  for (const item of index.values()) for (const recipe of item.recipes) {
+    const tree = buildCraftingTree(index, { id: 'test', itemId: item.id, quantity: 3, completed: [], choices: { root: recipe.id } })!;
     const visit = (node: typeof tree) => {
       assert.equal(node.problem, undefined, `${item.name}: ${node.item.name}: ${node.problem}`);
       assert.ok(Number.isSafeInteger(node.quantity) && node.quantity > 0);
+      assert.ok(node.item.name && !['Unknown material', 'Blueprint', 'Systems', 'Chassis', 'Avionics'].includes(node.item.name), node.item.id);
       node.children.forEach(visit);
     };
     visit(tree);
