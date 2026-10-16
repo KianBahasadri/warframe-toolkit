@@ -4,6 +4,7 @@ Read [README.md](README.md) for setup, data semantics, and code locations.
 
 - Commit completed work and useful checkpoints locally without waiting to be asked.
 - Keep UI controls/data useful and copy minimal. Use player terms: equipment, rewards, sources, results; never “cards.” No slogans or decorative copy.
+- Link relevant community guides only as footnotes in advanced info popups.
 - Require no API key; keep screenshots in the browser.
 - Guests browse/edit temporarily; saving requires an account using a Warframe username and server-generated access key, never a chosen password/email.
 - Sign-in bookmarks carry keys only in URL fragments: consume/remove promptly; never store keys in browser storage or shared links. Preserve legacy saves for explicit migration; never merge accounts.

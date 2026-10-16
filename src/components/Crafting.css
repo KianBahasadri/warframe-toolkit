@@ -146,6 +146,10 @@
 .craft-source-date { margin: 14px 0 0; font-size: 11px; color: var(--muted); }
 .craft-detail-links { flex-wrap: wrap; margin-top: 24px; }
 .craft-detail-links a:not(.button) { font-size: 12px; }
+.craft-detail-footnotes { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.craft-detail-footnotes ol { margin: 0; padding-left: 20px; }
+.craft-detail-footnotes a { color: inherit; }
+.craft-detail-footnotes svg { vertical-align: middle; }
 .craft-quests li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 13px; margin: 8px 0; }
 @media (min-width: 1200px) { .craft-branches { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 1000px) { .craft-workspace { grid-template-columns: minmax(0, 1fr); gap: 28px; }.craft-sidebar { position: static; border: 0; border-top: 1px solid var(--line); padding: 20px 0 0; }.craft-remaining ul, .craft-areas ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }.craft-remaining li + li, .craft-areas li + li { border-top: 0; } }

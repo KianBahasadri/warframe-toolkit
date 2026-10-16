@@ -51,6 +51,23 @@ test('Oxylus blueprint search exposes exact ingredients, nested batches, and sav
   await page.reload();
   await page.getByRole('tab', { name: 'Oxylus', exact: true }).click();
   await expect(page.getByRole('slider', { name: 'Completed quantity for Axidrol Alloy', exact: true })).toHaveValue('20');
+  const guideName = 'Fortuna / Orb Vallis Fishing Guide';
+  await expect(page.getByRole('link', { name: guideName, exact: true })).toHaveCount(0);
+  for (const name of ['Scrap', 'Longwinder Lathe Coagulant']) {
+    await page.getByRole('button', { name: `Sources for remaining ${name}`, exact: true }).click();
+    const dialog = page.getByRole('dialog', { name, exact: true });
+    const guide = dialog.getByRole('list', { name: 'Community guides', exact: true }).getByRole('link', { name: guideName, exact: true });
+    await expect(guide).toHaveAttribute('href', 'https://steamcommunity.com/sharedfiles/filedetails/?id=1562024912');
+    await expect(guide).toHaveAttribute('target', '_blank');
+    await expect(dialog.locator('.craft-detail-footnotes')).toContainText('Revalopod · Steam Community');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).focus();
+    await page.keyboard.press('Shift+Tab'); await expect(guide).toBeFocused();
+    await page.setViewportSize({ width: 320, height: 800 });
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await expect(page.getByRole('link', { name: guideName, exact: true })).toHaveCount(0);
+  }
   expect((await account.profile()).inventory).toEqual(before);
 });
 
@@ -275,6 +292,7 @@ test('source details distinguish blueprints, exact variants, world locations and
   await expect(dialog).not.toContainText('Unrelated Prime source');
   await expect(dialog).toContainText('15,000 credits');
   await expect(dialog.getByRole('region', { name: 'Mining info' })).toHaveCount(0);
+  await expect(dialog.getByRole('list', { name: 'Community guides', exact: true })).toHaveCount(0);
   await expect(dialog.getByRole('link', { name: 'Item wiki' })).toHaveAttribute('href', 'https://wiki.warframe.com/w/Rhino');
   await dialog.getByRole('button', { name: 'Close', exact: true }).focus();
   await page.keyboard.press('Shift+Tab');
@@ -312,7 +330,10 @@ test('mining popups distinguish ore and gem rarities, cutter suggestions, and re
     await expect(mining).toContainText(rarity);
     await expect(mining.getByRole('link', { name: cutter, exact: true })).toHaveAttribute('href', `https://wiki.warframe.com/w/${cutter.replaceAll(' ', '_')}`);
     await expect(mining).toContainText(advice);
-    await expect(mining.getByRole('link', { name: 'Mining guide' })).toHaveAttribute('href', 'https://wiki.warframe.com/w/Mining');
+    const guides = dialog.getByRole('list', { name: 'Community guides', exact: true });
+    await expect(guides.getByRole('link', { name: 'Mining guide' })).toHaveAttribute('href', 'https://wiki.warframe.com/w/Mining');
+    await expect(mining.getByRole('link', { name: 'Mining guide' })).toHaveCount(0);
+    await expect(guides.getByRole('link')).toHaveCount(1);
     for (const theme of ['dark', 'light']) {
       await page.setViewportSize({ width: 320, height: 800 });
       await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);

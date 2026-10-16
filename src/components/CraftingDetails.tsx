@@ -21,6 +21,11 @@ export function CraftingDetails({ item, node, onRecipe, onClose }: { item: Craft
   const blueprintCredits = blueprint?.blueprintCredits ?? item.blueprintCredits;
   const description = item.description.replace(/\s*Location: .+$/i, '');
   const mining = miningInfo(item.name);
+  const orbVallisFish = item.id.startsWith('/Lotus/Types/Items/Fish/Solaris/') && (item.id.includes('/FishParts/') || /Fish[^/]*Item$/.test(item.id));
+  const guides = [
+    ...(mining ? [{ title: 'Mining guide', url: MINING_GUIDE_URL, author: 'WARFRAME Wiki' }] : []),
+    ...(orbVallisFish ? [{ title: 'Fortuna / Orb Vallis Fishing Guide', url: 'https://steamcommunity.com/sharedfiles/filedetails/?id=1562024912', author: 'Revalopod · Steam Community' }] : []),
+  ];
   const openDrops = () => {
     const view = defaultDropView();
     view.filters.reward = { kind: 'values', values: [...new Set(sources.length ? sources.map(row => row.reward) : [item.name, ...(recipe ? [recipe.name] : [])])] };
@@ -30,7 +35,7 @@ export function CraftingDetails({ item, node, onRecipe, onClose }: { item: Craft
   return <Dialog title={item.name} onClose={onClose} className="craft-detail">
     <div className="craft-detail-intro"><CraftingArtwork item={item} /><div>{description && <p className="small muted">{description}</p>}{item.location && <p className="craft-location"><MapPin size={16} /><span>{item.location}</span></p>}{node && <span className="badge">{number(node.quantity)} needed</span>}</div></div>
     {mining && <section className="craft-detail-section craft-mining" aria-label="Mining info">
-      <div className="craft-detail-heading"><h3>Mining</h3><a href={MINING_GUIDE_URL} target="_blank" rel="noreferrer">Mining guide <ExternalLink size={12} /></a></div>
+      <h3>Mining</h3>
       <dl className="craft-facts">
         <div><dt>Rarity</dt><dd>{mining.rarity} {mining.kind.toLowerCase()}</dd></div>
         <div><dt>Suggested cutter</dt><dd><a href={mining.cutterUrl} target="_blank" rel="noreferrer">{mining.cutter} <ExternalLink size={12} /></a></dd></div>
@@ -56,5 +61,6 @@ export function CraftingDetails({ item, node, onRecipe, onClose }: { item: Craft
       {data && <p className="craft-source-date">Drop snapshot: <time dateTime={data.fetchedAt}>{new Date(data.fetchedAt).toLocaleString()}</time></p>}
     </section>
     <div className="craft-detail-links"><a className="button secondary" href={item.wikiUrl} target="_blank" rel="noreferrer">Item wiki <ExternalLink size={14} /></a><button type="button" className="button secondary" onClick={openDrops}>Open Drop Tables <ExternalLink size={14} /></button></div>
+    {!!guides.length && <footer className="craft-detail-footnotes"><ol aria-label="Community guides">{guides.map(guide => <li key={guide.url}><a href={guide.url} target="_blank" rel="noreferrer">{guide.title} <ExternalLink size={11} aria-hidden="true" /></a><span> — {guide.author}</span></li>)}</ol></footer>}
   </Dialog>;
 }
