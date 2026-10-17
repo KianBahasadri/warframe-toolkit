@@ -82,7 +82,9 @@ resource "azurerm_federated_identity_credential" "deploy" {
   user_assigned_identity_id = azurerm_user_assigned_identity.deploy.id
   audience                  = ["api://AzureADTokenExchange"]
   issuer                    = "https://token.actions.githubusercontent.com"
-  subject                   = "repo:KianBahasadri/warframe-toolkit:environment:production"
+  # This repository uses GitHub's immutable OIDC subject format. Read its exact
+  # prefix from GET /repos/KianBahasadri/warframe-toolkit/actions/oidc/customization/sub.
+  subject = "repo:KianBahasadri@101868619/warframe-toolkit@1414507824:environment:production"
 }
 
 resource "azurerm_role_assignment" "deploy" {

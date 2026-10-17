@@ -19,6 +19,8 @@ Azure uses the `Azure for Students` subscription and the dedicated `warframe-too
 
 Terraform creates a managed deployment identity with Contributor access only to that resource group. GitHub uses OIDC for the repository's `production` environment, whose deployment branch policy allows only `main`; set repository variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` from the corresponding Terraform outputs after the first local apply. No Azure client secret is required. The host agent manages these GitHub variables and the environment's branch policy.
 
+The trust record includes GitHub's immutable owner/repository IDs. Before changing it after a rename or transfer, read the exact `sub_claim_prefix` with `gh api repos/KianBahasadri/warframe-toolkit/actions/oidc/customization/sub` on the host, then append `:environment:production`. CI verifies the actual GitHub-to-Azure token exchange and resource-group access before running tests; a trust mismatch fails immediately. [GitHub's immutable subject format](https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/) explains the identifiers.
+
 ## Manual deployment
 
 Use system Chromium or set `CHROMIUM_PATH`. Before applying changes, save `node scripts/terraform.mjs state pull` privately under `.data/terraform-backups/` (directory 700, files 600). Never commit/upload credentials, state, plans, or account data.

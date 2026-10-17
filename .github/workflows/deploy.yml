@@ -34,6 +34,12 @@ jobs:
         with:
           node-version: '26.11.1'
           package-manager-cache: false
+      - name: Verify Azure deployment identity
+        env:
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: node scripts/check-azure-auth.mjs
       - run: npm ci
       - run: npm test
       - run: npm run test:cloudflare
