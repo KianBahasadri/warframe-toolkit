@@ -57,6 +57,7 @@ resource "azurerm_windows_function_app" "market" {
   site_config {
     always_on           = false
     app_scale_limit     = 1
+    use_32_bit_worker   = false
     minimum_tls_version = "1.2"
     ftps_state          = "Disabled"
     application_stack { node_version = "~24" }
@@ -66,6 +67,7 @@ resource "azurerm_windows_function_app" "market" {
 data "azurerm_function_app_host_keys" "market" {
   name                = azurerm_windows_function_app.market.name
   resource_group_name = azurerm_resource_group.market.name
+  depends_on          = [azurerm_windows_function_app.market]
 }
 
 # GitHub authenticates with an ephemeral OIDC token; no Azure password is stored.

@@ -25,6 +25,12 @@ export function assertSafePlan(plan) {
   // never delete/recreate infrastructure. Intentional removals need a local plan.
   for (const resource of plan.resource_changes) {
     if (resource.change?.actions?.includes('delete') && resource.address !== 'terraform_data.schema') throw new Error(`Automatic deployment refused to delete or replace ${resource.address}.`);
+    const after = resource.change?.after;
+    if (resource.type === 'azurerm_service_plan' && after?.sku_name !== 'Y1') throw new Error('Automatic deployment refused an Azure plan outside the low-cost Consumption tier.');
+    if (resource.type === 'azurerm_windows_function_app') {
+      const site = after?.site_config?.[0];
+      if (!(after?.daily_memory_time_quota > 0 && after.daily_memory_time_quota <= 5000) || site?.app_scale_limit !== 1 || site?.always_on !== false) throw new Error('Automatic deployment refused to remove or raise the Azure cost limits.');
+    }
     if (resource.type === 'cloudflare_workers_script') {
       const migration = resource.change?.after?.migrations;
       for (const step of [migration, ...(migration?.steps ?? [])]) {

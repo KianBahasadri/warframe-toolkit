@@ -35,7 +35,7 @@ test('interrupted and oversized responses keep their reservation instead of evad
   assert.deepEqual(other.data.get('relay-budget'), { day: '2026-10-16', requests: 1, bytes: 12_000_000 });
 });
 
-test('missing or malformed budget storage fails closed before any billable request', async () => {
+test('unavailable or malformed budget storage fails closed before any billable request', async () => {
   const f = fixture(); f.data.set('relay-budget', { day: 'broken', requests: -1, bytes: NaN });
   await assert.rejects(createMarketRelayBudget(f.store, f.now)(), /could not be checked/);
   await assert.rejects(createMarketRelayBudget({ get: async () => { throw new Error('storage unavailable'); }, set: f.store.set })(), /storage unavailable/);

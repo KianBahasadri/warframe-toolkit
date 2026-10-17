@@ -47,3 +47,13 @@ test('an in-place Worker update cannot silently delete or transfer Durable Objec
   }
   assert.doesNotThrow(() => assertSafePlan({ resource_changes: [{ address: 'cloudflare_workers_script.app', type: 'cloudflare_workers_script', change: { actions: ['update'], after: { migrations: { old_tag: 'v1', new_tag: 'v1' } } } }] }));
 });
+
+test('deployment rejects Azure plan upgrades and missing or increased compute limits', () => {
+  const change = (type: string, after: unknown) => ({ resource_changes: [{ address: `${type}.market`, type, change: { actions: ['update'], after } }] });
+  const app = { daily_memory_time_quota: 5000, site_config: [{ app_scale_limit: 1, always_on: false }] };
+  assert.doesNotThrow(() => assertSafePlan(change('azurerm_service_plan', { sku_name: 'Y1' })));
+  assert.doesNotThrow(() => assertSafePlan(change('azurerm_windows_function_app', app)));
+  for (const sku_name of ['FC1', 'B1', 'EP1', undefined]) assert.throws(() => assertSafePlan(change('azurerm_service_plan', { sku_name })), /low-cost Consumption/);
+  for (const daily_memory_time_quota of [0, -1, 5001, undefined]) assert.throws(() => assertSafePlan(change('azurerm_windows_function_app', { ...app, daily_memory_time_quota })), /cost limits/);
+  for (const site_config of [[], [{ app_scale_limit: 0, always_on: false }], [{ app_scale_limit: 2, always_on: false }], [{ app_scale_limit: 1, always_on: true }]]) assert.throws(() => assertSafePlan(change('azurerm_windows_function_app', { ...app, site_config })), /cost limits/);
+});
