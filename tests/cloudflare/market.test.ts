@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { cloudflareRuntime } from './runtime.ts';
 import { wfmHistory, wfmItems, wfmOrders } from '../fixtures/wfm.ts';
 import { handleMarketRelay } from '../../azure/market/handler.ts';
@@ -85,4 +86,27 @@ test('an incomplete relay configuration fails without falling back to direct Clo
     assert.equal(response.status, 503); assert.match((await response.json()).error, /not configured/);
     assert.equal(calls, 0);
   } finally { await api.close(); }
+});
+
+test('the persisted cost allowance stops Azure calls and retains stale prices across Worker restarts', async () => {
+  const persist = await mkdtemp(join(tmpdir(), 'toolkit-market-budget-'));
+  let calls = 0;
+  const options = { persist, relay: { url: 'https://relay.test', key: 'private-relay-key' }, outbound: async (request: Request) => {
+    calls++; return Response.json(request.url.endsWith('/v2/items') ? wfmItems : wfmOrders());
+  } };
+  let api = await cloudflareRuntime(options);
+  try {
+    const original = await (await api.mf.dispatchFetch('https://toolkit.test/api/wfm/orders/ash_prime_set')).json();
+    assert.equal(calls, 2);
+    const storage = await api.mf.unsafeGetDurableObjectStorage('warframe-toolkit', 'DropTables', { name: 'wfm' });
+    const usage = { day: new Date().toISOString().slice(0, 10), requests: 2000, bytes: 0 };
+    const expired = { data: original.data, fetchedAt: '2020-01-01T00:00:00.000Z', retryAt: 0, touched: 0 };
+    for (const [key, value] of [['relay-budget', usage], ['orders:pc:ash_prime_set', expired]] as const) await storage.exec(`UPDATE market_cache SET value = X'${gzipSync(JSON.stringify(value)).toString('hex')}' WHERE key = '${key}'`);
+    await api.close(); api = await cloudflareRuntime(options);
+    const stale = await (await api.mf.dispatchFetch('https://toolkit.test/api/wfm/orders/ash_prime_set')).json();
+    assert.equal(stale.stale, true); assert.equal(stale.fetchedAt, expired.fetchedAt);
+    assert.deepEqual(stale.data, original.data); assert.match(stale.error, /Daily market request limit/);
+    assert.equal((await api.mf.dispatchFetch('https://toolkit.test/api/wfm/orders/braton_prime_set')).status, 503);
+    assert.equal(calls, 2, 'quota checks must run before invoking Azure');
+  } finally { await api.close(); await rm(persist, { recursive: true, force: true }); }
 });

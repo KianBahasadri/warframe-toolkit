@@ -1,7 +1,7 @@
 import { MARKET_ORIGIN, isMarketPath, marketHeaders } from '../../server/marketUpstream.ts';
+import { MARKET_RELAY_RESPONSE_LIMIT as limit } from '../../server/marketRelayBudget.ts';
 
 const platforms = new Set(['pc', 'ps4', 'xbox', 'switch', 'mobile']);
-const limit = 12_000_000;
 
 /** Azure's function-level key authenticates callers before this handler runs. */
 export async function handleMarketRelay(request: Request, upstream: typeof fetch = fetch): Promise<Response> {
