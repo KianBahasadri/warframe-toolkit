@@ -49,11 +49,12 @@ export function ColumnMenu({ column, columns, selected, choices, sorting, filter
 function ColumnFilterForm({ column, choices, filter, onApply }: { column: TableColumn; choices?: FilterChoice[]; filter?: ColumnFilter; onApply: (filter?: ColumnFilter) => void }) {
   const [value, setValue] = useState(filter && filter.kind !== 'choice' ? String(filter.value) : '');
   const [selectedValues, setSelectedValues] = useState(filter?.kind === 'choice' ? filter.values : []);
+  const [excludedValues, setExcludedValues] = useState(filter?.kind === 'choice' ? filter.excludedValues ?? [] : []);
   const [operator, setOperator] = useState(filter?.kind === 'number' ? filter.operator : 'equals');
   return <form className="column-filter-form" aria-label={`Filter ${column.title}`} onSubmit={event => {
     event.preventDefault();
     if (column.kind === 'number') onApply(operator === 'unknown' || value !== '' ? { kind: 'number', operator, value: Number(value) } : undefined);
-    else if (choices) onApply(selectedValues.length ? { kind: 'choice', values: selectedValues } : undefined);
+    else if (choices) onApply(selectedValues.length || excludedValues.length ? { kind: 'choice', values: selectedValues, excludedValues } : undefined);
     else onApply(value.trim() ? { kind: 'text', value: value.trim() } : undefined);
   }}>
     {column.kind === 'number' ? <>
@@ -61,12 +62,24 @@ function ColumnFilterForm({ column, choices, filter, onApply }: { column: TableC
       {operator !== 'unknown' && <label>{column.title}<input aria-label={`Filter ${column.title.toLowerCase()}`} type="number" min={column.number?.min} max={column.number?.max} step={column.number?.step ?? 1} value={value} onChange={event => setValue(event.target.value)} /></label>}
     </> : choices ? <fieldset className="column-filter-choices" aria-label={`${column.title} filter values`}>
       <legend><span className="column-filter-label"><Filter size={16} aria-hidden="true" />Filter</span></legend>
-      <div className="column-filter-options">{choices.map(choice => <label key={choice.value}>
-        <input type="checkbox" checked={selectedValues.includes(choice.value)} onChange={event => setSelectedValues(event.target.checked ? [...selectedValues, choice.value] : selectedValues.filter(value => value !== choice.value))} />
-        <span>{choice.label}</span>
-      </label>)}</div>
+      <div className="column-filter-sides" aria-hidden="true"><span>Include</span><span>Exclude</span></div>
+      <div className="column-filter-options">{choices.map(choice => <div className="column-filter-option" key={choice.value}>
+        <label>
+          <input type="checkbox" aria-label={`Include ${choice.label}`} checked={selectedValues.includes(choice.value)} onChange={event => {
+            setSelectedValues(event.target.checked ? [...selectedValues, choice.value] : selectedValues.filter(value => value !== choice.value));
+            if (event.target.checked) setExcludedValues(excludedValues.filter(value => value !== choice.value));
+          }} />
+          <span>{choice.label}</span>
+        </label>
+        <label className="column-filter-exclude" title={`Exclude ${choice.label}`}>
+          <input type="checkbox" aria-label={`Exclude ${choice.label}`} checked={excludedValues.includes(choice.value)} onChange={event => {
+            setExcludedValues(event.target.checked ? [...excludedValues, choice.value] : excludedValues.filter(value => value !== choice.value));
+            if (event.target.checked) setSelectedValues(selectedValues.filter(value => value !== choice.value));
+          }} />
+        </label>
+      </div>)}</div>
     </fieldset>
       : <label>Contains<input aria-label={`${column.title} contains`} value={value} onChange={event => setValue(event.target.value)} /></label>}
-    <div className="column-filter-actions"><button type="button" className="button quiet" disabled={!filter && !selectedValues.length} onClick={() => onApply()}>Clear filter</button><button type="submit" className="button primary">Apply filter</button></div>
+    <div className="column-filter-actions"><button type="button" className="button quiet" disabled={!filter && !selectedValues.length && !excludedValues.length} onClick={() => onApply()}>Clear filter</button><button type="submit" className="button primary">Apply filter</button></div>
   </form>;
 }

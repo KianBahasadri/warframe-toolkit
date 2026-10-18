@@ -260,7 +260,7 @@ test('column filters combine, survive hiding their column, and coordinate with w
   await page.getByRole('button', { name: 'Apply filter', exact: true }).click();
   await expect(names).toHaveText(['Boltor']);
   await page.getByRole('button', { name: 'Owned column options', exact: true }).click({ button: 'right' });
-  await menu.getByRole('checkbox', { name: 'No', exact: true }).check();
+  await menu.getByRole('checkbox', { name: 'Include No', exact: true }).check();
   await page.getByRole('button', { name: 'Apply filter', exact: true }).click();
   await expect(names).toHaveText(['Boltor Prime', 'Telos Boltor']);
   await page.getByRole('button', { name: 'Owned column options', exact: true }).click({ button: 'right' });
@@ -289,7 +289,7 @@ test('column filters combine, survive hiding their column, and coordinate with w
   await menu.getByRole('button', { name: 'Clear filter' }).click();
   await expect(page.getByRole('button', { name: 'Remove Rank filter' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Incarnon column options', exact: true }).click({ button: 'right' });
-  await menu.getByRole('checkbox', { name: 'Genesis compatible', exact: true }).check();
+  await menu.getByRole('checkbox', { name: 'Include Genesis compatible', exact: true }).check();
   await page.getByRole('button', { name: 'Apply filter', exact: true }).click();
   await expect(names).not.toHaveCount(30);
   await expect(page.getByRole('button', { name: 'Edit Boltor', exact: true })).toBeVisible();

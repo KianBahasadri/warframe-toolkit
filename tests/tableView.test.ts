@@ -88,6 +88,23 @@ test('choice filters match any selected value and combine with other columns', (
   assert.deepEqual(filters, before);
 });
 
+test('choice exclusions work alone, override included values, and combine with other columns', () => {
+  const before = structuredClone(rows);
+  const filters: ColumnFilters = { slot: { kind: 'choice', values: [], excludedValues: ['Melee'] } };
+  const savedFilters = structuredClone(filters);
+  assert.deepEqual(filterRows(rows, filters, equipmentTableModel).map(item => item.name), ['Atomos', 'Boltor']);
+  assert.deepEqual(filterRows(rows, { slot: { kind: 'choice', values: ['Melee', 'Secondary'], excludedValues: ['Melee'] } }, equipmentTableModel).map(item => item.name), ['Atomos']);
+  assert.deepEqual(filterRows(rows, { ...filters, mastered: { kind: 'choice', values: [], excludedValues: ['false'] } }, equipmentTableModel).map(item => item.name), ['Boltor']);
+  assert.deepEqual(filterRows(rows, { slot: { kind: 'choice', values: [], excludedValues: ['Primary', 'Secondary', 'Melee'] } }, equipmentTableModel), []);
+  assert.deepEqual(filterRows(rows, { slot: { kind: 'choice', values: [], excludedValues: ['Missing'] } }, equipmentTableModel), rows);
+  assert.deepEqual(filterRows(rows, { slot: { kind: 'choice', values: [], excludedValues: [] } }, equipmentTableModel), rows);
+  assert.equal(filterLabel(filters.slot!), 'Any except Melee');
+  assert.equal(filterLabel({ kind: 'choice', values: ['Primary', 'Secondary'], excludedValues: ['Melee'] }), 'Primary or Secondary except Melee');
+  assert.equal(filterLabel({ kind: 'choice', values: [], excludedValues: ['true', 'false'] }, [{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]), 'Any except Yes or No');
+  assert.deepEqual(filters, savedFilters);
+  assert.deepEqual(rows, before);
+});
+
 test('Incarnon filters distinguish Genesis, native, custom eligibility, and none', () => {
   const equipment: EquipmentRow[] = [
     { ...rows[0], incarnon: true, catalogItem: { ...rows[0], masteryReq: 0, wikiUrl: '', incarnon: { type: 'genesis', name: '', description: '', installation: null, wikiUrl: '' } } },
@@ -101,6 +118,9 @@ test('Incarnon filters distinguish Genesis, native, custom eligibility, and none
   assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', values: ['none'] } }, equipmentTableModel).map(item => item.name), ['Bo']);
   assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', values: ['genesis', 'native'] } }, equipmentTableModel).map(item => item.name), ['Anku', 'Arca Titron']);
   assert.equal(filterRows(equipment, { incarnon: { kind: 'choice', values: ['yes', 'native'] } }, equipmentTableModel).length, 3);
+  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', values: ['yes'], excludedValues: ['genesis'] } }, equipmentTableModel).map(item => item.name), ['Arca Titron', 'Atomos']);
+  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', values: [], excludedValues: ['yes'] } }, equipmentTableModel).map(item => item.name), ['Bo']);
+  assert.deepEqual(filterRows(equipment, { incarnon: { kind: 'choice', values: ['genesis', 'native'], excludedValues: ['yes'] } }, equipmentTableModel), []);
 });
 
 
