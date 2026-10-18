@@ -191,7 +191,6 @@ test('WFM sorting resolves offscreen prices and supports fractional filters with
   await header.click(); await page.getByRole('combobox', { name: 'WFM condition' }).click();
   await page.getByRole('option', { name: 'At least', exact: true }).click();
   await page.getByRole('spinbutton', { name: 'Filter wfm', exact: true }).fill('14.5');
-  await page.getByRole('button', { name: 'Apply filter', exact: true }).click();
   await expect(page.locator('.inventory-table .equipment-label')).toHaveText(['Secura Dual Cestra']);
   expect(await account.inventory()).toEqual(inventory);
 });

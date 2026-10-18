@@ -45,7 +45,7 @@ test('dragged columns keep their data, filters, and independent saved order in e
   await menu(page).getByRole('menuitemradio', { name: 'Sort descending' }).click();
   await header(page, 'Rank').click();
   await page.getByRole('spinbutton', { name: 'Filter rank' }).fill('30');
-  await page.getByRole('button', { name: 'Apply filter' }).click();
+  await page.keyboard.press('Escape');
   await dragColumn(page, 'Rank', 'Owned', 'before');
   await expect.poll(() => order(page)).toEqual(['name', 'wfm', 'rank', 'owned', ...equipmentOrder.slice(4)]);
   await expect(page.getByRole('button', { name: 'Rank column options' })).toHaveAccessibleDescription('Sort priority 1 of 1, descending');

@@ -98,8 +98,8 @@ test('relics share numeric filters, sort priorities, hidden-column filters, and 
   await page.getByRole('combobox', { name: 'Quantity condition' }).click();
   await page.getByRole('option', { name: 'At least', exact: true }).click();
   await page.getByRole('spinbutton', { name: 'Filter quantity' }).fill('50');
-  await page.getByRole('button', { name: 'Apply filter' }).click();
   await expect(names).toHaveText(['Neo N1']);
+  await page.keyboard.press('Escape');
   await quantity.click();
   await menu.getByRole('menuitem', { name: 'Hide column' }).click();
   await expect(quantity).toHaveCount(0);
