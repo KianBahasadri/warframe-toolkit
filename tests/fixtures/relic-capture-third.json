@@ -1,0 +1,26 @@
+{
+  "width": 1920,
+  "height": 1200,
+  "stacks": [
+    { "name": "Axi A21", "refinement": "Intact", "quantity": 1 },
+    { "name": "Axi A22", "refinement": "Intact", "quantity": 1 },
+    { "name": "Axi C4", "refinement": "Intact", "quantity": 1 },
+    { "name": "Axi C12", "refinement": "Intact", "quantity": 3 },
+    { "name": "Axi D6", "refinement": "Intact", "quantity": 3 },
+    { "name": "Axi H4", "refinement": "Intact", "quantity": 1 },
+    { "name": "Axi H4", "refinement": "Radiant", "quantity": 1 },
+    { "name": "Axi R2", "refinement": "Intact", "quantity": 1 },
+    { "name": "Axi S21", "refinement": "Intact", "quantity": 1 },
+    { "name": "Axi V14", "refinement": "Intact", "quantity": 3 },
+    { "name": "Lith A13", "refinement": "Intact", "quantity": 9 },
+    { "name": "Lith A13", "refinement": "Radiant", "quantity": 1 },
+    { "name": "Lith B6", "refinement": "Intact", "quantity": 1 },
+    { "name": "Lith C15", "refinement": "Radiant", "quantity": 6 },
+    { "name": "Lith C15", "refinement": "Intact", "quantity": 7 },
+    { "name": "Lith G14", "refinement": "Radiant", "quantity": 3 },
+    { "name": "Lith G14", "refinement": "Intact", "quantity": 5 },
+    { "name": "Lith L8", "refinement": "Radiant", "quantity": 1 },
+    { "name": "Lith L8", "refinement": "Intact", "quantity": 12 },
+    { "name": "Lith S18", "refinement": "Radiant", "quantity": 2 }
+  ]
+}

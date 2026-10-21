@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test, expect } from './accountFixture';
 import { createRelic } from '../../src/lib/relics';
 import example from '../fixtures/relic-screenshot.json' with { type: 'json' };
+import thirdCapture from '../fixtures/relic-capture-third.json' with { type: 'json' };
 
 const synthetic = [
   { name: 'Axi A21', refinement: 'Intact', quantity: 3 },
@@ -174,6 +175,16 @@ test('a second full game capture separates Radiant labels despite artwork in the
   await review(page, example.stacks);
   await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
   for (const stack of example.stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Import 20 stacks', exact: true })).toBeEnabled();
+});
+
+test('a third full game capture reads every stack without review warnings', async ({ page }) => {
+  await page.goto('/#relics');
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles('tests/fixtures/relic-capture-third.png');
+  await review(page, thirdCapture.stacks);
+  await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
+  for (const stack of thirdCapture.stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();
   await expect(page.getByRole('button', { name: 'Import 20 stacks', exact: true })).toBeEnabled();
 });
 
