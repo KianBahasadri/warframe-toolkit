@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { matchRelicReadings, readRelicName } from '../src/lib/relicRecognition.ts';
 import type { RelicReading, TextReading } from '../src/lib/relicRecognition.ts';
-import { findRelicRegions } from '../src/lib/relicVision.ts';
+import { findRelicRegions, relicLabelBand } from '../src/lib/relicVision.ts';
 import type { OcrLine } from '../src/lib/matching.ts';
 import { appendRelicDetections } from '../src/lib/relicMatching.ts';
 
@@ -45,6 +45,13 @@ test('isolated name readings require agreement, catalog membership and an exact 
   assert.equal(detect({ name: twice('Lith S99999 Relic') }).name, '');
   const conflicting = detect({ name: [...twice('Axi A21 Relic'), ...twice('Axi A22 Relic')] });
   assert.equal(conflicting.selected, false); assert.ok(conflicting.issues.includes('Check name'));
+  // More reads of one valid code must not outvote another valid code.
+  const majority = detect({ name: [
+    { text: 'Lith S18 Relic', confidence: 87, view: 0 },
+    { text: 'Lith S19 Relic', confidence: 95, view: 1 },
+    { text: 'Lith S19 Relic', confidence: 95, view: 2 },
+  ] });
+  assert.equal(majority.selected, false); assert.ok(majority.issues.includes('Check name'));
   const low = detect({ name: [{ text: 'Lith S18 Relic', confidence: 20 }, { text: 'Lith S18 Relic', confidence: 30 }] });
   assert.equal(low.selected, false);
   const catalog = new Map(names.map(name => [name.toLowerCase(), name]));
@@ -91,4 +98,18 @@ test('the grid retains unread positions, excludes screen instructions and detect
   const clipped = findRelicRegions(lines.filter(line => line.bbox!.y1 < 1790), { width: 3200, height: 1790 });
   assert.equal(clipped.length, 20);
   assert.ok(clipped.slice(-5).every(region => region.y + region.height > 1790));
+});
+
+test('label isolation removes attached artwork without hiding unread text below the name', () => {
+  const width = 110, height = 70, data = new Uint8ClampedArray(width * height * 4).fill(255);
+  const ink = (left: number, top: number, w: number, h: number) => {
+    for (let y = top; y < top + h; y++) for (let x = left; x < left + w; x++) data.fill(0, (y * width + x) * 4, (y * width + x) * 4 + 3);
+  };
+  // Four upright glyphs, with artwork attached above the first one.
+  for (const left of [10, 35, 60, 85]) ink(left, 20, 8, 20);
+  ink(10, 3, 4, 20);
+  // A damaged second line cannot be silently cropped away.
+  ink(5, 55, 90, 4);
+  const band = relicLabelBand({ width, height, data }, { x: 0, y: 0, width: 100, height: 64 }, 20);
+  assert.deepEqual(band, { x: 0, y: 20, width: 100, height: 44 });
 });

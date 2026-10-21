@@ -2,7 +2,7 @@ import { PSM } from 'tesseract.js';
 import type { Worker } from 'tesseract.js';
 import type { PixelImage } from './codex';
 import type { OcrLine } from './matching';
-import { findRelicRegions, regionVisible, relicCounterBand, relicTextBands, relicTextColor, relicTextMask } from './relicVision';
+import { findRelicRegions, regionVisible, relicCounterBand, relicLabelBand, relicTextBands, relicTextColor, relicTextMask } from './relicVision';
 import type { ImageRegion } from './relicVision';
 import type { RelicReading, TextReading } from './relicRecognition';
 import { matchRelicReadings, readRelicName } from './relicRecognition';
@@ -24,20 +24,22 @@ const fieldParameters = {
   quantityDigits: { tessedit_pageseg_mode: PSM.SINGLE_LINE, tessedit_char_whitelist: '0123456789,' },
 };
 
-async function readBand(worker: Worker, mask: PixelImage, band: ImageRegion, pass: number, field: RelicField, interrupted: Promise<never>): Promise<TextReading> {
+async function readBand(worker: Worker, mask: PixelImage, band: ImageRegion, pass: number, field: RelicField, interrupted: Promise<never>, textHeight = band.height): Promise<TextReading> {
   const source = canvasFor(mask), input = document.createElement('canvas');
   try {
     const part = field === 'quantityMarker' || field === 'quantityDigits';
-    const scale = 36 / band.height, stretch = part ? 1 : pass === 0 ? 1.2 : pass === 1 ? 1 : 1.1;
+    // Preserve glyph proportions. A crop can include artwork above a label;
+    // normalize by its measured font height rather than shrinking to that crop.
+    const scale = 36 / textHeight;
     // The parts share a boundary: padding must not pull a neighboring glyph into the crop.
     const inset = part ? 0 : 2;
     const x = Math.max(0, band.x - inset), y = Math.max(0, band.y - inset);
     const width = Math.min(mask.width, band.x + band.width + inset) - x, height = Math.min(mask.height, band.y + band.height + inset) - y;
-    input.width = Math.ceil(width * scale * stretch) + 32;
+    input.width = Math.ceil(width * scale) + 32;
     input.height = Math.ceil(height * scale) + 32;
     const context = input.getContext('2d')!;
     context.fillStyle = '#fff'; context.fillRect(0, 0, input.width, input.height);
-    context.drawImage(source, x, y, width, height, 16, 16, width * scale * stretch, height * scale);
+    context.drawImage(source, x, y, width, height, 16, 16, width * scale, height * scale);
     // A quantity badge is one short token. Line segmentation can split its
     // glyphs into invented digits; labels still need spaces between words.
     // Set both options on every read so retries cannot inherit another field's mode.
@@ -81,7 +83,9 @@ export async function recognizeRelics(worker: Worker, original: PixelImage, line
   try {
     for (const [index, region] of regions.entries()) {
       const label = relicTextMask(original, region.label, color);
-      const labelBands = relicTextBands(label, region.textHeight).filter(band => band.width > region.textHeight * 2.5);
+      const softLabel = relicTextMask(original, region.label, color, 'soft');
+      const labelBands = relicTextBands(label, region.textHeight).filter(band => band.width > region.textHeight * 2.5)
+        .map(band => relicLabelBand(softLabel, band, region.textHeight));
       if (!labelBands.length) {
         if (region.anchored) readings.push({ region, name: [], refinement: [], quantity: [], labelComplete: false, refinementAbsent: false, counter: 'text' });
         onProgress((index + 1) / regions.length); continue;
@@ -102,8 +106,10 @@ export async function recognizeRelics(worker: Worker, original: PixelImage, line
       if (observation.counter === 'empty' && ink > region.textHeight * region.textHeight * 0.04) observation.counter = 'text';
       const fields = labelBands.map(band => ({ band, readings: [] as TextReading[] }));
       for (let pass = 0; pass < 2; pass++) {
-        const labelMask = pass ? relicTextMask(original, region.label, color, 'soft') : label;
-        for (const field of fields) field.readings.push(await readBand(worker, labelMask, field.band, pass, 'label', interrupted));
+        // Strict binary ink locates text, but can erase a thin letter stroke.
+        // Read labels from an inclusive mask and an edge-preserving grayscale view.
+        const labelMask = pass ? relicTextMask(original, region.label, color, 'contrast') : softLabel;
+        for (const field of fields) field.readings.push(await readBand(worker, labelMask, field.band, pass, 'label', interrupted, region.textHeight));
         if (observation.counter === 'text' && counterBand) {
           observation.quantity.push(await readBand(worker, pass ? softCounter : counter, counterBand, pass, 'quantity', interrupted));
         }
@@ -118,9 +124,10 @@ export async function recognizeRelics(worker: Worker, original: PixelImage, line
         && !refinementFields.length && label.height - (nameField.band.y + nameField.band.height) < region.textHeight * 1.2;
       const issues = matchRelicReadings([observation], relicNames, '')[0].issues;
       if (issues.includes('Check name') || issues.includes('Choose refinement')) {
-        const contrast = relicTextMask(original, region.label, color, 'contrast');
-        if (issues.includes('Check name')) observation.name.push(await readBand(worker, contrast, nameField.band, 2, 'label', interrupted));
-        if (issues.includes('Choose refinement')) for (const field of refinementFields) observation.refinement.push(await readBand(worker, contrast, field.band, 2, 'label', interrupted));
+        // A stricter view can separate letters from similarly colored artwork.
+        // Use it only when the views that retain thin strokes need corroboration.
+        if (issues.includes('Check name')) observation.name.push(await readBand(worker, label, nameField.band, 2, 'label', interrupted, region.textHeight));
+        if (issues.includes('Choose refinement')) for (const field of refinementFields) observation.refinement.push(await readBand(worker, label, field.band, 2, 'label', interrupted, region.textHeight));
       }
       if (observation.counter === 'text' && counterBand && issues.some(issue => /quantit/i.test(issue))) {
         const contrast = relicTextMask(original, region.counter, color, 'contrast');

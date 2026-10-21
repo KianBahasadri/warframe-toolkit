@@ -1,0 +1,26 @@
+{
+  "width": 1920,
+  "height": 1200,
+  "stacks": [
+    { "name": "Lith S18", "refinement": "Intact", "quantity": 3 },
+    { "name": "Lith S19", "refinement": "Intact", "quantity": 4 },
+    { "name": "Lith S19", "refinement": "Radiant", "quantity": 2 },
+    { "name": "Lith V11", "refinement": "Intact", "quantity": 9 },
+    { "name": "Lith V11", "refinement": "Radiant", "quantity": 1 },
+    { "name": "Meso A1", "refinement": "Intact", "quantity": 2 },
+    { "name": "Meso A12", "refinement": "Intact", "quantity": 3 },
+    { "name": "Meso B3", "refinement": "Intact", "quantity": 2 },
+    { "name": "Meso C11", "refinement": "Intact", "quantity": 2 },
+    { "name": "Meso D3", "refinement": "Intact", "quantity": 1 },
+    { "name": "Meso D3", "refinement": "Radiant", "quantity": 1 },
+    { "name": "Meso D8", "refinement": "Intact", "quantity": 3 },
+    { "name": "Meso D9", "refinement": "Intact", "quantity": 3 },
+    { "name": "Meso F2", "refinement": "Intact", "quantity": 1 },
+    { "name": "Meso K9", "refinement": "Intact", "quantity": 5 },
+    { "name": "Meso K9", "refinement": "Radiant", "quantity": 2 },
+    { "name": "Meso M2", "refinement": "Intact", "quantity": 5 },
+    { "name": "Meso P1", "refinement": "Intact", "quantity": 5 },
+    { "name": "Meso R1", "refinement": "Intact", "quantity": 5 },
+    { "name": "Meso R1", "refinement": "Radiant", "quantity": 1 }
+  ]
+}

@@ -142,6 +142,36 @@ export function relicTextBands(mask: PixelImage, textHeight: number): ImageRegio
   });
 }
 
+/** Nearby artwork can join a text band through a few pixels. Use repeated,
+ * similarly sized glyphs on a shared baseline to recover the top of the line.
+ * Keep horizontal bounds and everything below it: removing unread lower text
+ * could turn a merged refinement into an apparently single-line Intact label. */
+export function relicLabelBand(mask: PixelImage, band: ImageRegion, textHeight: number): ImageRegion {
+  const seen = new Uint8Array(mask.width * mask.height), glyphs: ImageRegion[] = [];
+  for (let y = band.y; y < band.y + band.height; y++) for (let x = band.x; x < band.x + band.width; x++) {
+    const start = y * mask.width + x;
+    if (seen[start] || mask.data[start * 4] >= 128) continue;
+    const pending = [start]; seen[start] = 1;
+    let left = x, right = x, top = y, bottom = y;
+    while (pending.length) {
+      const pixel = pending.pop()!, px = pixel % mask.width, py = Math.floor(pixel / mask.width);
+      left = Math.min(left, px); right = Math.max(right, px); top = Math.min(top, py); bottom = Math.max(bottom, py);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = px + dx, ny = py + dy, next = ny * mask.width + nx;
+        if (nx < band.x || nx >= band.x + band.width || ny < band.y || ny >= band.y + band.height || seen[next] || mask.data[next * 4] >= 128) continue;
+        seen[next] = 1; pending.push(next);
+      }
+    }
+    const width = right - left + 1, height = bottom - top + 1;
+    if (height >= textHeight * 0.65 && height <= textHeight * 1.4 && width <= textHeight * 1.5) glyphs.push({ x: left, y: top, width, height });
+  }
+  const aligned = (baseline: number) => glyphs.filter(glyph => Math.abs(glyph.y + glyph.height - baseline) <= textHeight * 0.4);
+  const line = glyphs.map(glyph => aligned(glyph.y + glyph.height)).sort((a, b) => b.length - a.length)[0];
+  if (!line || line.length < 3 || Math.max(...line.map(glyph => glyph.x + glyph.width)) - Math.min(...line.map(glyph => glyph.x)) < band.width * 0.5) return band;
+  const top = Math.min(...line.map(glyph => glyph.y));
+  return { ...band, y: top, height: band.y + band.height - top };
+}
+
 /** A badge is one compact token at the left edge. Keep its full ink bounds,
  * but stop at a word-sized gap so adjacent relic artwork cannot widen the crop. */
 export function relicCounterBand(mask: PixelImage, textHeight: number, maximumStart: number): ImageRegion | undefined {

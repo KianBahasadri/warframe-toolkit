@@ -4,6 +4,7 @@ import { test, expect } from './accountFixture';
 import { createRelic } from '../../src/lib/relics';
 import example from '../fixtures/relic-screenshot.json' with { type: 'json' };
 import thirdCapture from '../fixtures/relic-capture-third.json' with { type: 'json' };
+import mesoCapture from '../fixtures/relic-meso-screen.json' with { type: 'json' };
 
 const synthetic = [
   { name: 'Axi A21', refinement: 'Intact', quantity: 3 },
@@ -182,6 +183,17 @@ for (const color of ['#e0c878', '#e4e4e4']) for (const quantities of [
   await expect(page.getByRole('button', { name: 'Import 6 stacks', exact: true })).toBeEnabled();
 });
 
+for (const color of ['#e0c878', '#e4e4e4']) test(`similar catalog codes stay distinct in ${color} text`, async ({ page }) => {
+  const names = ['Lith S18', 'Lith S19', 'Meso C8', 'Meso D8', 'Meso K5', 'Meso K9'];
+  const stacks = synthetic.map((stack, index) => ({ ...stack, name: names[index] }));
+  await page.goto('/#relics');
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page, stacks, color));
+  await review(page, stacks);
+  await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
+  for (const stack of stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();
+});
+
 test('a second full game capture separates Radiant labels despite artwork in the OCR boxes', async ({ page }) => {
   await page.goto('/#relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
@@ -208,12 +220,15 @@ test('unreadable badges and invalid counts require quantity review', async ({ pa
   await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(synthetic.length);
 });
 
-for (const resized of [false, true]) test(`a third full game capture reads every stack without review warnings: ${resized ? '75% JPEG' : 'original'}`, async ({ page }) => {
+for (const [capture, filename, expected] of [
+  ['third', 'tests/fixtures/relic-capture-third.png', thirdCapture],
+  ['Lith and Meso', 'tests/fixtures/relic-meso-screen.png', mesoCapture],
+] as const) for (const resized of [false, true]) test(`the ${capture} full game capture reads every stack without review warnings: ${resized ? '75% JPEG' : 'original'}`, async ({ page }) => {
   await page.goto('/#relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   const input = page.getByLabel('Choose relics screenshots', { exact: true });
   if (resized) {
-    const source = readFileSync('tests/fixtures/relic-capture-third.png').toString('base64');
+    const source = readFileSync(filename).toString('base64');
     const image = await page.evaluate(async source => {
       const bitmap = await createImageBitmap(new Blob([Uint8Array.from(atob(source), c => c.charCodeAt(0))]));
       const canvas = document.createElement('canvas'); canvas.width = Math.round(bitmap.width * 0.75) + 120; canvas.height = Math.round(bitmap.height * 0.75) + 60;
@@ -222,10 +237,10 @@ for (const resized of [false, true]) test(`a third full game capture reads every
       return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
     }, source);
     await input.setInputFiles({ name: 'resized-relics.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(image, 'base64') });
-  } else await input.setInputFiles('tests/fixtures/relic-capture-third.png');
-  await review(page, thirdCapture.stacks);
+  } else await input.setInputFiles(filename);
+  await review(page, expected.stacks);
   await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
-  for (const stack of thirdCapture.stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();
+  for (const stack of expected.stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();
   await expect(page.getByRole('button', { name: 'Import 20 stacks', exact: true })).toBeEnabled();
 });
 
