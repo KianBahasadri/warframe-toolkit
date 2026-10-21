@@ -347,13 +347,15 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .match-content { display: flex; align-items: center; gap: 12px; }
 .match-details { flex: 1; min-width: 0; }
 .relic-review-table { min-width: 0; }
+.relic-review-table tbody tr:hover, .relic-review-table tbody tr:focus-within { background: transparent; }
 .relic-review-table th:first-child, .relic-review-table td:first-child { width: 1%; }
 .relic-review-table .equipment-image { width: 96px; height: 96px; }
 .relic-review-table .match-details { flex: 0 1 auto; max-width: 232px; }
 .relic-review-table .match-cell small { max-width: 232px; }
 .relic-refinements { display: grid; grid-template-columns: max-content; margin: 0; padding: 0; border: 0; }
-.relic-refinements label { display: flex; align-items: center; gap: 10px; min-height: 24px; font-weight: 400; cursor: pointer; }
-.relic-refinements label:has(input:checked) { font-weight: 600; }
+.relic-refinements label { display: flex; align-items: center; gap: 10px; min-height: 24px; padding-inline: 4px; border-radius: var(--radius-sm); color: var(--muted); font-weight: 400; cursor: pointer; }
+.relic-refinements label:has(input:checked) { color: var(--ink-strong); font-weight: 600; }
+.relic-refinements label:hover { background: var(--surface); color: var(--ink-strong); }
 .relic-refinements input { appearance: none; display: inline-grid; place-content: center; width: 18px; height: 18px; margin: 0; padding: 0; flex-shrink: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); cursor: pointer; }
 .relic-refinements input:checked { border-color: var(--control-selected); }
 .relic-refinements input:checked::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--control-selected); }
