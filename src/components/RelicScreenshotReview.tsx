@@ -35,7 +35,7 @@ export function RelicScreenshotReview({ detections, existing, busy, onUpdate, on
             <div className="match-details"><EditableSelect mode="list-only" label={`Relic name for ${detection.rawText}`} value={detection.name} options={names} onChange={name => onUpdate(detection.id, { name, refinement: name === 'Requiem Eterna' ? 'Unrefined' : detection.refinement === 'Unrefined' ? null : detection.refinement })} /><small>Read: {detection.rawText}</small>{!detection.reviewed && detection.issues.map(issue => <span className="badge caution-badge" key={issue}>{issue}</span>)}</div>
           </div></td>
           <td><fieldset className="relic-refinements"><legend className="sr-only">Refinement: {label}</legend>
-            {refinements.filter(value => detection.name === 'Requiem Eterna' ? value === 'Unrefined' : value !== 'Unrefined').map(value => <label key={value}>
+            {refinements.filter(value => detection.name === 'Requiem Eterna' ? value === 'Unrefined' : value !== 'Unrefined').reverse().map(value => <label key={value}>
               <input type="radio" name={`refinement-${detection.id}`} value={value} checked={detection.refinement === value} onChange={() => onUpdate(detection.id, { refinement: value })} />{value}
             </label>)}
           </fieldset></td>

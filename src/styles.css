@@ -352,7 +352,7 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .relic-review-table .equipment-image { width: 96px; height: 96px; }
 .relic-review-table .match-details { flex: 0 1 auto; max-width: 232px; }
 .relic-review-table .match-cell small { max-width: 232px; }
-.relic-refinements { display: grid; grid-template-columns: repeat(2, max-content); column-gap: 12px; margin: 0; padding: 0; border: 0; }
+.relic-refinements { display: grid; grid-template-columns: max-content; margin: 0; padding: 0; border: 0; }
 .relic-refinements label { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .relic-refinements input { appearance: none; display: inline-grid; place-content: center; width: 18px; height: 18px; margin: 0; padding: 0; flex-shrink: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); cursor: pointer; }
 .relic-refinements input:checked { border-color: var(--control-selected); }
