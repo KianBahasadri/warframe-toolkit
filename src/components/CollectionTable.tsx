@@ -1,5 +1,5 @@
-import { useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
-import type { CSSProperties, MouseEvent, ReactNode, Ref } from 'react';
+import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import type { MouseEvent, ReactNode, Ref } from 'react';
 import { ArrowDown, ArrowDownToLine, ArrowUp, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { filterChoices, filterLabel, filterRows, loadColumnPreferences, moveColumn, moveColumnSort, parseColumnPreferences, setColumnSort, sortRows } from '../lib/tableView';
 import type { ColumnDropTarget, ColumnFilter, ColumnFilters, ColumnPreferences, ColumnSort, FilterChoice, TableColumn, TableModel } from '../lib/tableView';
@@ -60,6 +60,16 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   useImperativeHandle(actionsRef, () => ({ add: onAdd }), [onAdd]);
   const columns = visibleColumns.map(key => definition.columns.find(column => column.key === key)!);
   const primary = definition.columns.find(column => column.required) ?? definition.columns[0];
+  useLayoutEffect(() => {
+    const grid = tableScroll.current;
+    const first = grid?.querySelector('th');
+    if (!grid || !first) return;
+    const measure = () => grid.style.setProperty('--first-column-width', `${first.getBoundingClientRect().width}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(first);
+    return () => observer.disconnect();
+  }, [columns[0].key]);
   const openMenu = (key: string, anchor: HTMLElement, point?: { x: number; y: number }, initialView?: 'filter') => setMenu({ id: ++menuSequence.current, key, anchor, point, initialView });
   const openHeaderMenu = (key: string, event: MouseEvent<HTMLElement>) => {
     event.preventDefault();
@@ -139,10 +149,9 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       <button type="button" className="icon-button" aria-label={`Remove ${column.title} filter`} title={`Remove ${column.title} filter`} onClick={() => { changeColumnFilter(column.key); filterButton.current?.focus(); }}><X size={14} aria-hidden="true" /></button>
     </div>)}</div>}
     <span className="sr-only" aria-live="polite">{columnAnnouncement}</span>
-    <div ref={tableScroll} className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} aria-busy={Boolean(pricing)} tabIndex={0} style={{ '--first-column-width': `${columns[0].width}px` } as CSSProperties}>
-      <table className="inventory-table" style={{ minWidth: columns.reduce((width, column) => width + column.width, 0) }}>
+    <div ref={tableScroll} className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} aria-busy={Boolean(pricing)} tabIndex={0}>
+      <table className="inventory-table">
         <caption className="sr-only">{definition.label}. Changes save automatically when signed in. Select a name to view or edit an entry. Drag a header to move its column. Click or right-click a header, or press Shift+F10, for column actions, including Move left and Move right.</caption>
-        <colgroup>{columns.map(column => <col key={column.key} style={{ width: column.width }} />)}</colgroup>
         <thead><tr>{columns.map(column => {
           const sortIndex = sorting.findIndex(sort => sort.key === column.key);
           const sort = sorting[sortIndex];
@@ -159,7 +168,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
               event.preventDefault();
               const next = visible[event.key === 'Home' ? 0 : event.key === 'End' ? visible.length - 1 : Math.max(0, Math.min(visible.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
               rowButtons.current.get(next.id)?.focus({ preventScroll: true }); rowButtons.current.get(next.id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-            }}>{renderCell(item, column, visibleColumns)}</button> : renderCell(item, column, visibleColumns)}
+            }}>{renderCell(item, column, visibleColumns)}</button> : column.wrap ? <div className="table-cell-content">{renderCell(item, column, visibleColumns)}</div> : renderCell(item, column, visibleColumns)}
           </td>)}
         </tr>)}</tbody>
       </table>

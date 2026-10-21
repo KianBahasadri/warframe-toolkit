@@ -179,10 +179,16 @@ test('drag previews preserve cell geometry and never scroll away from a stationa
   await page.goto('/');
   const saved = JSON.stringify(await account.inventory());
   const grid = page.locator('.inventory-section .inventory-grid');
-  await grid.evaluate(element => { element.scrollLeft = 350; });
+  const scroll = await grid.evaluate(element => {
+    element.scrollLeft = (element.scrollWidth - element.clientWidth) / 2;
+    return element.scrollLeft;
+  });
+  expect(scroll).toBeGreaterThan(0);
   const extent = await grid.evaluate(element => element.scrollWidth);
   const from = (await header(page, 'Weapon').boundingBox())!;
-  const x = from.x + 100, y = from.y + from.height / 2;
+  const target = (await header(page, 'Recommended action').boundingBox())!;
+  const destination = target.x + target.width - from.x - from.width;
+  const x = from.x + from.width / 4, y = from.y + from.height / 2;
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 20, y);
@@ -197,7 +203,7 @@ test('drag previews preserve cell geometry and never scroll away from a stationa
     }
     return samples;
   });
-  expect(positions.every(sample => sample.scroll === 350 && sample.extent === extent && sample.target === null)).toBe(true);
+  expect(positions.every(sample => sample.scroll === scroll && sample.extent === extent && sample.target === null)).toBe(true);
   const geometry = await layer.evaluate(element => [...element.querySelectorAll<HTMLElement>('.column-drag-preview')].map(group => {
     const real = document.querySelector<HTMLTableElement>('.inventory-section table')!;
     const index = [...real.tHead!.rows[0].cells].findIndex(cell => cell.dataset.columnKey === group.dataset.columnKey);
@@ -218,16 +224,16 @@ test('drag previews preserve cell geometry and never scroll away from a stationa
     expect(column.rows.length).toBeLessThan(column.total);
     expect(column.rows.every(row => row.topError < 1 && row.heightError < 1 && row.widthError < 1 && row.contentMatches)).toBe(true);
   }
-  for (const distance of [80, 400, 220, 80, 20, 556]) {
+  for (const distance of [from.width / 3, destination * .75, destination * .4, from.width / 3, 20, destination]) {
     await page.mouse.move(x + distance, y);
     expect((await page.locator('.column-drag-preview[data-lifted]').boundingBox())!.x).toBeCloseTo(from.x + distance, 0);
-    expect(await grid.evaluate(element => element.scrollLeft)).toBe(350);
+    expect(await grid.evaluate(element => element.scrollLeft)).toBe(scroll);
   }
   expect(await page.evaluate(() => localStorage.getItem('arsenal.inventory-columns'))).toBeNull();
   await expect(header(page, 'Recommended action')).toHaveAttribute('data-drop-edge', 'after');
   await page.mouse.up();
   await expect(layer).toHaveCount(0);
-  expect(await grid.evaluate(element => element.scrollLeft)).toBe(350);
+  expect(await grid.evaluate(element => element.scrollLeft)).toBe(scroll);
   await expect.poll(() => order(page)).toEqual([...equipmentOrder.slice(1, 8), 'name', 'craftingTarget']);
   expect(JSON.stringify(await account.inventory())).toBe(saved);
 });

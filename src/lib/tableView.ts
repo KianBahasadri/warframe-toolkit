@@ -2,7 +2,7 @@ export type ColumnKey = string;
 export type TableValue = string | number | boolean | null;
 export type FilterChoice = { value: string; label: string };
 export type TableColumn = {
-  key: ColumnKey; title: string; width: number; kind?: 'boolean' | 'number'; required?: boolean; wrap?: boolean;
+  key: ColumnKey; title: string; kind?: 'boolean' | 'number'; required?: boolean; wrap?: boolean;
   choices?: 'values' | FilterChoice[];
   number?: { min: number; max: number; step?: number | 'any'; unknown?: boolean };
 };

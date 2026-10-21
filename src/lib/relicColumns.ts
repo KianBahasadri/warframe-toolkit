@@ -3,12 +3,12 @@ import type { Relic } from './relics.ts';
 import type { TableColumn, TableModel } from './tableView.ts';
 
 export const relicColumns: TableColumn[] = [
-  { key: 'name', title: 'Relic', width: 360, required: true },
-  { key: 'wfm', title: 'WFM', width: 156, kind: 'number', number: { min: 0, max: 1000000, step: 'any', unknown: true } },
-  { key: 'era', title: 'Era', width: 120, choices: relicEras.map(value => ({ value, label: value })) },
-  { key: 'refinement', title: 'Refinement', width: 180, choices: refinements.map(value => ({ value, label: value })) },
-  { key: 'quantity', title: 'Quantity', width: 200, kind: 'number', number: { min: 0, max: MAX_RELIC_QUANTITY } },
-  { key: 'notes', title: 'Notes', width: 360, wrap: true },
+  { key: 'name', title: 'Relic', required: true },
+  { key: 'wfm', title: 'WFM', kind: 'number', number: { min: 0, max: 1000000, step: 'any', unknown: true } },
+  { key: 'era', title: 'Era', choices: relicEras.map(value => ({ value, label: value })) },
+  { key: 'refinement', title: 'Refinement', choices: refinements.map(value => ({ value, label: value })) },
+  { key: 'quantity', title: 'Quantity', kind: 'number', number: { min: 0, max: MAX_RELIC_QUANTITY } },
+  { key: 'notes', title: 'Notes', wrap: true },
 ];
 export const defaultRelicColumns = relicColumns.map(column => column.key);
 export const RELIC_COLUMNS_STORAGE_KEY = 'grakata.relic-columns';

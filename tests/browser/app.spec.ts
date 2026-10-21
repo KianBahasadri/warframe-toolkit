@@ -294,6 +294,7 @@ test('column filters combine, survive hiding their column, and coordinate with w
   await expect(menu.getByRole('combobox', { name: 'Rank condition' })).toHaveText('Unknown');
   await menu.getByRole('button', { name: 'Clear filter' }).click();
   await expect(page.getByRole('button', { name: 'Remove Rank filter' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Incarnon column options', exact: true }).click({ button: 'right' });
   await menu.getByRole('checkbox', { name: 'Include Genesis compatible', exact: true }).check();
   await expect(names).not.toHaveCount(30);

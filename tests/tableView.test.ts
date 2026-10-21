@@ -18,10 +18,10 @@ const rows: EquipmentRow[] = [
 
 test('column preferences migrate visibility, preserve custom order, and retain required and newly added columns', () => {
   const columns = [
-    { key: 'name', title: 'Name', width: 300, required: true },
-    { key: 'owned', title: 'Owned', width: 100 },
-    { key: 'rank', title: 'Rank', width: 100 },
-    { key: 'notes', title: 'Notes', width: 200 },
+    { key: 'name', title: 'Name', required: true },
+    { key: 'owned', title: 'Owned' },
+    { key: 'rank', title: 'Rank' },
+    { key: 'notes', title: 'Notes' },
   ];
   const defaults = ['name', 'owned', 'rank'];
   assert.deepEqual(parseColumnPreferences(['rank', 'rank'], columns, defaults), { order: ['name', 'owned', 'rank', 'notes'], visible: ['name', 'rank'] });
