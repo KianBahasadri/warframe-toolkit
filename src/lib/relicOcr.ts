@@ -78,7 +78,9 @@ export async function recognizeRelics(worker: Worker, original: PixelImage, line
       const refinementFields = fields.filter(field => field.band.y > nameField.band.y);
       observation.name = nameField.readings;
       observation.refinement = refinementFields.flatMap(field => field.readings);
-      observation.refinementAbsent = labelComplete && !refinementFields.length && label.height - (nameField.band.y + nameField.band.height) < region.textHeight * 1.2;
+      // Unreadable or merged multiline text cannot establish an Intact relic.
+      observation.refinementAbsent = labelComplete && score(nameField) > 0 && nameField.band.height < region.textHeight * 1.5
+        && !refinementFields.length && label.height - (nameField.band.y + nameField.band.height) < region.textHeight * 1.2;
       const issues = matchRelicReadings([observation], relicNames, '')[0].issues;
       if (issues.includes('Check name') || issues.includes('Choose refinement')) {
         await Promise.race([worker.setParameters({ tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 []' }), interrupted]);

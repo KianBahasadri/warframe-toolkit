@@ -156,6 +156,18 @@ test('a grid containing only singles reads quantities and refinements without ba
   await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
 });
 
+test('a second full game capture separates Radiant labels despite artwork in the OCR boxes', async ({ page }) => {
+  await page.goto('/#relics');
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  // Keep the full capture: cropping it changes whole-screen OCR boxes and
+  // hides the regression that merged all six name/refinement pairs.
+  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles('tests/fixtures/relic-radiant-screen.png');
+  await review(page, example.stacks);
+  await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
+  for (const stack of example.stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Import 20 stacks', exact: true })).toBeEnabled();
+});
+
 for (const change of ['resized JPEG', 'cropped quantities', 'cropped refinements'] as const) test(`game screenshot handles ${change}`, async ({ page }) => {
   await page.goto('/#relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();

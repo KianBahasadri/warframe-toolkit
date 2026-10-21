@@ -8,13 +8,29 @@ const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floo
 const center = (line: OcrLine) => (line.bbox!.x0 + line.bbox!.x1) / 2;
 const light = (r: number, g: number, b: number) => r * 0.2126 + g * 0.7152 + b * 0.0722;
 
+function relicTextHeight(anchors: OcrLine[], image: Pick<PixelImage, 'width' | 'height'> | PixelImage): number {
+  if ('data' in image) {
+    const color = relicTextColor(image, anchors);
+    const measured = anchors.flatMap(line => {
+      const box = line.bbox!;
+      const mask = relicTextMask(image, { x: box.x0, y: box.y0, width: box.x1 - box.x0, height: box.y1 - box.y0 }, color);
+      // Whole-screen boxes often include artwork above the name. Measure the
+      // bottom text band itself, without a font-size-dependent gap tolerance.
+      const band = relicTextBands(mask, 0).filter(band => band.width >= mask.width * 0.55 && band.height >= 3).at(-1);
+      return band ? [band.height] : [];
+    });
+    if (measured.length >= 3) return median(measured);
+  }
+  const heights = anchors.map(line => line.bbox!.y1 - line.bbox!.y0).sort((a, b) => a - b);
+  return heights[Math.floor(heights.length * 0.25)];
+}
+
 /** Layout only: these readings locate entries, never establish their names. */
-export function findRelicRegions(lines: OcrLine[], image: Pick<PixelImage, 'width' | 'height'>): RelicRegion[] {
+export function findRelicRegions(lines: OcrLine[], image: Pick<PixelImage, 'width' | 'height'> | PixelImage): RelicRegion[] {
   const anchors = lines.filter(line => line.bbox && /\bRel[iIl1]c\b/i.test(line.text) && /^(?:L[il1]th|Mes[o0]|Ne[o0]|Ax[il1]|Requ[il1]em|Vanguard)\s+/i.test(line.text)
     && line.bbox.x1 - line.bbox.x0 > (line.bbox.y1 - line.bbox.y0) * 1.8);
   if (anchors.length < 3) return [];
-  const heights = anchors.map(line => line.bbox!.y1 - line.bbox!.y0).sort((a, b) => a - b);
-  const textHeight = heights[Math.floor(heights.length * 0.25)];
+  const textHeight = relicTextHeight(anchors, image);
   const rows: OcrLine[][] = [];
   for (const line of [...anchors].sort((a, b) => a.bbox!.y1 - b.bbox!.y1)) {
     const row = rows.find(row => Math.abs(median(row.map(item => item.bbox!.y1)) - line.bbox!.y1) < textHeight * 2.5);
