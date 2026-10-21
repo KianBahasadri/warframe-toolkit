@@ -9,7 +9,7 @@ export function ScreenshotHelp({ source, onClose }: { source: ScreenshotSource; 
     {source === 'relics' ? <ol className="screenshot-instructions">
       <li><strong>Open Void Relics / Refinement.</strong><p>Use English text. Capture complete relic names, refinement labels, and the quantity in each upper-left corner.</p></li>
       <li><strong>Capture all rows.</strong><p>Scroll with one row overlapping, keeping whole entries visible. Drop, paste, or choose up to 10 screenshots here.</p></li>
-      <li><strong>Review every stack.</strong><p>Check names, refinements, and quantities. When no count is read, 1 is suggested and left unchecked. Missing or conflicting fields need confirmation. Overlapping screenshots never add counts together.</p></li>
+      <li><strong>Review every stack.</strong><p>No quantity badge means 1. Cropped, unreadable, or conflicting fields are flagged for review. Check names, refinements, and quantities before importing. Overlapping screenshots never add counts together.</p></li>
       <li><strong>Import selected stacks.</strong><p>Selected quantities replace their saved values. Notes, equipment, and relics missing from the screenshots stay unchanged. Images remain in this browser.</p></li>
     </ol> : source === 'inventory' ? <>
       <ol className="screenshot-instructions">

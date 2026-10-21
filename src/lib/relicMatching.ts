@@ -115,9 +115,19 @@ export function appendRelicDetections(current: RelicDetection[], incoming: Relic
     if (index < 0) { result.push(detection); continue; }
     const previous = result[index];
     if (previous.reviewed) continue;
-    if (previous.quantity !== detection.quantity) {
+    const knownQuantity = (entry: RelicDetection) => entry.quantity !== null && !entry.issues.some(issue => /quantit/i.test(issue));
+    if (previous.issues.includes('Conflicting quantities') || detection.issues.includes('Conflicting quantities')
+      || knownQuantity(previous) && knownQuantity(detection) && previous.quantity !== detection.quantity) {
       result[index] = { ...previous, quantity: null, selected: false, issues: [...new Set([...previous.issues, ...detection.issues, 'Conflicting quantities'])] };
-    } else if (detection.issues.length < previous.issues.length || detection.issues.length === previous.issues.length && detection.confidence > previous.confidence) result[index] = { ...detection, id: previous.id };
+    } else {
+      const best = detection.issues.length < previous.issues.length || detection.issues.length === previous.issues.length && detection.confidence > previous.confidence ? detection : previous;
+      // A cropped/unreadable overlap adds no conflicting count. Preserve the
+      // readable observation, while retaining genuine conflicts until review.
+      const known = [previous, detection].find(knownQuantity);
+      const quantity = known?.quantity ?? best.quantity;
+      const issues = known ? best.issues.filter(issue => !/quantit/i.test(issue)) : best.issues;
+      result[index] = { ...best, id: previous.id, quantity, issues, selected: issues.length === 0 };
+    }
   }
   return result;
 }

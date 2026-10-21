@@ -3,8 +3,10 @@ import type { Worker } from 'tesseract.js';
 import type { OcrLine, ScreenshotSource } from './matching';
 import { findCodexLabels, hasCodexMasteryBadge } from './codex';
 import type { CodexLabel } from './codex';
+import { recognizeRelics } from './relicOcr';
+import type { RelicReading } from './relicRecognition';
 
-export interface OcrResult { text: string; lines: OcrLine[]; imageSize?: { width: number; height: number } }
+export interface OcrResult { text: string; lines: OcrLine[]; relics?: RelicReading[]; imageSize?: { width: number; height: number } }
 
 async function recognizeCodex(worker: Worker, canvas: HTMLCanvasElement, original: ImageData, labels: CodexLabel[], interrupted: Promise<never>): Promise<OcrResult> {
   // A single column of isolated labels stops the game artwork and card borders
@@ -48,6 +50,7 @@ export async function recognizeScreenshots(files: File[], onProgress: (message: 
   let fileIndex = 0;
   let pass = 0;
   let passes = 2;
+  let readingRelics = false;
   let worker: Worker | undefined;
   let stopped = false;
   let rejectStop: (reason: Error) => void = () => {};
@@ -58,7 +61,7 @@ export async function recognizeScreenshots(files: File[], onProgress: (message: 
   const loading = createWorker('eng', OEM.LSTM_ONLY, {
     workerPath: '/ocr/worker.min.js', corePath: '/ocr', langPath: '/ocr',
     logger: event => {
-      if (!signal.aborted && event.status === 'recognizing text') onProgress(`Reading ${files[fileIndex]?.name || 'screenshot'}`, (fileIndex + (pass + (event.progress || 0)) / passes) / files.length);
+      if (!signal.aborted && !readingRelics && event.status === 'recognizing text') onProgress(`Reading ${files[fileIndex]?.name || 'screenshot'}`, (fileIndex + (pass + (event.progress || 0)) / passes * (source === 'relics' ? 0.5 : 1)) / files.length);
     },
     errorHandler: error => rejectStop(new Error(String(error))),
   }).then(ready => {
@@ -111,7 +114,12 @@ export async function recognizeScreenshots(files: File[], onProgress: (message: 
           texts.push(result.data.text);
           lines.push(...(recognized.length ? recognized : result.data.text.split('\n').filter(Boolean).map(text => ({ text, confidence: result.data.confidence, pass }))));
         }
-        if (!signal.aborted) onResult(file, { text: texts.join('\n'), lines, imageSize: { width: canvas.width, height: canvas.height } });
+        readingRelics = source === 'relics';
+        const relics = readingRelics ? await recognizeRelics(ready, original, lines, interrupted, fraction => {
+          if (!signal.aborted) onProgress(`Reading ${file.name}`, (fileIndex + 0.5 + fraction * 0.5) / files.length);
+        }) : undefined;
+        readingRelics = false;
+        if (!signal.aborted) onResult(file, { text: texts.join('\n'), lines, relics, imageSize: { width: canvas.width, height: canvas.height } });
       } finally {
         canvas.width = 0; canvas.height = 0;
       }

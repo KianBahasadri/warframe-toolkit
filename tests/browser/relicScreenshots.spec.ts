@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { test, expect } from './accountFixture';
 import { createRelic } from '../../src/lib/relics';
 import example from '../fixtures/relic-screenshot.json' with { type: 'json' };
@@ -12,14 +13,14 @@ const synthetic = [
   { name: 'Lith L8', refinement: 'Intact', quantity: 12 },
 ];
 
-async function screenshot(page: Page) {
-  const base64 = await page.evaluate(async stacks => {
+async function screenshot(page: Page, stacks = synthetic, color = '#e0c878') {
+  const base64 = await page.evaluate(async ({ stacks, color }) => {
     // Use the bundled font: system Arial fallbacks change the OCR input on CI.
     const font = '24px "IBM Plex Sans"';
     if (!(await document.fonts.load(font)).length) throw new Error('Screenshot fixture font did not load.');
     const canvas = document.createElement('canvas'); canvas.width = 1100; canvas.height = 760;
     const ctx = canvas.getContext('2d')!; ctx.fillStyle = '#101418'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#e0c878'; ctx.font = font;
+    ctx.fillStyle = color; ctx.font = font;
     stacks.forEach((stack, index) => {
       const center = 180 + index % 3 * 300, bottom = 300 + Math.floor(index / 3) * 340;
       ctx.textAlign = 'center'; ctx.fillText(`${stack.name} Relic`, center, bottom - (stack.refinement === 'Intact' ? 0 : 32));
@@ -27,7 +28,7 @@ async function screenshot(page: Page) {
       ctx.textAlign = 'left'; if (stack.quantity > 1) ctx.fillText(`x${stack.quantity}`, center - 105, bottom - 200);
     });
     return canvas.toDataURL('image/png').split(',')[1];
-  }, synthetic);
+  }, { stacks, color });
   return { name: 'relic-grid.png', mimeType: 'image/png', buffer: Buffer.from(base64, 'base64') };
 }
 
@@ -53,9 +54,8 @@ test('relic screenshot review merges overlaps, keeps edits and imports only sele
   const input = page.getByLabel('Choose relics screenshots', { exact: true });
   await input.setInputFiles(image);
   await review(page, synthetic);
-  await expect(page.getByRole('checkbox', { name: 'Import Lith A13 Intact', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Import Lith A13 Intact', exact: true })).toBeChecked();
   expect(await account.inventory()).toEqual(original);
-  await page.getByRole('button', { name: 'Select all', exact: true }).click();
   await page.getByRole('spinbutton', { name: 'Quantity: Lith A13 Radiant', exact: true }).fill('7');
   await page.getByRole('checkbox', { name: 'Import Axi C12 Intact', exact: true }).uncheck();
   await input.setInputFiles(image);
@@ -117,7 +117,6 @@ test.describe('guest relic screenshot imports', () => {
       const event = new Event('paste', { bubbles: true, cancelable: true }); Object.defineProperty(event, 'clipboardData', { value: transfer }); document.dispatchEvent(event);
     }, image.buffer.toString('base64'));
     await review(page, synthetic);
-    await page.getByRole('button', { name: 'Select all', exact: true }).click();
     await page.getByRole('button', { name: 'Import 6 stacks', exact: true }).click();
     await expect(page).toHaveURL(/#relics$/);
     await page.getByLabel('Search relics', { exact: true }).fill('Axi A21');
@@ -127,18 +126,17 @@ test.describe('guest relic screenshot imports', () => {
   });
 });
 
-// The user's reference image is temporary. Supplying it explicitly also runs
-// this real-image check; no copy is kept in the repository.
-if (process.env.RELIC_SCREENSHOT_PATH) test('temporary game screenshot reads every relic name, refinement and count before a preserving merge', async ({ page, account }) => {
+test('game screenshot reads every relic name, refinement and count before a preserving merge', async ({ page, account }) => {
   await page.goto('/#relics');
   const original = await account.inventory();
   original.relics = [{ ...createRelic(), name: 'Axi C12', quantity: 9, notes: 'Keep for squad' }, { ...createRelic(), name: 'Neo N1', quantity: 7, notes: 'Off screen' }];
   await account.setInventory(original); await page.reload();
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
-  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(process.env.RELIC_SCREENSHOT_PATH!);
+  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(process.env.RELIC_SCREENSHOT_PATH || 'tests/fixtures/relic-grid.png');
   await review(page, example.stacks);
+  await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
+  for (const stack of example.stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();
   expect(await account.inventory()).toEqual(original);
-  await page.getByRole('button', { name: 'Select all', exact: true }).click();
   await page.getByRole('button', { name: 'Import 20 stacks', exact: true }).click();
   const saved = await account.inventory();
   expect(saved.items).toEqual(original.items);
@@ -146,4 +144,56 @@ if (process.env.RELIC_SCREENSHOT_PATH) test('temporary game screenshot reads eve
   expect(saved.relics.find(item => item.id === original.relics[0].id)).toMatchObject({ quantity: 3, notes: 'Keep for squad' });
   expect(saved.relics.find(item => item.id === original.relics[1].id)).toEqual(original.relics[1]);
   for (const stack of example.stacks) expect(saved.relics.find(item => item.name === stack.name && item.refinement === stack.refinement)?.quantity).toBe(stack.quantity);
+});
+
+test('a grid containing only singles reads quantities and refinements without badges, including white text', async ({ page }) => {
+  await page.goto('/#relics');
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  const stacks = synthetic.map(stack => ({ ...stack, quantity: 1 }));
+  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page, stacks, '#e4e4e4'));
+  await review(page, stacks);
+  await expect(page.getByRole('button', { name: 'Import 6 stacks', exact: true })).toBeEnabled();
+  await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
+});
+
+for (const change of ['resized JPEG', 'cropped quantities', 'cropped refinements'] as const) test(`game screenshot handles ${change}`, async ({ page }) => {
+  await page.goto('/#relics');
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  const source = readFileSync('tests/fixtures/relic-grid.png').toString('base64');
+  const data = await page.evaluate(async ({ source, change }) => {
+    const bitmap = await createImageBitmap(new Blob([Uint8Array.from(atob(source), c => c.charCodeAt(0))]));
+    const canvas = document.createElement('canvas');
+    const top = change === 'cropped quantities' ? 110 : 0;
+    const height = change === 'cropped refinements' ? 882 : bitmap.height - top;
+    const scale = change === 'resized JPEG' ? 0.75 : 1;
+    const margin = change === 'resized JPEG' ? 60 : 0;
+    canvas.width = Math.round(bitmap.width * scale) + margin * 2; canvas.height = Math.round(height * scale) + margin;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#101418'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, top, bitmap.width, height, margin, margin, bitmap.width * scale, height * scale);
+    bitmap.close();
+    return canvas.toDataURL(change === 'resized JPEG' ? 'image/jpeg' : 'image/png', 0.85).split(',')[1];
+  }, { source, change });
+  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles({ name: 'modified-relics.png', mimeType: change === 'resized JPEG' ? 'image/jpeg' : 'image/png', buffer: Buffer.from(data, 'base64') });
+  await expect(page.getByRole('button', { name: 'Cancel reading', exact: true })).toHaveCount(0, { timeout: 60_000 });
+  if (change === 'resized JPEG') {
+    await review(page, example.stacks);
+    await expect(page.getByRole('button', { name: 'Import 20 stacks', exact: true })).toBeEnabled();
+    await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
+  } else if (change === 'cropped quantities') {
+    const rows = page.locator('.relic-review-table tbody tr');
+    await expect(rows).toHaveCount(20);
+    for (let index = 0; index < 5; index++) {
+      await expect(rows.nth(index).getByRole('spinbutton')).toHaveValue('');
+      await expect(rows.nth(index).getByRole('checkbox')).not.toBeChecked();
+      await expect(rows.nth(index)).toContainText('Quantity cropped');
+    }
+  } else {
+    const rows = page.locator('.relic-review-table tbody tr');
+    // The two Intact names are below the crop. The three remaining names must
+    // stay in review without assuming their clipped refinements were Intact.
+    await expect(rows).toHaveCount(18);
+    for (let index = 15; index < 18; index++) await expect(rows.nth(index).getByRole('checkbox')).not.toBeChecked();
+    await expect(page.locator('.relic-review-table').getByText('Choose refinement', { exact: true }).first()).toBeVisible();
+  }
 });

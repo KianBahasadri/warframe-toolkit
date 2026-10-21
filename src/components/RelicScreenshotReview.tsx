@@ -18,7 +18,7 @@ export function RelicScreenshotReview({ detections, existing, busy, onUpdate, on
       <button type="button" className="button secondary" onClick={onSelectAll}>{detections.every(detection => detection.selected) ? 'Deselect all' : 'Select all'}</button>
       <button type="button" className="button primary" disabled={busy || !selected.length || Boolean(error)} onClick={onImport}>Import {selected.length} {selected.length === 1 ? 'stack' : 'stacks'}</button>
     </div></div>
-    <p className="small muted">Replaces quantities for selected stacks. Notes and other relics stay unchanged. Confirm counts marked 1 when no count was read.</p>
+    <p className="small muted">Replaces quantities for selected stacks. No quantity badge means 1. Review any flagged fields before importing.</p>
     {error && <p className="callout caution" role="alert">{error}</p>}
     <div className="table-scroll" role="region" aria-label="Relic screenshot matches" tabIndex={0}><table className="review-table relic-review-table">
       <caption className="sr-only">Review relic names, refinements, and quantities before importing. Overlapping screenshots never add quantities together.</caption>

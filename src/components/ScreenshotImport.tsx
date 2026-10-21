@@ -7,6 +7,7 @@ import { appendDetections, matchOcrLines, reviewDetection } from '../lib/matchin
 import type { Detection, ScreenshotSource } from '../lib/matching';
 import { appendRelicDetections, matchRelicOcrLines, relicImportError, reviewRelicDetection } from '../lib/relicMatching';
 import type { RelicDetection } from '../lib/relicMatching';
+import { matchRelicReadings } from '../lib/relicRecognition';
 import type { Relic } from '../lib/relics';
 import { Select } from './Select';
 import { ScreenshotHelp } from './ScreenshotHelp';
@@ -103,7 +104,7 @@ export function ScreenshotImport({ onImport, onRelicImport, existingRelics, init
           batch.current.scans = batch.current.scans.map(scan => scan.file === file ? { ...scan, read: true } : scan);
           setScans(batch.current.scans);
           if (screenshotSource === 'relics') {
-            const matched = matchRelicOcrLines(result.lines, relicNames, file.name, result.imageSize);
+            const matched = result.relics ? matchRelicReadings(result.relics, relicNames, file.name) : matchRelicOcrLines(result.lines, relicNames, file.name, result.imageSize);
             setRelicDetections(current => appendRelicDetections(current, matched));
           } else {
             const matched = matchOcrLines(result.lines, catalog, file.name, screenshotSource);
