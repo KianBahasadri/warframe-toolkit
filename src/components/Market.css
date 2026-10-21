@@ -69,7 +69,7 @@
 .market-error { display: block; color: var(--danger); font-size: 12px; margin-top: 6px; }
 .market-target-field input[aria-invalid=true] { border: 1px solid var(--danger); border-radius: 0; }
 .market-data { max-height: 340px; min-height: 300px; position: relative; }
-.market-data table { border-collapse: collapse; min-width: 1080px; width: 100%; font-size: 13.5px; }
+.market-data table { font-size: 13.5px; }
 .market-data th { position: sticky; top: 0; background: var(--surface-raised); padding: 10px 14px; border-bottom: 1px solid var(--line-strong); color: var(--muted); }
 .market-data th button { padding: 0; text-align: right; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; width: 100%; justify-content: flex-end; }
 .market-data th button span { display: inline-flex; align-items: center; gap: 4px; }

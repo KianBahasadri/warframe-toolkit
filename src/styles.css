@@ -110,8 +110,8 @@ main { width: 100%; max-width: 1600px; margin: 0 auto; padding: 24px 40px 32px; 
 .callout { border: 1px solid transparent; padding: 14px 16px; font-size: 13.5px; line-height: 1.5; border-radius: 6px; margin-bottom: 24px; }.callout strong { font-weight: 600; }.callout.info { background: var(--surface-raised); }.callout.caution { background: var(--caution-soft); border-radius: 4px; }.callout.danger { background: var(--danger-soft); border-radius: 0; }.callout.success { background: var(--good-soft); }.callout .button { margin: 8px 0; }
 .section-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; }.section-heading h2 { margin: 0; display: flex; align-items: center; gap: 8px; }.section-heading p { margin: 8px 0 0; }.count { display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; background: var(--surface-raised); color: var(--muted); border-radius: 4px; font: 11px var(--mono); min-width: 24px; }
 .inventory-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; }.search-field { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding-left: 12px; color: var(--muted); min-width: 0; }.search-field input { border: 0; background: transparent; width: 100%; padding-left: 8px; }.search-field:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }.search-field input:focus { outline: none; }.search-field svg { flex-shrink: 0; }.inventory-search { width: 280px; margin-right: auto; }.inventory-toolbar .select-trigger { font-size: 12px; height: 40px; }
-.table-scroll { width: 100%; overflow: auto; position: relative; border: 0; border-radius: 6px; background: transparent; scrollbar-color: var(--line-strong) var(--canvas); scrollbar-width: thin; }
-table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: left; min-width: 880px; }th { position: relative; padding: 10px 14px; border-bottom: 1px solid var(--line-strong); color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }td { padding: 12px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }tbody tr:last-child td { border-bottom: 0; }tbody tr:hover, tbody tr:focus-within { background: var(--surface-raised); }tbody tr { cursor: pointer; }tbody tr:has(.equipment-name:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }.equipment-name:focus-visible { outline: none; }
+.table-scroll { width: fit-content; max-width: 100%; margin-inline: auto; overflow: auto; position: relative; border: 0; border-radius: 6px; background: transparent; scrollbar-color: var(--line-strong) var(--canvas); scrollbar-width: thin; }
+table { border-collapse: collapse; table-layout: auto; width: max-content; font-size: 13.5px; text-align: left; min-width: 0; }th { position: relative; padding: 10px 14px; border-bottom: 1px solid var(--line-strong); color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }td { padding: 12px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }tbody tr:last-child td { border-bottom: 0; }tbody tr:hover, tbody tr:focus-within { background: var(--surface-raised); }tbody tr { cursor: pointer; }tbody tr:has(.equipment-name:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }.equipment-name:focus-visible { outline: none; }
 .sort-button { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; display: inline-flex; align-items: center; gap: 4px; }.sort-indicator { display: inline-flex; width: 24px; font: 11px var(--mono); align-items: center; gap: 4px; }
 .check-cell { text-align: center; padding-left: 8px; padding-right: 8px; }.check-cell .sort-button { justify-content: center; }.check-cell .sort-indicator:empty { width: 0; }.table-checkbox { display: inline-flex; min-width: 36px; height: 32px; align-items: center; justify-content: center; cursor: pointer; }
 .equipment-cell { min-width: 220px; }.equipment-name { display: flex; align-items: center; gap: 12px; border: 0; background: transparent; padding: 0; text-align: left; font-size: 13.5px; font-weight: 500; white-space: nowrap; }.equipment-name small { display: block; font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 2px; }.equipment-initial { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 4px; background: var(--surface); color: var(--faint); font: 10px var(--mono); letter-spacing: .02em; }
@@ -162,7 +162,6 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .inventory-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .section-heading h1 { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 500; line-height: 1.35; letter-spacing: normal; margin: 0; }
 .inventory-section .table-scroll { max-height: max(320px, calc(100dvh - 208px)); }
-.inventory-section .inventory-grid { width: fit-content; max-width: 100%; margin-inline: auto; }
 .inventory-section th { position: sticky; top: 0; z-index: 1; background: var(--canvas); }
 .inventory-grid { --table-ink: color-mix(in srgb, var(--ink) 85%, var(--muted)); --table-muted: color-mix(in srgb, var(--ink) 25%, var(--muted)); --table-rule: color-mix(in srgb, var(--line) 55%, transparent); }
 .inventory-table { table-layout: auto; width: max-content; min-width: 0; font-size: 15px; line-height: 1.4; color: var(--table-ink); }
@@ -346,9 +345,30 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .review-table { min-width: 650px; }
 .review-table tr { cursor: default; }
 .match-cell { min-width: 240px; max-width: 400px; }
+.match-content { display: flex; align-items: center; gap: 12px; }
+.match-details { flex: 1; min-width: 0; }
+.relic-review-table { min-width: 0; }
+.relic-review-table th:first-child, .relic-review-table td:first-child { width: 1%; }
+.relic-review-table .equipment-image { width: 96px; height: 96px; }
+.relic-review-table .match-details { flex: 0 1 auto; max-width: 232px; }
+.relic-review-table .match-cell small { max-width: 232px; }
 .match-cell .select-trigger { width: 100%; }
 .match-cell small { display: block; max-width: 380px; white-space: normal; overflow-wrap: anywhere; font-size: 11px; color: var(--muted); margin-top: 6px; }
 .match-cell .badge { margin-top: 6px; }
+.editable-select { position: relative; display: inline-block; max-width: 100%; min-width: 0; }
+.editable-select input.editable-select-input { display: block; width: 100%; min-width: 0; padding: 9px 36px 9px 14px; border: 1px solid transparent; border-radius: var(--radius); background: var(--surface); font-size: 14px; }
+.editable-select input.editable-select-input:hover { background: var(--surface-raised); }
+.editable-select input.editable-select-input:hover, .editable-select input.editable-select-input:focus { border-color: transparent; }
+.editable-select > svg { position: absolute; top: 50%; right: 13px; transform: translateY(-50%); color: var(--muted); pointer-events: none; transition: transform 150ms; }
+.editable-select-input[aria-expanded="true"] + svg { transform: translateY(-50%) rotate(180deg); }
+.editable-select-menu { position: fixed; z-index: 100; max-width: calc(100vw - 16px); max-height: 240px; margin: 0; padding: 2px; list-style: none; overflow: auto; background: var(--surface-raised); border: 1px solid transparent; border-radius: var(--radius); box-shadow: 0 16px 40px rgba(0,0,0,.42); scrollbar-width: thin; scrollbar-color: var(--line-strong) var(--surface-raised); }
+:root[data-theme="light"] .editable-select-menu { box-shadow: 0 16px 36px rgba(23,32,39,.12); }
+.editable-select-option, .editable-select-empty { min-height: 28px; padding: 3px 10px; font-size: 13.5px; line-height: 1.35; white-space: normal; word-break: normal; overflow-wrap: break-word; }
+.editable-select-option { display: flex; align-items: center; border-radius: var(--radius-sm); cursor: pointer; }
+.editable-select-option[data-active="true"], .editable-select-option:hover { background: var(--surface); color: var(--ink-strong); }
+.editable-select-option[aria-selected="true"] { color: var(--ink-strong); font-weight: 600; }
+.editable-select-empty { color: var(--muted); }
+@media (pointer: coarse) { .editable-select-option, .editable-select-empty { min-height: 44px; padding-top: 10px; padding-bottom: 10px; } }
 .rank-input { width: 72px; }
 .import-status { margin: 16px 0; font-size: 13px; color: var(--muted); }
 .screenshot-help-dialog { width: min(1040px, calc(100vw - 32px)); }

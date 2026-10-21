@@ -5,6 +5,7 @@ import { createEquipment } from '../../src/lib/model';
 import { createRelic } from '../../src/lib/relics';
 import { parseMarketHistory, parseMarketItems, parseMarketOrders } from '../../src/lib/market';
 import { wfmHistory, wfmItems, wfmOrders } from '../fixtures/wfm';
+import { expectCenteredTable } from './tableLayout';
 
 async function mockMarket(page: Page, options: { stale?: boolean; unavailable?: boolean; noSellers?: boolean; historyUnavailable?: boolean } = {}) {
   const requests: string[] = [];
@@ -74,6 +75,7 @@ test('WFM estimates have rich tooltips; the explorer shares exact data, keyboard
   await modal.getByRole('tab', { name: 'Chart', exact: true }).focus(); await page.keyboard.press('ArrowRight');
   const table = modal.getByRole('region', { name: 'Exact WFM price history', exact: true });
   await expect(table.locator('tbody tr')).toHaveCount(90);
+  await expectCenteredTable(table);
   await expect(table.locator('tbody tr').nth(10).locator('td').nth(1)).toHaveText('—');
   await modal.getByRole('button', { name: 'Sort Time (UTC)', exact: true }).click();
   await modal.getByRole('button', { name: 'Sort Time (UTC)', exact: true }).click();
@@ -246,6 +248,7 @@ test.describe('touch price history', () => {
     await expect(modal.locator('.is-swipe-preview')).toHaveCount(0);
     await expect(modal.getByRole('tabpanel')).toHaveCount(1);
     const table = modal.getByRole('region', { name: 'Exact WFM price history', exact: true });
+    await expectCenteredTable(table);
     await table.scrollIntoViewIfNeeded();
     const bounds = (await table.boundingBox())!, x = bounds.x + 220, y = bounds.y + 80;
     await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });

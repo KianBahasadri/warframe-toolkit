@@ -1,6 +1,7 @@
 import { test, expect } from './accountFixture';
 import { createEquipment } from '../../src/lib/model';
 import { createRelic } from '../../src/lib/relics';
+import { expectCenteredTable } from './tableLayout';
 
 test('all collections share the toolbar, column menus, responsive layout, and add shortcut', async ({ page, account }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -39,6 +40,7 @@ test('all collections share the toolbar, column menus, responsive layout, and ad
     await expect(section.getByRole('button', { name: 'Columns', exact: true })).toBeVisible();
     await expect(section.getByRole('button', { name: addName, exact: true })).toBeVisible();
     await expect(section.getByRole('button', { name: 'Export CSV', exact: true })).toBeVisible();
+    await expectCenteredTable(section.locator('.table-scroll'));
     await section.getByRole('button', { name: 'Columns', exact: true }).click();
     await checkColumnLabels();
     await expect(section.getByRole('button', { name: 'Columns', exact: true })).toBeFocused();
@@ -63,6 +65,7 @@ test('all collections share the toolbar, column menus, responsive layout, and ad
     await page.screenshot({ path: `test-results/collection-${name.toLowerCase()}-desktop.png` });
     await page.setViewportSize({ width: 320, height: 720 });
     await expect(section.getByRole('button', { name: 'Columns', exact: true })).toBeVisible();
+    await expectCenteredTable(section.locator('.table-scroll'));
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await section.getByRole('button', { name: 'Filters', exact: true }).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

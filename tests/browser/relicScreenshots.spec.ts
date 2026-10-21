@@ -5,6 +5,7 @@ import { createRelic } from '../../src/lib/relics';
 import example from '../fixtures/relic-screenshot.json' with { type: 'json' };
 import thirdCapture from '../fixtures/relic-capture-third.json' with { type: 'json' };
 import mesoCapture from '../fixtures/relic-meso-screen.json' with { type: 'json' };
+import { expectCenteredTable } from './tableLayout';
 
 const synthetic = [
   { name: 'Axi A21', refinement: 'Intact', quantity: 3 },
@@ -101,8 +102,48 @@ test('relic screenshot instructions, type switching and review fit narrow screen
   await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page));
   await review(page, synthetic);
   await expect(example).toHaveCount(0);
+  await expectCenteredTable(page.getByRole('region', { name: 'Relic screenshot matches', exact: true }));
+  const images = page.locator('.relic-review-table .equipment-image');
+  await expect(images).toHaveCount(synthetic.length);
+  await expect.poll(() => images.evaluateAll(images => images.every(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
+  const intact = page.getByRole('row').filter({ has: page.getByRole('checkbox', { name: 'Import Lith A13 Intact', exact: true }) });
+  const radiant = page.getByRole('row').filter({ has: page.getByRole('checkbox', { name: 'Import Lith A13 Radiant', exact: true }) });
+  expect(await intact.locator('img').getAttribute('src')).not.toBe(await radiant.locator('img').getAttribute('src'));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/relic-screenshot-review-mobile.png', fullPage: true });
+  // Artwork follows corrections to both the refinement and the relic's era.
+  const first = page.locator('.relic-review-table tbody tr').first(), image = first.locator('img');
+  const originalImage = await image.getAttribute('src');
+  await first.getByRole('combobox', { name: 'Refinement: Axi A21 Intact', exact: true }).click();
+  await page.getByRole('option', { name: 'Radiant', exact: true }).click();
+  await expect(image).not.toHaveAttribute('src', originalImage!);
+  const refinedImage = await image.getAttribute('src');
+  await first.locator('.match-cell').getByRole('combobox').click();
+  await page.getByRole('option', { name: 'Meso K9', exact: true }).click();
+  await expect(image).not.toHaveAttribute('src', refinedImage!);
+  await expect.poll(() => image.evaluate(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0)).toBe(true);
+  const name = first.locator('.match-cell').getByRole('combobox');
+  await name.fill('  nEo n1  ');
+  const options = page.getByRole('listbox').getByRole('option');
+  await expect(options).toHaveCount(11);
+  await expect(options.first()).toHaveText('Neo N1');
+  await expect(name).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await name.press('Enter');
+  await expect(name).toHaveValue('Neo N1');
+  await expect(first.getByRole('checkbox')).toHaveAccessibleName('Import Neo N1 Radiant');
+  const committedImage = await image.getAttribute('src');
+  await name.fill('not a relic');
+  await expect(page.getByRole('listbox')).toContainText('No matching options');
+  await name.press('Escape');
+  await expect(name).toHaveValue('Neo N1');
+  await expect(image).toHaveAttribute('src', committedImage!);
+  await name.fill('unmatched name');
+  await name.press('Tab');
+  await expect(name).toHaveValue('Neo N1');
+  await name.click();
+  await page.getByRole('option', { name: 'Choose relic', exact: true }).click();
+  await expect(image).toHaveCount(0);
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
   await page.getByRole('group', { name: 'Screenshot type' }).getByRole('button', { name: 'Equipment', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Inventory', exact: true })).toBeVisible();
@@ -146,6 +187,25 @@ test('game screenshot reads every relic name, refinement and count before a pres
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(process.env.RELIC_SCREENSHOT_PATH || 'tests/fixtures/relic-grid.png');
   await review(page, example.stacks);
+  const images = page.locator('.relic-review-table .equipment-image');
+  await expect(images).toHaveCount(example.stacks.length);
+  for (const image of await images.all()) {
+    await image.scrollIntoViewIfNeeded();
+    await expect.poll(() => image.evaluate(image => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0)).toBe(true);
+  }
+  const first = page.locator('.relic-review-table tbody tr').first();
+  await first.scrollIntoViewIfNeeded();
+  const size = await first.evaluate(row => ({
+    image: row.querySelector('img')!.getBoundingClientRect().width,
+    selector: row.querySelector('.editable-select-input')!.getBoundingClientRect().width,
+    importColumn: row.querySelector('td')!.getBoundingClientRect().width,
+  }));
+  expect(size.image).toBeGreaterThanOrEqual(80);
+  expect(size.selector).toBeGreaterThanOrEqual(176);
+  expect(size.selector).toBeLessThanOrEqual(232);
+  expect(size.importColumn).toBeLessThanOrEqual(96);
+  await expectCenteredTable(page.getByRole('region', { name: 'Relic screenshot matches', exact: true }));
+  await page.locator('.relic-review-table').screenshot({ path: 'test-results/relic-screenshot-review-desktop.png' });
   await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
   for (const stack of example.stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();
   expect(await account.inventory()).toEqual(original);

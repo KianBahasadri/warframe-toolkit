@@ -6,6 +6,7 @@ import codexScreenshot from '../fixtures/codex-screenshot.json' with { type: 'js
 import type { Inventory } from '../../src/lib/model';
 import { createEquipment } from '../../src/lib/model';
 import { parseDropTables } from '../../src/lib/dropTableParser';
+import { expectCenteredTable } from './tableLayout';
 
 async function waitForSave(page: Page) {
   await expect(page.getByRole('status', { name: 'Save status', exact: true })).toHaveText('Saved');
@@ -390,6 +391,7 @@ test('real local OCR reads an image and merges reviewed imports without losing n
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
   await page.getByLabel('Choose inventory screenshots').setInputFiles({ name: 'inventory-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
   await expect(page.getByRole('heading', { name: 'Review matches' })).toBeVisible({ timeout: 60000 });
+  await expectCenteredTable(page.getByRole('region', { name: 'Screenshot matches', exact: true }));
   await expect(page.getByLabel('Import Braton Prime', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Import Wisp Prime', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Mastered: Braton Prime', { exact: true })).toBeChecked();
