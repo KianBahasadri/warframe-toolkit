@@ -3,15 +3,24 @@ import { Dialog } from './Dialog';
 
 const inventoryExample = '/images/import/inventory-weapons.png';
 const codexExample = '/images/import/codex-weapons.png';
+const relicExample = '/images/import/relics.png';
 
 export function ScreenshotHelp({ source, onClose }: { source: ScreenshotSource; onClose: () => void }) {
   return <Dialog title={source === 'relics' ? 'Relic screenshots' : source === 'inventory' ? 'Inventory screenshots' : 'Codex screenshots'} onClose={onClose} className="screenshot-help-dialog">
-    {source === 'relics' ? <ol className="screenshot-instructions">
+    {source === 'relics' ? <>
+    <ol className="screenshot-instructions">
       <li><strong>Open Void Relics / Refinement.</strong><p>Use English text. Capture complete relic names, refinement labels, and the quantity in each upper-left corner.</p></li>
       <li><strong>Capture all rows.</strong><p>Scroll with one row overlapping, keeping whole entries visible. Drop, paste, or choose up to 10 screenshots here.</p></li>
+    </ol>
+    <figure className="screenshot-example">
+      <img src={relicExample} width={1920} height={1200} alt="Warframe Void Relics / Refinement grid showing Intact and Radiant relics, with quantity badges in the upper-left corners." />
+      <figcaption><span>Void Relics / Refinement. Keep names, refinements, and quantity corners visible. No badge means 1.</span><a href={relicExample} target="_blank" rel="noreferrer">Open full-size example</a></figcaption>
+    </figure>
+    <ol className="screenshot-instructions" start={3}>
       <li><strong>Review every stack.</strong><p>No quantity badge means 1. Cropped, unreadable, or conflicting fields are flagged for review. Check names, refinements, and quantities before importing. Overlapping screenshots never add counts together.</p></li>
       <li><strong>Import selected stacks.</strong><p>Selected quantities replace their saved values. Notes, equipment, and relics missing from the screenshots stay unchanged. Images remain in this browser.</p></li>
-    </ol> : source === 'inventory' ? <>
+    </ol>
+    </> : source === 'inventory' ? <>
       <ol className="screenshot-instructions">
         <li><strong>Open your weapon inventory.</strong><p>In your Orbiter, open the pause menu, then <b>Equipment → Inventory</b>. Select the <b>Weapons</b> tab with the gun icon.</p></li>
         <li><strong>Show the weapons you own.</strong><p>Clear the search field and leave <b>Only Sellable</b> unchecked. You should see the weapon grid below. Stay on this screen; taking screenshots does not require selecting or selling anything.</p></li>

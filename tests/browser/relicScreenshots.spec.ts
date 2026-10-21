@@ -84,11 +84,20 @@ test('relic screenshot instructions, type switching and review fit narrow screen
   const before = await account.inventory();
   await page.getByRole('group', { name: 'Screenshot type' }).getByRole('button', { name: 'Relics', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Inventory', exact: true })).toHaveCount(0);
+  const example = page.getByRole('img', { name: /Example Warframe Void Relics/ });
+  await expect(example).toBeVisible();
+  await expect(example).toHaveJSProperty('naturalWidth', 1920);
+  await expect(example).toHaveJSProperty('naturalHeight', 1200);
   await page.getByRole('button', { name: 'Relics instructions', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Relic screenshots' })).toContainText('Void Relics / Refinement');
+  const guide = page.getByRole('dialog', { name: 'Relic screenshots' });
+  await expect(guide).toContainText('Void Relics / Refinement');
+  await expect(guide.getByRole('img', { name: /Warframe Void Relics/ })).toHaveJSProperty('naturalWidth', 1920);
+  await expect(guide.getByRole('link', { name: 'Open full-size example' })).toHaveAttribute('href', '/images/import/relics.png');
+  expect(await guide.evaluate(dialog => dialog.scrollWidth <= dialog.clientWidth)).toBe(true);
   await page.keyboard.press('Escape');
   await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page));
   await review(page, synthetic);
+  await expect(example).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/relic-screenshot-review-mobile.png', fullPage: true });
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
@@ -161,7 +170,7 @@ test('a second full game capture separates Radiant labels despite artwork in the
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   // Keep the full capture: cropping it changes whole-screen OCR boxes and
   // hides the regression that merged all six name/refinement pairs.
-  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles('tests/fixtures/relic-radiant-screen.png');
+  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles('public/images/import/relics.png');
   await review(page, example.stacks);
   await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
   for (const stack of example.stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();

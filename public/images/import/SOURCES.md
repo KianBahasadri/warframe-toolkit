@@ -4,5 +4,6 @@ User-supplied, unmodified English 1920 × 1200 captures; artwork © Digital Extr
 
 - `inventory-weapons.png`: Inventory/Sell, 2026-10-10.
 - `codex-weapons.png`: Codex, 2026-10-11; 32 names/mastery laurels.
+- `relics.png`: Void Relics / Refinement, 2026-10-21; 20 stacks, including six Radiant refinements and quantity corners with and without badges. Also used for the full-screen relic OCR regression test.
 
 [Mastery mask](../../../src/data/codex-mastery-mask.json): Afuris laurel, 34 × 34 crop at (241, 206), resampled to 32 × 32 with Canvas 2D. Selected pixels satisfy `G > 150`, `G > R × 1.15`, `B > R × 1.05`.
