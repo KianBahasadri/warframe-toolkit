@@ -1,9 +1,8 @@
 import { relicCatalog, relicNames } from '../data/relicCatalog';
 import { MAX_RELIC_QUANTITY, refinements, relicKey } from '../lib/relics';
-import type { Relic, Refinement } from '../lib/relics';
+import type { Relic } from '../lib/relics';
 import type { RelicDetection } from '../lib/relicMatching';
 import { relicImportError } from '../lib/relicMatching';
-import { Select } from './Select';
 import { EditableSelect } from './EditableSelect';
 
 const names = [{ value: '', label: 'Choose relic' }, ...relicNames.map(name => ({ value: name, label: name }))];
@@ -35,7 +34,11 @@ export function RelicScreenshotReview({ detections, existing, busy, onUpdate, on
             {image && <img className="equipment-image" src={image} alt="" width={96} height={96} loading="lazy" />}
             <div className="match-details"><EditableSelect mode="list-only" label={`Relic name for ${detection.rawText}`} value={detection.name} options={names} onChange={name => onUpdate(detection.id, { name, refinement: name === 'Requiem Eterna' ? 'Unrefined' : detection.refinement === 'Unrefined' ? null : detection.refinement })} /><small>Read: {detection.rawText}</small>{!detection.reviewed && detection.issues.map(issue => <span className="badge caution-badge" key={issue}>{issue}</span>)}</div>
           </div></td>
-          <td><Select label={`Refinement: ${label}`} value={detection.refinement ?? ''} options={[{ value: '', label: 'Choose refinement' }, ...refinements.filter(value => detection.name === 'Requiem Eterna' ? value === 'Unrefined' : value !== 'Unrefined').map(value => ({ value, label: value }))]} onChange={value => onUpdate(detection.id, { refinement: value ? value as Refinement : null })} /></td>
+          <td><fieldset className="relic-refinements"><legend className="sr-only">Refinement: {label}</legend>
+            {refinements.filter(value => detection.name === 'Requiem Eterna' ? value === 'Unrefined' : value !== 'Unrefined').map(value => <label key={value}>
+              <input type="radio" name={`refinement-${detection.id}`} value={value} checked={detection.refinement === value} onChange={() => onUpdate(detection.id, { refinement: value })} />{value}
+            </label>)}
+          </fieldset></td>
           <td><input className="rank-input" type="number" min={0} max={MAX_RELIC_QUANTITY} step={1} value={detection.quantity ?? ''} aria-label={`Quantity: ${label}`} onChange={event => onUpdate(detection.id, { quantity: event.target.value === '' ? null : Number(event.target.value) })} />{saved && <small className="muted">Saved: {saved.quantity}</small>}</td>
         </tr>;
       })}</tbody>

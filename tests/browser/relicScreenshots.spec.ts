@@ -43,7 +43,7 @@ async function review(page: Page, stacks: typeof synthetic) {
   for (const stack of stacks) {
     const label = `${stack.name} ${stack.refinement}`;
     await expect(page.getByRole('spinbutton', { name: `Quantity: ${label}`, exact: true })).toHaveValue(String(stack.quantity));
-    await expect(page.getByRole('combobox', { name: `Refinement: ${label}`, exact: true })).toHaveText(stack.refinement);
+    await expect(page.getByRole('group', { name: `Refinement: ${label}`, exact: true }).getByRole('radio', { name: stack.refinement, exact: true })).toBeChecked();
   }
 }
 
@@ -114,8 +114,9 @@ test('relic screenshot instructions, type switching and review fit narrow screen
   // Artwork follows corrections to both the refinement and the relic's era.
   const first = page.locator('.relic-review-table tbody tr').first(), image = first.locator('img');
   const originalImage = await image.getAttribute('src');
-  await first.getByRole('combobox', { name: 'Refinement: Axi A21 Intact', exact: true }).click();
-  await page.getByRole('option', { name: 'Radiant', exact: true }).click();
+  await first.getByRole('radio', { name: 'Radiant', exact: true }).check();
+  await expect(first.getByRole('radio', { name: 'Intact', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('row').nth(2).getByRole('radio', { name: 'Intact', exact: true })).toBeChecked();
   await expect(image).not.toHaveAttribute('src', originalImage!);
   const refinedImage = await image.getAttribute('src');
   await first.locator('.match-cell').getByRole('combobox').click();
