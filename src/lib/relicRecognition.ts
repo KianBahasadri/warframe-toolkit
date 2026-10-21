@@ -3,7 +3,12 @@ import type { Refinement } from './relics.ts';
 import type { RelicDetection } from './relicMatching.ts';
 import type { ImageRegion } from './relicVision.ts';
 
-export interface TextReading { text: string; confidence: number }
+export interface TextReading {
+  text: string;
+  confidence: number;
+  /** Alternate OCR layouts of the same prepared pixels count as one view. */
+  view?: number;
+}
 export interface RelicReading {
   region: ImageRegion;
   name: TextReading[];
@@ -36,8 +41,9 @@ function consensus<T extends string | number>(readings: TextReading[], parse: (t
   const candidates = readings.map(reading => ({ ...reading, value: parse(reading.text) })).filter(reading => reading.value !== null && reading.confidence >= 35);
   const values = [...new Set(candidates.map(reading => reading.value!))];
   const best = [...candidates].sort((a, b) => b.confidence - a.confidence)[0];
+  const views = new Set(candidates.map((reading, index) => reading.view === undefined ? `reading:${index}` : `view:${reading.view}`));
   return { value: values.length === 1 ? values[0] : null, conflict: values.length > 1,
-    certain: values.length === 1 && candidates.filter(reading => reading.confidence >= 35).length >= 2 && best.confidence >= 65 };
+    certain: values.length === 1 && views.size >= 2 && best.confidence >= 65 };
 }
 
 export function matchRelicReadings(readings: RelicReading[], catalogNames: string[], filename: string): RelicDetection[] {

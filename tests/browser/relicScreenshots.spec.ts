@@ -14,8 +14,8 @@ const synthetic = [
   { name: 'Lith L8', refinement: 'Intact', quantity: 12 },
 ];
 
-async function screenshot(page: Page, stacks = synthetic, color = '#e0c878') {
-  const base64 = await page.evaluate(async ({ stacks, color }) => {
+async function screenshot(page: Page, stacks = synthetic, color = '#e0c878', badges?: string[]) {
+  const base64 = await page.evaluate(async ({ stacks, color, badges }) => {
     // Use the bundled font: system Arial fallbacks change the OCR input on CI.
     const font = '24px "IBM Plex Sans"';
     if (!(await document.fonts.load(font)).length) throw new Error('Screenshot fixture font did not load.');
@@ -26,10 +26,11 @@ async function screenshot(page: Page, stacks = synthetic, color = '#e0c878') {
       const center = 180 + index % 3 * 300, bottom = 300 + Math.floor(index / 3) * 340;
       ctx.textAlign = 'center'; ctx.fillText(`${stack.name} Relic`, center, bottom - (stack.refinement === 'Intact' ? 0 : 32));
       if (stack.refinement !== 'Intact') ctx.fillText(`[${stack.refinement}]`, center, bottom);
-      ctx.textAlign = 'left'; if (stack.quantity > 1) ctx.fillText(`x${stack.quantity}`, center - 105, bottom - 200);
+      const badge = badges?.[index] ?? (stack.quantity > 1 ? `x${stack.quantity}` : '');
+      ctx.textAlign = 'left'; if (badge) ctx.fillText(badge, center - 105, bottom - 200);
     });
     return canvas.toDataURL('image/png').split(',')[1];
-  }, { stacks, color });
+  }, { stacks, color, badges });
   return { name: 'relic-grid.png', mimeType: 'image/png', buffer: Buffer.from(base64, 'base64') };
 }
 
@@ -166,6 +167,21 @@ test('a grid containing only singles reads quantities and refinements without ba
   await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
 });
 
+for (const color of ['#e0c878', '#e4e4e4']) for (const quantities of [
+  [1, 2, 3, 4, 5, 6],
+  [7, 8, 9, 10, 17, 71],
+  [20, 27, 70, 77, 111, 123],
+  [202, 808, 907, 1000, 12345, 999999],
+]) test(`quantity badges read every digit and longer counts: ${quantities.join(', ')} in ${color}`, async ({ page }) => {
+  await page.goto('/#relics');
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  const stacks = synthetic.map((stack, index) => ({ ...stack, quantity: quantities[index] }));
+  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page, stacks, color));
+  await review(page, stacks);
+  await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Import 6 stacks', exact: true })).toBeEnabled();
+});
+
 test('a second full game capture separates Radiant labels despite artwork in the OCR boxes', async ({ page }) => {
   await page.goto('/#relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
@@ -178,10 +194,35 @@ test('a second full game capture separates Radiant labels despite artwork in the
   await expect(page.getByRole('button', { name: 'Import 20 stacks', exact: true })).toBeEnabled();
 });
 
-test('a third full game capture reads every stack without review warnings', async ({ page }) => {
+test('unreadable badges and invalid counts require quantity review', async ({ page }) => {
   await page.goto('/#relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
-  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles('tests/fixtures/relic-capture-third.png');
+  await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page, synthetic, '#e0c878', ['z7', 'x?', 'x0', 'x1000000', 'x?', 'z7']));
+  await expect(page.getByRole('button', { name: 'Cancel reading', exact: true })).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.locator('.relic-review-table tbody tr')).toHaveCount(synthetic.length);
+  for (const stack of synthetic) {
+    const label = `${stack.name} ${stack.refinement}`;
+    await expect(page.getByRole('spinbutton', { name: `Quantity: ${label}`, exact: true })).toHaveValue('');
+    await expect(page.getByRole('checkbox', { name: `Import ${label}`, exact: true })).not.toBeChecked();
+  }
+  await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(synthetic.length);
+});
+
+for (const resized of [false, true]) test(`a third full game capture reads every stack without review warnings: ${resized ? '75% JPEG' : 'original'}`, async ({ page }) => {
+  await page.goto('/#relics');
+  await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
+  const input = page.getByLabel('Choose relics screenshots', { exact: true });
+  if (resized) {
+    const source = readFileSync('tests/fixtures/relic-capture-third.png').toString('base64');
+    const image = await page.evaluate(async source => {
+      const bitmap = await createImageBitmap(new Blob([Uint8Array.from(atob(source), c => c.charCodeAt(0))]));
+      const canvas = document.createElement('canvas'); canvas.width = Math.round(bitmap.width * 0.75) + 120; canvas.height = Math.round(bitmap.height * 0.75) + 60;
+      const context = canvas.getContext('2d')!; context.fillStyle = '#101418'; context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 60, 60, bitmap.width * 0.75, bitmap.height * 0.75); bitmap.close();
+      return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+    }, source);
+    await input.setInputFiles({ name: 'resized-relics.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(image, 'base64') });
+  } else await input.setInputFiles('tests/fixtures/relic-capture-third.png');
   await review(page, thirdCapture.stacks);
   await expect(page.locator('.relic-review-table .caution-badge')).toHaveCount(0);
   for (const stack of thirdCapture.stacks) await expect(page.getByRole('checkbox', { name: `Import ${stack.name} ${stack.refinement}`, exact: true })).toBeChecked();

@@ -26,6 +26,16 @@ test('an inspected empty quantity corner establishes one; unread or cropped corn
   }
   const conflicting = detect({ counter: 'text', quantity: [...twice('x3'), ...twice('x8')] });
   assert.equal(conflicting.quantity, null); assert.ok(conflicting.issues.includes('Conflicting quantities'));
+  for (const quantity of [[{ text: 'x24', confidence: 50 }, { text: 'x24', confidence: 42 }], [{ text: 'x24', confidence: 99 }], twice('x24').map(value => ({ ...value, view: 0 }))]) {
+    const uncertain = detect({ counter: 'text', quantity });
+    assert.equal(uncertain.quantity, null); assert.equal(uncertain.selected, false);
+    assert.ok(uncertain.issues.includes('Check quantity'));
+  }
+  assert.equal(detect({ counter: 'text', quantity: twice('x24').map((value, view) => ({ ...value, view })) }).quantity, 24);
+  const conflictingViews = detect({ counter: 'text', quantity: [
+    { text: 'x24', confidence: 90, view: 0 }, { text: 'x24', confidence: 90, view: 1 }, { text: 'x29', confidence: 90, view: 0 },
+  ] });
+  assert.equal(conflictingViews.quantity, null); assert.ok(conflictingViews.issues.includes('Conflicting quantities'));
 });
 
 test('isolated name readings require agreement, catalog membership and an exact reading', () => {

@@ -141,3 +141,24 @@ export function relicTextBands(mask: PixelImage, textHeight: number): ImageRegio
     return height >= textHeight * 0.4 && ink > textHeight * textHeight * 0.12 ? [{ x: left, y, width: right - left, height }] : [];
   });
 }
+
+/** A badge is one compact token at the left edge. Keep its full ink bounds,
+ * but stop at a word-sized gap so adjacent relic artwork cannot widen the crop. */
+export function relicCounterBand(mask: PixelImage, textHeight: number, maximumStart: number): ImageRegion | undefined {
+  const band = relicTextBands(mask, textHeight).find(band => band.x < maximumStart);
+  if (!band) return undefined;
+  let right = band.x, lastInk = band.x;
+  for (let x = band.x; x < band.x + band.width; x++) {
+    let occupied = false;
+    for (let y = band.y; y < band.y + band.height; y++) if (mask.data[(y * mask.width + x) * 4] < 128) { occupied = true; break; }
+    if (occupied) {
+      if (x - lastInk > textHeight * 0.6) break;
+      lastInk = x; right = x + 1;
+    }
+  }
+  let top = band.y + band.height, bottom = band.y;
+  for (let y = band.y; y < band.y + band.height; y++) for (let x = band.x; x < right; x++) {
+    if (mask.data[(y * mask.width + x) * 4] < 128) { top = Math.min(top, y); bottom = Math.max(bottom, y + 1); }
+  }
+  return bottom > top ? { x: band.x, y: top, width: right - band.x, height: bottom - top } : undefined;
+}
