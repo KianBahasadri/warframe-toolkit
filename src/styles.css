@@ -297,7 +297,6 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .import-type-options button[aria-pressed="true"] { color: var(--ink-strong); background: var(--surface); }
 .import-sources.is-single:not(.has-batch) { grid-template-rows: minmax(0, 1fr); min-height: 360px; }
 .import-sources.is-single:not(.has-batch) .import-source.is-paste-target { width: 100%; }
-.relic-review-table td:last-child small { display: block; margin-top: 6px; }
 .import-sources { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 560px; }
 .import-source { grid-area: 1 / 1; justify-self: start; display: flex; flex-direction: column; width: 50%; min-width: 0; padding: 40px 40px 32px; background: var(--canvas); transition: width 280ms cubic-bezier(.2,.8,.2,1), transform 280ms cubic-bezier(.2,.8,.2,1), background 120ms; }
 .import-source[data-source="codex"] { justify-self: end; }
@@ -353,7 +352,8 @@ dialog { padding: 0; margin: auto; background: var(--surface-raised); color: var
 .relic-review-table .match-details { flex: 0 1 auto; max-width: 232px; }
 .relic-review-table .match-cell small { max-width: 232px; }
 .relic-refinements { display: grid; grid-template-columns: max-content; margin: 0; padding: 0; border: 0; }
-.relic-refinements label { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.relic-refinements label { display: flex; align-items: center; gap: 10px; min-height: 24px; font-weight: 400; cursor: pointer; }
+.relic-refinements label:has(input:checked) { font-weight: 600; }
 .relic-refinements input { appearance: none; display: inline-grid; place-content: center; width: 18px; height: 18px; margin: 0; padding: 0; flex-shrink: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--surface); cursor: pointer; }
 .relic-refinements input:checked { border-color: var(--control-selected); }
 .relic-refinements input:checked::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--control-selected); }

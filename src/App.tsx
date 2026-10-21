@@ -154,7 +154,7 @@ export default function App() {
           const relics = updateRelic(current.relics, relic, { quantityChange: change });
           if (relics !== current.relics) commit({ ...current, relics });
         }} /></Suspense>}
-        {page === 'import' && <ScreenshotImport key={account.user?.id ?? 'guest'} initialSource={importRelics ? 'relics' : 'inventory'} existingRelics={relics} onRelicImport={(observations, files) => {
+        {page === 'import' && <ScreenshotImport key={account.user?.id ?? 'guest'} initialSource={importRelics ? 'relics' : 'inventory'} onRelicImport={(observations, files) => {
           const current = inventoryRef.current;
           const merged = mergeRelicObservations(current.relics, observations);
           if (!commit({ ...current, relics: merged.relics, imports: [{ id: crypto.randomUUID(), date: new Date().toISOString(), files, added: merged.added, updated: merged.updated }, ...current.imports].slice(0, 100) })) return false;

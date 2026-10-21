@@ -20,10 +20,10 @@ const RelicScreenshotReview = lazy(() => import('./RelicScreenshotReview').then(
 interface Scan { file: File; url: string; read: boolean }
 interface Batch { source: ScreenshotSource | null; scans: Scan[]; pending: File[]; completed: boolean }
 
-export function ScreenshotImport({ onImport, onRelicImport, existingRelics, initialSource = 'inventory' }: {
+export function ScreenshotImport({ onImport, onRelicImport, initialSource = 'inventory' }: {
   onImport: (observations: Equipment[], files: string[]) => boolean;
   onRelicImport: (observations: Pick<Relic, 'name' | 'refinement' | 'quantity'>[], files: string[]) => boolean;
-  existingRelics: Relic[]; initialSource?: ScreenshotSource;
+  initialSource?: ScreenshotSource;
 }) {
   const [mode, setMode] = useState<'equipment' | 'relics'>(initialSource === 'relics' ? 'relics' : 'equipment');
   const [source, setSource] = useState<ScreenshotSource>(initialSource);
@@ -199,7 +199,7 @@ export function ScreenshotImport({ onImport, onRelicImport, existingRelics, init
       </li>)}</ul>
     </section>}
     {!busy && status && <p className="import-status" role="status">{status}</p>}
-    {!!scans.length && source === 'relics' && (relicDetections.length ? <Suspense fallback={<p role="status">Loading review…</p>}><RelicScreenshotReview detections={relicDetections} existing={existingRelics} busy={busy} onUpdate={updateRelic} onSelectAll={() => setRelicDetections(current => current.map(detection => reviewRelicDetection(detection, { selected: !current.every(entry => entry.selected) })))} onImport={save} /></Suspense> : !busy && !status && !error && <p className="import-status" role="status">No relics matched.</p>)}
+    {!!scans.length && source === 'relics' && (relicDetections.length ? <Suspense fallback={<p role="status">Loading review…</p>}><RelicScreenshotReview detections={relicDetections} busy={busy} onUpdate={updateRelic} onSelectAll={() => setRelicDetections(current => current.map(detection => reviewRelicDetection(detection, { selected: !current.every(entry => entry.selected) })))} onImport={save} /></Suspense> : !busy && !status && !error && <p className="import-status" role="status">No relics matched.</p>)}
     {!!scans.length && source !== 'relics' && (detections.length ? <section className="review-section" aria-labelledby="review-title">
       <div className="section-heading"><h3 id="review-title">Review matches</h3><div className="import-actions">
         <button type="button" className="button secondary" onClick={() => setDetections(current => current.map(detection => reviewDetection(detection, { selected: !current.every(entry => entry.selected) })))}>{detections.every(detection => detection.selected) ? 'Deselect all' : 'Select all'}</button>

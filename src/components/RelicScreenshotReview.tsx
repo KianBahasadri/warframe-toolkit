@@ -1,6 +1,5 @@
 import { relicCatalog, relicNames } from '../data/relicCatalog';
 import { MAX_RELIC_QUANTITY, refinements, relicKey } from '../lib/relics';
-import type { Relic } from '../lib/relics';
 import type { RelicDetection } from '../lib/relicMatching';
 import { relicImportError } from '../lib/relicMatching';
 import { EditableSelect } from './EditableSelect';
@@ -8,8 +7,8 @@ import { EditableSelect } from './EditableSelect';
 const names = [{ value: '', label: 'Choose relic' }, ...relicNames.map(name => ({ value: name, label: name }))];
 const catalogByKey = new Map(relicCatalog.map(item => [relicKey(item), item]));
 
-export function RelicScreenshotReview({ detections, existing, busy, onUpdate, onSelectAll, onImport }: {
-  detections: RelicDetection[]; existing: Relic[]; busy: boolean;
+export function RelicScreenshotReview({ detections, busy, onUpdate, onSelectAll, onImport }: {
+  detections: RelicDetection[]; busy: boolean;
   onUpdate: (id: string, patch: Partial<RelicDetection>) => void; onSelectAll: () => void; onImport: () => void;
 }) {
   const selected = detections.filter(detection => detection.selected);
@@ -27,7 +26,6 @@ export function RelicScreenshotReview({ detections, existing, busy, onUpdate, on
       <tbody>{detections.map(detection => {
         const label = `${detection.name || 'Unknown relic'} ${detection.refinement || 'unknown refinement'}`;
         const image = detection.name && detection.refinement ? catalogByKey.get(relicKey({ name: detection.name, refinement: detection.refinement }))?.image : undefined;
-        const saved = detection.refinement && existing.find(item => relicKey(item) === relicKey({ name: detection.name, refinement: detection.refinement! }));
         return <tr key={detection.id}>
           <td><label className="table-checkbox"><input type="checkbox" checked={detection.selected} aria-label={`Import ${label}`} onChange={event => onUpdate(detection.id, { selected: event.target.checked })} /></label></td>
           <td className="match-cell"><div className="match-content">
@@ -39,7 +37,7 @@ export function RelicScreenshotReview({ detections, existing, busy, onUpdate, on
               <input type="radio" name={`refinement-${detection.id}`} value={value} checked={detection.refinement === value} onChange={() => onUpdate(detection.id, { refinement: value })} />{value}
             </label>)}
           </fieldset></td>
-          <td><input className="rank-input" type="number" min={0} max={MAX_RELIC_QUANTITY} step={1} value={detection.quantity ?? ''} aria-label={`Quantity: ${label}`} onChange={event => onUpdate(detection.id, { quantity: event.target.value === '' ? null : Number(event.target.value) })} />{saved && <small className="muted">Saved: {saved.quantity}</small>}</td>
+          <td><input className="rank-input" type="number" min={0} max={MAX_RELIC_QUANTITY} step={1} value={detection.quantity ?? ''} aria-label={`Quantity: ${label}`} onChange={event => onUpdate(detection.id, { quantity: event.target.value === '' ? null : Number(event.target.value) })} /></td>
         </tr>;
       })}</tbody>
     </table></div>
