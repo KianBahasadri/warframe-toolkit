@@ -162,6 +162,7 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; text-align: l
 .inventory-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .section-heading h1 { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 500; line-height: 1.35; letter-spacing: normal; margin: 0; }
 .inventory-section .table-scroll { max-height: max(320px, calc(100dvh - 208px)); }
+.inventory-section .inventory-grid { width: fit-content; max-width: 100%; margin-inline: auto; }
 .inventory-section th { position: sticky; top: 0; z-index: 1; background: var(--canvas); }
 .inventory-grid { --table-ink: color-mix(in srgb, var(--ink) 85%, var(--muted)); --table-muted: color-mix(in srgb, var(--ink) 25%, var(--muted)); --table-rule: color-mix(in srgb, var(--line) 55%, transparent); }
 .inventory-table { table-layout: auto; width: max-content; min-width: 0; font-size: 15px; line-height: 1.4; color: var(--table-ink); }
