@@ -436,25 +436,25 @@ test('hovering the username opens account options, clicking opens the modal, and
   expect(menuBox.height).toBeLessThanOrEqual(148);
 
   await menu.getByRole('menuitem', { name: 'Change language', exact: true }).click();
-  const languageDialog = page.getByRole('dialog', { name: 'Change language', exact: true });
-  await expect(languageDialog.getByRole('radio', { name: 'English', exact: true })).toBeChecked();
-  await languageDialog.getByRole('radio', { name: '简体中文', exact: true }).check();
-  const zhLanguageDialog = page.getByRole('dialog', { name: '更改语言', exact: true });
-  await expect(zhLanguageDialog).toBeVisible();
+  const languageMenu = page.getByRole('menu');
+  await expect(languageMenu.getByRole('menuitemradio', { name: 'English', exact: true })).toBeChecked();
+  await languageMenu.getByRole('menuitemradio', { name: '简体中文', exact: true }).click();
   expect(await page.evaluate(() => document.documentElement.lang)).toBe('zh-CN');
   await expect(page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('link', { name: '武器', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit Boltor', exact: true })).toBeVisible();
-  await zhLanguageDialog.getByRole('radio', { name: 'English', exact: true }).check();
+  await expect(languageMenu.getByRole('menuitem', { name: '更改语言', exact: true })).toBeVisible();
+  await languageMenu.getByRole('menuitemradio', { name: 'English', exact: true }).click();
   expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
-  await languageDialog.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(languageDialog).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
 
   await trigger.click();
   await expect(menu).toHaveCount(0);
   const dialog = page.getByRole('dialog', { name: 'Account', exact: true });
   await expect(dialog.getByRole('button', { name: 'Share inventory', exact: true })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Replace access key', exact: true })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Change language', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('radio', { name: 'English', exact: true })).toBeChecked();
+  await expect(dialog.getByRole('radio', { name: '简体中文', exact: true })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);

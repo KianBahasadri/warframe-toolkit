@@ -1,12 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { Copy, Download, KeyRound, Languages, Link, LogOut, RefreshCw, Share2, UserRound } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Download, KeyRound, Languages, Link, LogOut, RefreshCw, Share2, UserRound } from 'lucide-react';
 import { Dialog } from './Dialog';
 import { accessKeyLink, shareInventoryLink } from '../lib/account';
 import type { AccountUser } from '../lib/account';
 import { LANGUAGES, t, useLanguage } from '../lib/i18n';
 import { downloadFile } from '../lib/storage';
 
-export type AccountDialogMode = 'account' | 'login' | 'register' | 'share' | 'replace' | 'language';
+export type AccountDialogMode = 'account' | 'login' | 'register' | 'share' | 'replace';
 
 export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }: {
   user: AccountUser | null;
@@ -15,15 +15,17 @@ export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }
   onOpen: (mode: AccountDialogMode, initialError?: string) => void;
   onSignOut: () => Promise<void>;
 }) {
-  useLanguage();
+  const [language, setLanguage] = useLanguage();
   const id = useId(), root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<'menu' | 'language'>('menu');
   const closing = useRef<number>(undefined);
-  const pendingFocus = useRef<'first' | 'last' | null>(null);
+  const pendingFocus = useRef<'first' | 'last' | 'checked' | 'language' | null>(null);
   const clearCloseTimer = () => window.clearTimeout(closing.current);
-  const dismiss = () => { clearCloseTimer(); pendingFocus.current = null; setOpen(false); };
+  const dismiss = () => { clearCloseTimer(); pendingFocus.current = null; setOpen(false); setView('menu'); };
+  const menuItems = () => menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"], [role="menuitemradio"]');
   const focusItem = (end: 'first' | 'last') => {
-    const buttons = menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]');
+    const buttons = menuItems();
     const target = (end === 'first' ? buttons?.[0] : buttons?.[buttons.length - 1]) ?? menu.current;
     target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'nearest' });
   };
@@ -59,8 +61,12 @@ export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }
 
   useLayoutEffect(() => {
     if (!open || !pendingFocus.current) return;
-    focusItem(pendingFocus.current); pendingFocus.current = null;
-  }, [open]);
+    const pending = pendingFocus.current;
+    pendingFocus.current = null;
+    if (pending === 'checked') menu.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]')?.focus({ preventScroll: true });
+    else if (pending === 'language') menu.current?.querySelector<HTMLButtonElement>('[data-account-action="language"]')?.focus({ preventScroll: true });
+    else focusItem(pending);
+  }, [open, view]);
 
   useEffect(() => {
     if (!open) return;
@@ -103,15 +109,21 @@ export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }
       if (event.key === 'Tab') { closing.current = window.setTimeout(dismiss, 0); return; }
       if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault(); event.stopPropagation();
-      const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+      const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"], [role="menuitemradio"]')];
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus();
     }}>
-      <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); onOpen('share'); }}><Share2 size={15} /><span>{t('Share inventory')}</span></button>
-      <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); onOpen('replace'); }}><KeyRound size={15} /><span>{t('Replace access key')}</span></button>
-      <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); onOpen('language'); }}><Languages size={15} /><span>{t('Change language')}</span></button>
-      <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); void onSignOut().catch(error => onOpen('account', (error as Error).message)); }}><LogOut size={15} /><span>{t('Sign out')}</span></button>
+      {view === 'language' ? <>
+        <button type="button" role="menuitem" tabIndex={-1} onClick={() => { pendingFocus.current = 'language'; setView('menu'); }}><ArrowLeft size={15} /><span>{t('Change language')}</span></button>
+        <div className="account-menu-divider" role="separator" />
+        {LANGUAGES.map(option => <button key={option.code} type="button" role="menuitemradio" aria-checked={language === option.code} tabIndex={-1} onClick={() => setLanguage(option.code)}><span>{option.label}</span><Check size={14} aria-hidden="true" className={language === option.code ? undefined : 'select-check-hidden'} /></button>)}
+      </> : <>
+        <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); onOpen('share'); }}><Share2 size={15} /><span>{t('Share inventory')}</span></button>
+        <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); onOpen('replace'); }}><KeyRound size={15} /><span>{t('Replace access key')}</span></button>
+        <button type="button" role="menuitem" data-account-action="language" tabIndex={-1} onClick={() => { pendingFocus.current = 'checked'; setView('language'); }}><Languages size={15} /><span>{t('Change language')}</span></button>
+        <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); void onSignOut().catch(error => onOpen('account', (error as Error).message)); }}><LogOut size={15} /><span>{t('Sign out')}</span></button>
+      </>}
     </div>}
   </div>;
 }
@@ -130,8 +142,9 @@ type Props = {
 };
 
 export function AccountDialog({ user, initialMode, initialError, canIncludeCurrent, dirty, onAuthenticate, onReplaceAccessKey, onShareInventory, onSignOut, onClose }: Props) {
+  const languageLabel = useId();
   const [language, setLanguage] = useLanguage();
-  const [mode, setMode] = useState<'account' | 'login' | 'register' | 'key' | 'replace' | 'share' | 'language'>(() => initialMode === 'language' ? 'language' : user ? (initialMode === 'login' || initialMode === 'register' ? 'account' : initialMode) : (initialMode === 'register' ? 'register' : 'login'));
+  const [mode, setMode] = useState<'account' | 'login' | 'register' | 'key' | 'replace' | 'share'>(() => user ? (initialMode === 'login' || initialMode === 'register' ? 'account' : initialMode) : (initialMode === 'register' ? 'register' : 'login'));
   const [username, setUsername] = useState(user?.username ?? ''), [credential, setCredential] = useState('');
   const [issuedKey, setIssuedKey] = useState(''), [keySaved, setKeySaved] = useState(false);
   const [shareToken, setShareToken] = useState('');
@@ -172,7 +185,7 @@ export function AccountDialog({ user, initialMode, initialError, canIncludeCurre
   };
   const signInLink = issuedKey ? accessKeyLink(location.href, user?.username ?? username, issuedKey) : '';
   const shareLink = shareToken ? shareInventoryLink(location.href, shareToken) : '';
-  const title = t(mode === 'key' ? 'Save your access key' : mode === 'replace' ? 'Replace access key' : mode === 'share' ? 'Share inventory' : mode === 'language' ? 'Change language' : mode === 'account' ? 'Account' : mode === 'register' ? 'Create account' : 'Sign in');
+  const title = t(mode === 'key' ? 'Save your access key' : mode === 'replace' ? 'Replace access key' : mode === 'share' ? 'Share inventory' : mode === 'account' ? 'Account' : mode === 'register' ? 'Create account' : 'Sign in');
   const feedback = <>{error && <p className="error-text" role="alert">{error}</p>}{copied && <p className="muted small" role="status">{copied}</p>}</>;
   return <Dialog title={title} onClose={close} className="account-dialog">
     {mode === 'key' ? <div className="account-form">
@@ -219,21 +232,25 @@ export function AccountDialog({ user, initialMode, initialError, canIncludeCurre
         <button type="button" className="button quiet" disabled={busy} onClick={() => { setMode('account'); setError(''); }}>{t('Cancel')}</button>
         <button type="button" className="button primary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { showKey(await onReplaceAccessKey()); } catch (error) { setError((error as Error).message); } finally { setBusy(false); } }}>{busy ? t('Replacing…') : t('Replace key')}</button>
       </div>
-    </div> : mode === 'language' ? <div className="account-form">
-      <div className="account-language-options" role="radiogroup" aria-label={t('Language')}>
-        {LANGUAGES.map(option => <label key={option.code} className="check-row"><input type="radio" name="language" checked={language === option.code} onChange={() => setLanguage(option.code)} /><span>{option.label}</span></label>)}
-      </div>
-      <div className="dialog-footer">
-        {user && <button type="button" className="button quiet" onClick={() => { setMode('account'); setError(''); setCopied(''); }}>{t('Back')}</button>}
-        <button type="button" className="button primary" onClick={close}>{t('Done')}</button>
-      </div>
     </div> : mode === 'account' ? <>
       <p className="account-username">{user!.username}</p>
       <p className="muted small">{t(dirty ? 'You have unsaved changes.' : 'Your inventory, views, crafting plans, and arsenals belong to this account.')}</p>
       <div className="account-option-list">
         <button type="button" className="button secondary" disabled={busy} onClick={() => { setMode('share'); setError(''); setCopied(''); }}><Share2 size={15} />{t('Share inventory')}</button>
         <button type="button" className="button secondary" disabled={busy} onClick={() => { setMode('replace'); setError(''); setCopied(''); }}><KeyRound size={15} />{t('Replace access key')}</button>
-        <button type="button" className="button secondary" disabled={busy} onClick={() => { setMode('language'); setError(''); setCopied(''); }}><Languages size={15} />{t('Change language')}</button>
+      </div>
+      <div className="account-language">
+        <span id={languageLabel}>{t('Language')}</span>
+        <div role="radiogroup" aria-labelledby={languageLabel} onKeyDown={event => {
+          if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+          event.preventDefault();
+          const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+          const index = Math.max(0, buttons.indexOf(document.activeElement as HTMLButtonElement));
+          const next = buttons[(index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1) + buttons.length) % buttons.length];
+          next?.focus(); next?.click();
+        }}>
+          {LANGUAGES.map(option => <button key={option.code} type="button" role="radio" aria-checked={language === option.code} onClick={() => setLanguage(option.code)}>{option.label}</button>)}
+        </div>
       </div>
       {feedback}
       <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { setMode('login'); setError(''); }}>{t('Sign in again')}</button><button type="button" className="button secondary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await onSignOut(); onClose(); } catch (error) { setError((error as Error).message); } finally { setBusy(false); } }}>{busy ? t('Signing out…') : t('Sign out')}</button></div>

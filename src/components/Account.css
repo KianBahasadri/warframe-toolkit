@@ -16,8 +16,20 @@
 .account-bookmark { font-size: 12px; color: var(--ink); text-underline-offset: 3px; }
 .account-username { font-size: 18px; overflow-wrap: anywhere; }
 .account-option-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.account-language-options { display: grid; gap: 8px; }
+.account-language { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 16px; }
+.account-language > span { font-size: 13px; color: var(--muted); }
+.account-language [role="radiogroup"] { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; min-width: min(100%, 196px); padding: 3px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.account-language [role="radio"] { width: 100%; min-height: 28px; padding: 4px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; }
+.account-language [role="radio"]:hover, .account-language [role="radio"]:focus-visible { color: var(--ink-strong); }
+.account-language [role="radio"][aria-checked="true"] { background: var(--surface-raised); color: var(--ink-strong); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.account-menu-divider { border-top: 1px solid var(--line); margin: 4px 2px; }
+.account-menu [role="menuitemradio"] { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 12px; width: 100%; min-height: 0; padding: 6px 10px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); font-size: 13px; line-height: 1.35; text-align: left; }
+.account-menu [role="menuitemradio"] > span { min-width: 0; }
+.account-menu [role="menuitemradio"]:hover, .account-menu [role="menuitemradio"]:focus-visible { background: var(--surface); color: var(--ink-strong); }
+.account-menu [role="menuitemradio"][aria-checked="true"], .account-menu [role="menuitemradio"][aria-checked="true"]:hover, .account-menu [role="menuitemradio"][aria-checked="true"]:focus-visible { background: var(--accent-soft); color: var(--ink-strong); font-weight: 500; }
+.account-menu [role="menuitemradio"] svg { flex-shrink: 0; color: var(--accent); }
 .account-menu { width: max-content; }
+.account-menu:has([role="menuitemradio"]) { min-width: 196px; }
 .account-menu [role=menuitem] { min-height: 0; padding: 6px 10px; gap: 8px; line-height: 1.35; }
 .account-menu [role=menuitem] svg { flex-shrink: 0; color: var(--muted); }
 .account-menu [role=menuitem]:hover svg, .account-menu [role=menuitem]:focus-visible svg { color: var(--ink-strong); }
