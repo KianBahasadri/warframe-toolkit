@@ -15,7 +15,7 @@ export function createMarketMiddleware() {
     stop: service.stop,
     middleware(req: IncomingMessage, res: ServerResponse, next: () => void) {
       if (!req.url?.startsWith('/api/wfm/')) return next();
-      void service.handle(new Request(`http://localhost${req.url}`, { method: req.method })).then(async response => {
+      void service.handle(new Request(`http://localhost${req.url}`, { method: req.method, headers: req.headers['x-market-background'] === '1' ? { 'X-Market-Background': '1' } : undefined })).then(async response => {
         res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(await response.text());
       }).catch(() => { res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify({ error: 'Market prices are unavailable.' })); });
     },

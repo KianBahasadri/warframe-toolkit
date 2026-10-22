@@ -141,6 +141,32 @@ test('stale prices are marked, failures remain unavailable, and a missing histor
   await expect(page.locator('.inventory-table .equipment-label')).toHaveText(['Braton Prime']);
 });
 
+test('stale cached SQL data renders upfront and updates in place once the background refresh completes', async ({ page }) => {
+  let calls = 0;
+  await page.route('**/api/wfm/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/items')) {
+      await route.fulfill({ json: { data: parseMarketItems(wfmItems), fetchedAt: new Date().toISOString(), stale: false } });
+      return;
+    }
+    calls++;
+    const fresh = calls > 1;
+    await route.fulfill({
+      json: {
+        data: parseMarketOrders(wfmOrders(undefined, fresh ? 2 : 1)),
+        fetchedAt: new Date(Date.now() - (fresh ? 0 : 600_000)).toISOString(),
+        stale: !fresh,
+        ...(fresh ? {} : { refreshing: true, retryAt: new Date(Date.now() + 300).toISOString() }),
+      },
+    });
+  });
+  await page.goto('/');
+  const price = page.getByRole('button', { name: /^WFM: Braton Prime:/ });
+  await expect(price).toContainText('14 platinum');
+  await expect(price).toContainText('stale');
+  await expect(price).toHaveText('28 platinumset');
+});
+
 test('mobile price tooltip, modal, chart and exact data stay within the viewport in both themes', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await mockMarket(page);

@@ -101,12 +101,15 @@ test('the persisted cost allowance stops Azure calls and retains stale prices ac
     const storage = await api.mf.unsafeGetDurableObjectStorage('warframe-toolkit', 'DropTables', { name: 'wfm' });
     const usage = { day: new Date().toISOString().slice(0, 10), requests: 2000, bytes: 0 };
     const expired = { data: original.data, fetchedAt: '2020-01-01T00:00:00.000Z', retryAt: 0, touched: 0 };
-    for (const [key, value] of [['relay-budget', usage], ['orders:pc:ash_prime_set', expired]] as const) await storage.exec(`UPDATE market_cache SET value = X'${gzipSync(JSON.stringify(value)).toString('hex')}' WHERE key = '${key}'`);
+    for (const [key, value] of [['relay-budget', usage], ['orders:pc:ash_prime_set', expired], ['throttle', 0]] as const) await storage.exec(`UPDATE market_cache SET value = X'${gzipSync(JSON.stringify(value)).toString('hex')}' WHERE key = '${key}'`);
     await api.close(); api = await cloudflareRuntime(options);
+    const immediate = await (await api.mf.dispatchFetch('https://toolkit.test/api/wfm/orders/ash_prime_set')).json();
+    assert.equal(immediate.stale, true); assert.equal(immediate.refreshing, true);
+    assert.equal(immediate.fetchedAt, expired.fetchedAt); assert.deepEqual(immediate.data, original.data);
+    assert.equal((await api.mf.dispatchFetch('https://toolkit.test/api/wfm/orders/braton_prime_set')).status, 503);
     const stale = await (await api.mf.dispatchFetch('https://toolkit.test/api/wfm/orders/ash_prime_set')).json();
     assert.equal(stale.stale, true); assert.equal(stale.fetchedAt, expired.fetchedAt);
     assert.deepEqual(stale.data, original.data); assert.match(stale.error, /Daily market request limit/);
-    assert.equal((await api.mf.dispatchFetch('https://toolkit.test/api/wfm/orders/braton_prime_set')).status, 503);
     assert.equal(calls, 2, 'quota checks must run before invoking Azure');
   } finally { await api.close(); await rm(persist, { recursive: true, force: true }); }
 });

@@ -18,7 +18,7 @@ export interface MarketHistoryRow extends MarketVariant {
   min: number | null; max: number | null; median: number | null; average: number | null; weighted: number | null;
 }
 export interface MarketHistory { '48hours': MarketHistoryRow[]; '90days': MarketHistoryRow[] }
-export interface MarketSnapshot<T> { data: T; fetchedAt: string; stale: boolean; error?: string; retryAt?: string }
+export interface MarketSnapshot<T> { data: T; fetchedAt: string; stale: boolean; refreshing?: boolean; error?: string; retryAt?: string }
 export interface PriceStats { min: number | null; max: number | null; mean: number | null; median: number | null; listings: number; units: number }
 export interface MarketQuote { price: number | null; sample: number; sell: PriceStats; buy: PriceStats; offline: number; ingame: number; spread: number | null }
 export interface PriceSample { time: string; closed: number | null; sell: number | null; buy: number | null; volume: number | null; min: number | null; max: number | null; average: number | null; weighted: number | null }

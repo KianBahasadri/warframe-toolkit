@@ -23,13 +23,14 @@ export function MarketPrice({ subject }: { subject: MarketSubject }) {
   const quote = target ? marketQuote(target, platform) : undefined;
   const loading = !catalog.snapshot || target && !orders.snapshot;
   const error = target ? orders.error : catalog.error;
+  const stale = Boolean(error || orders.snapshot?.stale);
   return <span ref={host} className="market-cell">
-    <Tooltip className={`market-price${error ? ' is-stale' : ''}`} label={`WFM: ${subject.name}${subject.refinement ? ` ${subject.refinement}` : ''}${target ? `: ${platinum(quote?.price)}, price details` : ''}`} hasPopup={Boolean(target)}
+    <Tooltip className={`market-price${stale ? ' is-stale' : ''}`} label={`WFM: ${subject.name}${subject.refinement ? ` ${subject.refinement}` : ''}${target ? `: ${platinum(quote?.price)}, price details` : ''}`} hasPopup={Boolean(target)}
       onClick={() => { if (target) setOpen(true); else void loadMarket(marketCatalogPath, true); }}
       content={target ? <MarketTooltip target={target} quote={quote} snapshot={orders.snapshot} error={orders.error} platform={platform} /> : <span>{catalog.error || (catalog.snapshot ? 'Not listed on Warframe Market.' : 'Loading the Warframe Market catalog…')}</span>}>
       {loading ? error ? 'Unavailable' : '…' : <Currency value={quote?.price} currency="platinum" />}
       {target?.qualifier && subject.kind === 'equipment' && <small>{target.qualifier}</small>}
-      {error && orders.snapshot && <small>stale</small>}
+      {stale && orders.snapshot && <small>stale</small>}
     </Tooltip>
     {open && target && <Suspense fallback={<span role="status" className="sr-only">Loading price details…</span>}><MarketDialog target={target} onClose={() => setOpen(false)} /></Suspense>}
   </span>;
@@ -56,7 +57,7 @@ export function MarketTooltip({ target, quote, snapshot, error, platform }: { ta
     {target.variant.rank !== undefined && <span>Rank {target.variant.rank}{target.variant.charges !== undefined ? ` · ${target.variant.charges} charges` : ''}</span>}
     {target.variant.amberStars !== undefined && <span>Unfilled sculpture</span>}
     {target.note && <span>{target.note}</span>}
-    {snapshot && <span>{error || snapshot.stale ? 'Stale · ' : 'Updated '}{new Date(snapshot.fetchedAt).toLocaleString()}</span>}
+    {snapshot && <span>{error || snapshot.stale ? 'Stale · ' : 'Updated '}{new Date(snapshot.fetchedAt).toLocaleString()}{snapshot.refreshing ? ' · Updating…' : ''}</span>}
     <span>Click for history and market details.</span>
   </span>;
 }

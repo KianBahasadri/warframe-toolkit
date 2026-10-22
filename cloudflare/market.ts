@@ -31,8 +31,8 @@ export function createDurableMarket(ctx: DurableObjectState, env: Pick<Env, 'WFM
     async get(key) { const row = ctx.storage.sql.exec<{ value: ArrayBuffer }>('SELECT value FROM market_cache WHERE key = ?', key).toArray()[0]; return row ? JSON.parse(gunzipSync(Buffer.from(row.value)).toString('utf8')) : undefined; },
     async set(key, value) {
       ctx.storage.sql.exec('INSERT OR REPLACE INTO market_cache VALUES (?, ?, ?)', key, gzipSync(JSON.stringify(value)), Date.now());
-      ctx.storage.sql.exec("DELETE FROM market_cache WHERE key NOT IN ('items', 'throttle', 'relay-budget') AND key IN (SELECT key FROM market_cache ORDER BY touched DESC LIMIT -1 OFFSET 512)");
+      ctx.storage.sql.exec("DELETE FROM market_cache WHERE key NOT IN ('items', 'throttle', 'relay-budget') AND key IN (SELECT key FROM market_cache ORDER BY touched DESC LIMIT -1 OFFSET 8192)");
     },
   };
-  return createMarketService({ fetch: relayFetch(env, store), store });
+  return createMarketService({ fetch: relayFetch(env, store), store, waitUntil: promise => ctx.waitUntil(promise) });
 }
