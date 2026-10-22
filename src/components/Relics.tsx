@@ -5,6 +5,7 @@ import { Dialog } from './Dialog';
 import { Select } from './Select';
 import { TableNotes } from './TableNotes';
 import { MarketPrice } from './MarketPrice';
+import { HoverTip, relicHover } from './HoverFacts';
 import { CollectionTable } from './CollectionTable';
 import { RelicDetails } from './RelicDetails';
 import type { CollectionActions, CollectionDefinition } from './CollectionTable';
@@ -131,11 +132,13 @@ const relicDefinition: CollectionDefinition<RelicRow> = {
   label: 'Relics', itemLabel: 'relic', searchLabel: 'Search relics', regionLabel: 'Relic inventory', filterLabel: 'Relic filters',
   columns: relicColumns, defaultColumns: defaultRelicColumns, storageKey: RELIC_COLUMNS_STORAGE_KEY, model: relicTableModel,
   marketSubject: relic => ({ name: relic.name, kind: 'relic', refinement: relic.refinement }),
+  primaryTooltip: relicHover,
   rowLabel: relic => `${relic.name} ${relic.refinement}`, rowKey: relicKey, initialSorting: [{ key: 'name', direction: 1 }], pageSize: 100,
   filters: [
     { key: 'trackedOnly', label: 'Tracked only', kind: 'checkbox' },
     { key: 'ownedOnly', label: 'Owned only', kind: 'checkbox', column: 'quantity' },
     { key: 'era', label: 'Filter by era', kind: 'select', column: 'era', placeholder: 'All eras', choices: relicEras.map(value => ({ value, label: value })) },
+    { key: 'vaulted', label: 'Vault status', kind: 'select', column: 'vaulted', placeholder: 'Any vault status', choices: [{ value: 'yes', label: 'Vaulted' }, { value: 'no', label: 'Not vaulted' }] },
     { key: 'refinement', label: 'Filter by refinement', kind: 'select', column: 'refinement', placeholder: 'All refinements', choices: refinements.map(value => ({ value, label: value })) },
   ],
   applyFilters: (relics, search, filters) => {
@@ -144,6 +147,7 @@ const relicDefinition: CollectionDefinition<RelicRow> = {
       const text = `${relic.name} ${relic.refinement} ${relic.notes} ${relic.catalogItem?.rewards.map(reward => reward.name).join(' ') ?? ''}`.toLowerCase();
       return words.every(word => text.includes(word))
         && (!filters.era || parseRelicName(relic.name)?.era === filters.era)
+        && (!filters.vaulted || relic.vaulted === (filters.vaulted === 'yes'))
         && (!filters.refinement || relic.refinement === filters.refinement)
         && (!filters.ownedOnly || relic.quantity > 0)
         && (!filters.trackedOnly || Boolean(relic.saved));
@@ -167,6 +171,8 @@ export function Relics({ relics, trackedOnlyDefault, onSave, onDelete, onQuantit
     <CollectionTable definition={definition} items={rows} onEdit={row => setEditing(editableRelic(row))} onAdd={() => setEditing('new')} onExport={onExport} actionsRef={actionsRef}
       extraActions={<button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
       renderCell={(relic, column) => column.key === 'name' ? <>{relic.catalogItem && <img className="equipment-image" src={relic.catalogItem.image} alt="" width="88" height="56" loading="lazy" />}<span className="equipment-label">{relic.name}</span></>
+        : column.key === 'vaulted' ? relic.vaulted === null ? <span className="table-missing" aria-label={`Vaulted: ${relic.name}: Unknown`}>—</span> : <span className="catalog-fact" aria-label={`Vaulted: ${relic.name}: ${relic.vaulted ? 'Yes' : 'No'}`}>{relic.vaulted ? 'Yes' : 'No'}</span>
+        : column.key === 'refinement' ? <HoverTip content={relicHover(relic)}>{relic.refinement}</HoverTip>
         : column.key === 'wfm' ? <MarketPrice subject={{ name: relic.name, kind: 'relic', refinement: relic.refinement }} />
         : column.key === 'quantity' ? <div className="quantity-control"><button type="button" className="icon-button" aria-label={`Decrease ${relic.name} ${relic.refinement} quantity`} title="Decrease quantity" disabled={relic.quantity === 0} onClick={() => onQuantityChange(relic, -1)}><Minus size={14} /></button><span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span><button type="button" className="icon-button" aria-label={`Increase ${relic.name} ${relic.refinement} quantity`} title="Increase quantity" disabled={relic.quantity === MAX_RELIC_QUANTITY} onClick={() => onQuantityChange(relic, 1)}><Plus size={14} /></button></div>
         : column.key === 'notes' ? <TableNotes name={`${relic.name} ${relic.refinement}`} value={relic.notes} onChange={notes => onNotesChange(relic, notes)} />

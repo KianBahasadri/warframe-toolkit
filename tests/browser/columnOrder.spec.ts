@@ -69,7 +69,8 @@ test('dragged columns keep their data, filters, and independent saved order in e
   await page.reload();
   await expect.poll(() => order(page)).toEqual(moved);
   await page.getByRole('link', { name: 'Warframes', exact: true }).click();
-  const warframeMoved = moved.filter(key => !['incarnon', 'craftingTarget'].includes(key));
+  // Helminth is a default Warframe column the weapon layout has never stored, so it appears.
+  const warframeMoved = [...moved.filter(key => !['incarnon', 'craftingTarget'].includes(key)), 'helminth'];
   await expect.poll(() => order(page)).toEqual(warframeMoved);
   await expect(page.locator('tbody tr').first().locator('[data-column-key="rank"]')).toHaveText('20');
   await dragColumn(page, 'Owned', 'Rank', 'before');
@@ -80,15 +81,15 @@ test('dragged columns keep their data, filters, and independent saved order in e
 
   await page.getByRole('link', { name: 'Relics', exact: true }).click();
   await dragColumn(page, 'Quantity', 'Relic', 'before');
-  await expect.poll(() => order(page)).toEqual(['quantity', 'name', 'wfm', 'era', 'refinement', 'notes']);
+  await expect.poll(() => order(page)).toEqual(['quantity', 'name', 'wfm', 'era', 'vaulted', 'refinement', 'notes']);
   await expect(page.locator('tbody tr').first().getByRole('cell').nth(0)).toContainText('3');
   await header(page, 'Quantity').getByRole('button').press('Shift+F10');
   await expect(menu(page).getByRole('menuitem', { name: 'Move left' })).toBeDisabled();
   await menu(page).getByRole('menuitem', { name: 'Move right' }).click();
-  await expect.poll(() => order(page)).toEqual(['name', 'quantity', 'wfm', 'era', 'refinement', 'notes']);
+  await expect.poll(() => order(page)).toEqual(['name', 'quantity', 'wfm', 'era', 'vaulted', 'refinement', 'notes']);
   await expect(header(page, 'Quantity').getByRole('button')).toBeFocused();
   await page.reload();
-  await expect.poll(() => order(page)).toEqual(['name', 'quantity', 'wfm', 'era', 'refinement', 'notes']);
+  await expect.poll(() => order(page)).toEqual(['name', 'quantity', 'wfm', 'era', 'vaulted', 'refinement', 'notes']);
   await page.getByRole('link', { name: 'Warframes', exact: true }).click();
   await expect.poll(() => order(page)).toEqual(warframeLayout);
   await page.getByRole('link', { name: 'Weapons', exact: true }).click();

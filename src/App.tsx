@@ -20,7 +20,7 @@ import { mergeObservations, normalizeName } from './lib/model';
 import type { Equipment, Inventory } from './lib/model';
 import { downloadFile, inventoryCsv, relicsCsv, STORAGE_KEY, warframesCsv } from './lib/storage';
 import { relicKey } from './lib/relics';
-import { updateRelic } from './lib/relicCatalog';
+import { updateRelic, vaultStatus } from './lib/relicCatalog';
 import { mergeRelicObservations } from './lib/relicMatching';
 import weaponsIcon from './assets/warframe/weapons.png';
 import warframesIcon from './assets/warframe/warframes.png';
@@ -100,7 +100,7 @@ export default function App() {
     downloadFile(`grakata-${warframes ? 'warframes' : 'inventory'}-${new Date().toISOString().slice(0, 10)}.csv`, warframes ? warframesCsv(rows) : inventoryCsv(rows), 'text/csv;charset=utf-8');
     notify(`${warframes ? 'Warframes' : 'Inventory'} CSV downloaded.`, 'success');
   };
-  const exportRelics = () => { downloadFile(`grakata-relics-${new Date().toISOString().slice(0, 10)}.csv`, relicsCsv(inventoryRef.current.relics ?? []), 'text/csv;charset=utf-8'); notify('Relics CSV downloaded.', 'success'); };
+  const exportRelics = () => { void import('./data/relicCatalog').then(({ relicCatalog }) => { downloadFile(`grakata-relics-${new Date().toISOString().slice(0, 10)}.csv`, relicsCsv(inventoryRef.current.relics ?? [], vaultStatus(relicCatalog)), 'text/csv;charset=utf-8'); notify('Relics CSV downloaded.', 'success'); }); };
   const commands: Command[] = [
     ...(['weapons', 'warframes', 'relics'].includes(page) ? [{ label: `Add ${page === 'relics' ? 'relic' : equipmentLabel}`, keys: ['Alt', 'N'], run: () => collectionActions.current?.add() }] : []),
     { label: 'Import screenshots', keys: ['Alt', 'I'], run: openImport },

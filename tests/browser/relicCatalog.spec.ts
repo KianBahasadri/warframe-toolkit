@@ -13,6 +13,10 @@ test('official relic catalog browses rewards, sources and pages without saving i
   await expect(names.first()).not.toHaveText(first!);
   await expect(names.first()).toBeInViewport();
   await page.getByLabel('Search relics', { exact: true }).fill('Lith A1');
+  await expect(page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Lith A1 Intact', exact: true }) }).locator('[data-column-key="vaulted"]')).toHaveText('Yes');
+  await page.getByLabel('Search relics', { exact: true }).fill('Meso A12');
+  await expect(page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Meso A12 Exceptional', exact: true }) }).locator('[data-column-key="vaulted"]')).toHaveText('No');
+  await page.getByLabel('Search relics', { exact: true }).fill('Lith A1');
   await page.getByRole('button', { name: 'Edit Lith A1 Radiant', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('region', { name: 'Relic rewards' }).getByRole('listitem').filter({ hasText: 'Akstiletto Prime Blueprint' })).toContainText('10%');
@@ -26,6 +30,7 @@ test('official relic catalog browses rewards, sources and pages without saving i
   await expect(dialog.getByRole('region', { name: 'Relic rewards' }).getByRole('listitem')).toHaveCount(8);
   await expect(dialog).toContainText('Published chances total 76%');
   await expect(dialog).toContainText('Cannot be refined.');
+  await expect(dialog.getByRole('region', { name: 'Relic sources' })).not.toContainText('Vaulted.');
   await expect(dialog.getByRole('link', { name: 'Kuva Flood', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/relic-catalog-mobile.png' });
@@ -60,8 +65,8 @@ test('catalog quantity and note edits save only exact stacks and CSV exports onl
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
   const csv = await readFile((await (await download).path())!, 'utf8');
-  expect(csv).toContain('"Lith A1","Lith","Intact","2"');
-  expect(csv).toContain('"Lith A1","Lith","Radiant","0","Keep for squad"');
+  expect(csv).toContain('"Lith A1","Lith","Yes","Intact","2"');
+  expect(csv).toContain('"Lith A1","Lith","Yes","Radiant","0","Keep for squad"');
   expect(csv.trim().split('\n')).toHaveLength(3);
 });
 

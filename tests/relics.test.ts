@@ -47,6 +47,7 @@ test('invalid relic fields and quantities cannot replace saved data', () => {
 
 test('relic CSV includes refinement and quantity and escapes spreadsheet formulas', () => {
   const output = relicsCsv([{ ...relic(), notes: '=SUM(1,2)\n"group"' }]);
-  assert.ok(output.startsWith('\uFEFF"Relic","Era","Refinement","Quantity","Notes"\r\n'));
-  assert.ok(output.includes('"Lith A1","Lith","Intact","3","\'=SUM(1,2)\n""group"""'));
+  assert.ok(output.startsWith('\uFEFF"Relic","Era","Vaulted","Refinement","Quantity","Notes"\r\n'));
+  assert.ok(output.includes('"Lith A1","Lith","","Intact","3","\'=SUM(1,2)\n""group"""'));
+  assert.ok(relicsCsv([relic()], () => true).includes('"Lith A1","Lith","Yes","Intact","3"'));
 });

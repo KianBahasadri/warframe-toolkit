@@ -10,7 +10,10 @@ const statLabels: Record<string, string> = {
   fireRate: 'Attack / fire rate', magazineSize: 'Magazine', reloadTime: 'Reload time', omegaAttenuation: 'Riven multiplier', disposition: 'Riven disposition (1–5)',
   crit_chance: 'Critical chance', crit_mult: 'Critical multiplier', status_chance: 'Status chance', speed: 'Attack / fire rate', shot_type: 'Shot type', shot_speed: 'Projectile speed', flight: 'Flight speed',
 };
-function statValue(key: string, value: number | string): string {
+export function formatStatLabel(key: string): string {
+  return statLabels[key] || label(key);
+}
+export function formatStat(key: string, value: number | string): string {
   if (typeof value !== 'number') return value;
   if (['criticalChance', 'procChance'].includes(key)) return `${number(value * 100)}%`;
   if (['crit_chance', 'status_chance'].includes(key)) return `${number(value)}%`;
@@ -21,16 +24,17 @@ function statValue(key: string, value: number | string): string {
   return number(value);
 }
 function Stats({ stats }: { stats: Record<string, number | string> }) {
-  return <dl className="weapon-stats">{Object.entries(stats).map(([key, value]) => <div key={key}><dt>{statLabels[key] || label(key)}</dt><dd>{statValue(key, value)}</dd></div>)}</dl>;
+  return <dl className="weapon-stats">{Object.entries(stats).map(([key, value]) => <div key={key}><dt>{formatStatLabel(key)}</dt><dd>{formatStat(key, value)}</dd></div>)}</dl>;
 }
-function duration(seconds: number) {
+export function formatDuration(seconds: number | null): string {
+  if (seconds === null) return 'Unknown';
   if (!seconds) return 'Instant';
   const hours = Math.floor(seconds / 3600); const minutes = Math.floor(seconds % 3600 / 60);
   return [hours ? `${hours} h` : '', minutes ? `${minutes} min` : '', !hours && !minutes ? `${seconds} s` : ''].filter(Boolean).join(' ');
 }
 export function RecipeDetails({ recipe }: { recipe: Recipe }) {
   return <div className="recipe-details">
-    <dl className="recipe-cost"><div><dt>Credits</dt><dd>{recipe.credits === null ? 'Unknown' : <Currency value={recipe.credits} currency="credits" />}</dd></div><div><dt>Build time</dt><dd>{recipe.seconds === null ? 'Unknown' : duration(recipe.seconds)}</dd></div><div><dt>Produces</dt><dd>{recipe.quantity}</dd></div></dl>
+    <dl className="recipe-cost"><div><dt>Credits</dt><dd>{recipe.credits === null ? 'Unknown' : <Currency value={recipe.credits} currency="credits" />}</dd></div><div><dt>Build time</dt><dd>{formatDuration(recipe.seconds)}</dd></div><div><dt>Produces</dt><dd>{recipe.quantity}</dd></div></dl>
     <ul className="recipe-materials">{recipe.ingredients.map(part => <li key={part.id}>
       <div><span>{part.name}{part.equipment && <small>Consumes weapon</small>}</span><strong>× {number(part.count)}</strong></div>
       {part.recipes?.map(subrecipe => <details key={subrecipe.id}><summary>Craft {part.name}</summary><RecipeDetails recipe={subrecipe} /></details>)}

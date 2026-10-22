@@ -1,0 +1,81 @@
+import { test, expect } from './accountFixture';
+import { createEquipment } from '../../src/lib/model';
+import { createRelic } from '../../src/lib/relics';
+import { catalog } from '../../src/data/catalog';
+
+const equipment = (name: string) => createEquipment(catalog.find(item => item.name === name)!);
+
+test('equipment and relic cells show dense hover details', async ({ page, account }) => {
+  await page.setViewportSize({ width: 1800, height: 1000 });
+  await page.goto('/');
+  const inventory = await account.inventory();
+  inventory.items = [equipment('Braton'), equipment('Bronco Prime'), equipment('Rhino')];
+  inventory.relics = [{ ...createRelic(), name: 'Lith A1', refinement: 'Intact', quantity: 1 }];
+  await account.setInventory(inventory);
+  await page.reload();
+  const braton = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Braton', exact: true }) });
+  const name = braton.getByRole('button', { name: 'Edit Braton', exact: true });
+  await name.hover();
+  const tooltip = page.getByRole('tooltip');
+  await expect(tooltip).toContainText('Critical chance');
+  await expect(tooltip).toContainText('12%');
+  await expect(tooltip).toContainText('Total Damage');
+  await expect(tooltip).toContainText('Impact');
+  await expect(tooltip).toContainText('Other attacks: Incarnon Form, Incarnon Form AoE');
+  await expect(tooltip).not.toContainText('Akbronco Prime Link');
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toHaveCount(0);
+  await name.focus();
+  await expect(tooltip).toContainText('MR 0');
+  await page.keyboard.press('Escape');
+  await expect(tooltip).toHaveCount(0);
+  await name.press('ArrowDown');
+  await expect(page.getByRole('button', { name: 'Edit Bronco Prime', exact: true })).toBeFocused();
+  await name.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toHaveCount(0);
+
+  await braton.locator('[data-column-key="craftingTarget"]').hover();
+  await expect(tooltip).toHaveCount(0);
+  await braton.locator('[data-column-key="incarnon"] .tooltip-trigger').hover();
+  await expect(tooltip).toContainText('Braton Incarnon Genesis');
+  await expect(tooltip).toContainText('Pathos Clamp');
+  await page.mouse.move(0, 0);
+  await braton.locator('[data-column-key="rank"] .tooltip-trigger').hover();
+  await expect(tooltip).toContainText('Maximum rank');
+  await expect(tooltip).toContainText('30');
+  await expect(tooltip).toContainText('Mastery rank');
+  await page.mouse.move(0, 0);
+
+  const bronco = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Bronco Prime', exact: true }) });
+  await bronco.locator('[data-column-key="craftingTarget"] .tooltip-trigger').hover();
+  await expect(tooltip).toContainText('Akbronco Prime');
+  await expect(tooltip).toContainText('Akbronco Prime Link');
+  await expect(tooltip).toContainText('12 h');
+  await expect(tooltip).not.toContainText('Critical chance');
+  await page.mouse.move(0, 0);
+
+  await page.goto('/#warframes');
+  await page.getByLabel('Search Warframes').fill('Rhino');
+  const rhino = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Rhino', exact: true }) });
+  await rhino.getByRole('button', { name: 'Edit Rhino', exact: true }).hover();
+  await expect(tooltip).toContainText('Health');
+  await expect(tooltip).toContainText('370');
+  await expect(tooltip).toContainText('Iron Skin');
+  await page.mouse.move(0, 0);
+
+  await page.goto('/#relics');
+  await page.getByLabel('Search relics').fill('Lith A1');
+  const relic = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Lith A1 Intact', exact: true }) });
+  await relic.getByRole('button', { name: 'Edit Lith A1 Intact', exact: true }).hover();
+  await expect(tooltip).toContainText('Vectis Prime Blueprint');
+  await expect(tooltip).toContainText('25.33%');
+  await page.mouse.move(0, 0);
+  await relic.locator('[data-column-key="refinement"] .tooltip-trigger').hover();
+  await expect(tooltip).toContainText('Intact rewards');
+  await expect(tooltip).toContainText('Saryn Prime Neuroptics Blueprint');
+});

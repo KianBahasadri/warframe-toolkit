@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRelic, parseRelicName, relicKey, validateRelics } from '../src/lib/relics.ts';
-import { editableRelic, relicRows, updateRelic } from '../src/lib/relicCatalog.ts';
+import { editableRelic, relicRows, updateRelic, vaultStatus } from '../src/lib/relicCatalog.ts';
 import type { RelicCatalogItem } from '../src/lib/relicCatalog.ts';
 
 const data = JSON.parse(readFileSync(new URL('../src/data/relics.json', import.meta.url), 'utf8'));
@@ -45,6 +45,17 @@ test('Eterna has no invented refinements or normalized published chances', () =>
   assert.ok(eterna.sources.some(source => source.source === 'Kuva Flood' && source.chance === 100));
   const saved = { ...createRelic(), name: 'requiem ETERNA', refinement: 'Unrefined' as const };
   assert.equal(validateRelics([saved])[0].name, 'Requiem Eterna');
+});
+
+test('vault status follows published drop sources for the relic, not each refinement', () => {
+  const status = vaultStatus(catalog);
+  assert.equal(status('Lith A1'), true);
+  assert.equal(status('Meso A12'), false);
+  assert.equal(status('Requiem Eterna'), false);
+  assert.equal(status('Vanguard Z999'), null);
+  const rows = relicRows([], catalog);
+  assert.equal(rows.find(item => item.name === 'Meso A12' && item.refinement === 'Exceptional')?.vaulted, false);
+  assert.equal(rows.find(item => item.name === 'Lith A1' && item.refinement === 'Radiant')?.vaulted, true);
 });
 
 test('catalog projection preserves custom stacks, notes and zero quantities without creating saves', () => {

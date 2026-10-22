@@ -27,9 +27,11 @@ test('column preferences migrate visibility, preserve custom order, and retain r
   assert.deepEqual(parseColumnPreferences(['rank', 'rank'], columns, defaults), { order: ['name', 'owned', 'rank', 'notes'], visible: ['name', 'rank'] });
   const saved = { order: ['rank', 'name', 'owned', 'rank'], visible: ['rank', 'owned'] };
   assert.deepEqual(parseColumnPreferences(saved, columns, defaults), { order: ['rank', 'name', 'owned', 'notes'], visible: ['rank', 'name', 'owned'] });
+  const withVault = [...columns, { key: 'vaulted', title: 'Vaulted' }];
+  assert.deepEqual(parseColumnPreferences({ order: ['rank', 'name', 'owned'], visible: ['rank', 'owned'] }, withVault, [...defaults, 'vaulted']), { order: ['rank', 'name', 'owned', 'notes', 'vaulted'], visible: ['rank', 'name', 'owned', 'vaulted'] });
   const retired = ['dontKeep', 'override'];
   assert.deepEqual(parseColumnPreferences(['name', 'override', 'notes'], columns, defaults, retired), { order: ['name', 'owned', 'rank', 'notes'], visible: ['name', 'notes'] });
-  assert.deepEqual(parseColumnPreferences({ order: ['notes', 'override', 'name', 'dontKeep', 'rank'], visible: ['name', 'notes', 'dontKeep'] }, columns, defaults, retired), { order: ['notes', 'name', 'rank', 'owned'], visible: ['notes', 'name'] });
+  assert.deepEqual(parseColumnPreferences({ order: ['notes', 'override', 'name', 'dontKeep', 'rank'], visible: ['name', 'notes', 'dontKeep'] }, columns, defaults, retired), { order: ['notes', 'name', 'rank', 'owned'], visible: ['notes', 'name', 'owned'] });
   for (const malformed of [{ order: ['missing'], visible: ['name'] }, { order: ['rank'], visible: null }, 'broken', null]) {
     assert.deepEqual(parseColumnPreferences(malformed, columns, defaults), { order: ['name', 'owned', 'rank', 'notes'], visible: defaults });
   }

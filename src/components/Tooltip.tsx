@@ -1,18 +1,37 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent, ReactNode, Ref } from 'react';
 import { createPortal } from 'react-dom';
 import './Tooltip.css';
 
-export function Tooltip({ children, content, className = '', label, onClick, hasPopup, disabled = false }: { children: ReactNode; content: ReactNode; className?: string; label?: string; onClick?: () => void; hasPopup?: boolean; disabled?: boolean }) {
+function assignRef<T>(ref: Ref<T> | undefined, node: T | null) {
+  if (typeof ref === 'function') ref(node);
+  else if (ref) ref.current = node;
+}
+
+const tooltipOwners = new Set<(id: string) => void>();
+function claimTooltip(id: string) {
+  tooltipOwners.forEach(listener => listener(id));
+}
+
+export function Tooltip({ children, content, className = '', label, onClick, hasPopup, disabled = false, passive = false, triggerRef, tabIndex, onFocus, onKeyDown }: {
+  children: ReactNode; content: ReactNode; className?: string; label?: string; onClick?: () => void; hasPopup?: boolean; disabled?: boolean;
+  passive?: boolean; triggerRef?: Ref<HTMLButtonElement>; tabIndex?: number; onFocus?: () => void; onKeyDown?: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
+}) {
   const id = useId();
-  const trigger = useRef<HTMLButtonElement>(null), bubble = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLElement>(null), bubble = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false), [focused, setFocused] = useState(false);
   const [dismissed, setDismissed] = useState(false), [open, setOpen] = useState(false);
   const active = !disabled && (hovered || focused);
   useEffect(() => {
+    const listener = (owner: string) => { if (owner !== id) { setDismissed(true); setOpen(false); } };
+    tooltipOwners.add(listener);
+    return () => { tooltipOwners.delete(listener); };
+  }, [id]);
+  useEffect(() => { if (open) claimTooltip(id); }, [open, id]);
+  useEffect(() => {
     if (!active || dismissed) { setOpen(false); return; }
     const timer = window.setTimeout(() => setOpen(true), 150);
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setDismissed(true); setOpen(false); } };
+    const escape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') { setDismissed(true); setOpen(false); } };
     window.addEventListener('keydown', escape);
     return () => { clearTimeout(timer); window.removeEventListener('keydown', escape); };
   }, [active, dismissed]);
@@ -42,12 +61,14 @@ export function Tooltip({ children, content, className = '', label, onClick, has
       window.visualViewport?.removeEventListener('resize', position); window.visualViewport?.removeEventListener('scroll', position);
     };
   }, [open, content]);
+  const show = (event: PointerEvent<HTMLElement>) => { if (event.pointerType !== 'touch') { setHovered(true); setDismissed(false); } };
+  const describedBy = open ? id : undefined;
   return <>
-    <button ref={trigger} type="button" className={`tooltip-trigger ${className}`} disabled={disabled} aria-label={label} aria-haspopup={hasPopup ? 'dialog' : undefined} aria-describedby={open ? id : undefined} onClick={onClick ? () => { setDismissed(true); setOpen(false); onClick(); } : undefined}
-      onPointerEnter={event => { if (event.pointerType !== 'touch') { setHovered(true); setDismissed(false); } }} onPointerLeave={() => setHovered(false)}
-      onFocus={() => { setFocused(true); setDismissed(false); }} onBlur={() => setFocused(false)}>
-      {children}
-    </button>
+    {passive
+      ? <span ref={node => { trigger.current = node; }} className={`tooltip-trigger ${className}`} aria-describedby={describedBy} onPointerEnter={show} onPointerLeave={() => setHovered(false)}>{children}</span>
+      : <button ref={node => { trigger.current = node; assignRef(triggerRef, node); }} type="button" className={`tooltip-trigger ${className}`} disabled={disabled} aria-label={label} aria-haspopup={hasPopup ? 'dialog' : undefined} aria-describedby={describedBy} tabIndex={tabIndex}
+        onClick={onClick ? () => { setDismissed(true); setOpen(false); onClick(); } : undefined} onPointerEnter={show} onPointerLeave={() => setHovered(false)}
+        onFocus={() => { setFocused(true); setDismissed(false); onFocus?.(); }} onBlur={() => setFocused(false)} onKeyDown={onKeyDown}>{children}</button>}
     {open && createPortal(<div ref={bubble} id={id} role="tooltip" className="tooltip-bubble">{content}</div>, trigger.current?.closest('dialog') ?? document.body)}
   </>;
 }

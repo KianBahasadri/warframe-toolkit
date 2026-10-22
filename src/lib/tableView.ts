@@ -92,8 +92,11 @@ export function parseColumnPreferences(saved: unknown, columns: TableColumn[], d
   // Older preferences store visibility alone; keep their original column layout.
   if (validKeys(saved)) visible = saved;
   else if (saved && typeof saved === 'object' && 'order' in saved && 'visible' in saved && validKeys(saved.order) && validKeys(saved.visible)) {
-    order = [...new Set([...saved.order.filter(key => keys.includes(key)), ...keys])];
-    visible = saved.visible;
+    const savedOrder = saved.order, savedVisible = saved.visible;
+    order = [...new Set([...savedOrder.filter(key => keys.includes(key)), ...keys])];
+    // A default column the saved layout has never seen should appear. A column present in
+    // the saved order but omitted from visible stays hidden.
+    visible = [...savedVisible, ...defaults.filter(key => keys.includes(key) && !savedOrder.includes(key))];
   }
   return { order, visible: order.filter(key => visible.includes(key) || columns.some(column => column.key === key && column.required)) };
 }

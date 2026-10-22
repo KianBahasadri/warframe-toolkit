@@ -1,9 +1,10 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import type { MouseEvent, ReactNode, Ref } from 'react';
+import type { KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react';
 import { ArrowDown, ArrowDownToLine, ArrowUp, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { filterChoices, filterLabel, filterRows, loadColumnPreferences, moveColumn, moveColumnSort, parseColumnPreferences, setColumnSort, sortRows } from '../lib/tableView';
 import type { ColumnDropTarget, ColumnFilter, ColumnFilters, ColumnPreferences, ColumnSort, FilterChoice, TableColumn, TableModel } from '../lib/tableView';
 import { ColumnMenu } from './ColumnMenu';
+import { Tooltip } from './Tooltip';
 import { ColumnPicker } from './ColumnPicker';
 import { Select } from './Select';
 import { useColumnDrag } from './useColumnDrag';
@@ -20,6 +21,7 @@ export interface CollectionDefinition<Row> {
   label: string; itemLabel: string; searchLabel: string; regionLabel: string; filterLabel: string;
   columns: TableColumn[]; defaultColumns: string[]; retiredColumns?: string[]; storageKey: string; legacyStorageKey?: string; model: TableModel<Row>;
   rowLabel: (item: Row) => string;
+  primaryTooltip?: (item: Row) => ReactNode | null | undefined;
   rowKey?: (item: Row) => string;
   filters: CollectionFilter[];
   applyFilters: (items: Row[], search: string, filters: FilterValues) => Row[];
@@ -121,6 +123,12 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   const visible = sorted.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const changePage = (next: number) => { setPage(next); tableScroll.current?.scrollTo({ top: 0 }); };
   const activeId = visible.some(item => item.id === active) ? active : visible[0]?.id;
+  const moveName = (itemIndex: number, event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = visible[event.key === 'Home' ? 0 : event.key === 'End' ? visible.length - 1 : Math.max(0, Math.min(visible.length - 1, itemIndex + (event.key === 'ArrowDown' ? 1 : -1)))];
+    rowButtons.current.get(next.id)?.focus({ preventScroll: true }); rowButtons.current.get(next.id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  };
   const menuColumn = menu && definition.columns.find(column => column.key === menu.key)!;
   const empty = definition.emptyState(items, filters);
   return <section className="inventory-section" aria-label={definition.label}>
@@ -161,16 +169,19 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
             <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" aria-label={`${column.title} column options`} aria-expanded={menu?.key === column.key} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button></div>
           </th>;
         })}</tr></thead>
-        <tbody>{visible.map((item, index) => <tr key={definition.rowKey?.(item) ?? item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, textarea, select, a, label, [contenteditable]') && !window.getSelection()?.toString()) onEdit(item); }}>
-          {columns.map(column => <td key={column.key} data-column-key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : column.key === primary.key ? 'equipment-cell' : column.wrap ? 'wrapping-cell' : ''}>
-            {column.key === primary.key ? <button type="button" ref={node => { if (node) rowButtons.current.set(item.id, node); else rowButtons.current.delete(item.id); }} className="equipment-name" tabIndex={item.id === activeId ? 0 : -1} aria-label={`Edit ${definition.rowLabel(item)}`} onFocus={() => setActive(item.id)} onClick={() => onEdit(item)} onKeyDown={event => {
-              if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-              event.preventDefault();
-              const next = visible[event.key === 'Home' ? 0 : event.key === 'End' ? visible.length - 1 : Math.max(0, Math.min(visible.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
-              rowButtons.current.get(next.id)?.focus({ preventScroll: true }); rowButtons.current.get(next.id)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-            }}>{renderCell(item, column, visibleColumns)}</button> : column.wrap ? <div className="table-cell-content">{renderCell(item, column, visibleColumns)}</div> : renderCell(item, column, visibleColumns)}
-          </td>)}
-        </tr>)}</tbody>
+        <tbody>{visible.map((item, index) => {
+          const nameLabel = `Edit ${definition.rowLabel(item)}`;
+          const nameTip = definition.primaryTooltip?.(item);
+          const nameRef = (node: HTMLButtonElement | null) => { if (node) rowButtons.current.set(item.id, node); else rowButtons.current.delete(item.id); };
+          return <tr key={definition.rowKey?.(item) ?? item.id} onClick={event => { if (!(event.target as HTMLElement).closest('button, input, textarea, select, a, label, [contenteditable]') && !window.getSelection()?.toString()) onEdit(item); }}>
+            {columns.map(column => <td key={column.key} data-column-key={column.key} className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : column.key === primary.key ? 'equipment-cell' : column.wrap ? 'wrapping-cell' : ''}>
+              {column.key === primary.key ? nameTip
+                ? <Tooltip className="equipment-name" content={nameTip} label={nameLabel} triggerRef={nameRef} tabIndex={item.id === activeId ? 0 : -1} onFocus={() => setActive(item.id)} onClick={() => onEdit(item)} onKeyDown={event => moveName(index, event)}>{renderCell(item, column, visibleColumns)}</Tooltip>
+                : <button type="button" ref={nameRef} className="equipment-name" tabIndex={item.id === activeId ? 0 : -1} aria-label={nameLabel} onFocus={() => setActive(item.id)} onClick={() => onEdit(item)} onKeyDown={event => moveName(index, event)}>{renderCell(item, column, visibleColumns)}</button>
+                : column.wrap ? <div className="table-cell-content">{renderCell(item, column, visibleColumns)}</div> : renderCell(item, column, visibleColumns)}
+            </td>)}
+          </tr>;
+        })}</tbody>
       </table>
       {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{empty.title}</h3>{empty.description && <p>{empty.description}</p>}{items.length > 0 && <button type="button" className="button secondary" onClick={() => clearFilters(empty.resetValues)}>{empty.resetLabel ?? 'Reset filters'}</button>}</div>}
     </div>

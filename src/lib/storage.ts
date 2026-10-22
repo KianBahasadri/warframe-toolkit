@@ -67,8 +67,11 @@ export function warframesCsv(items: EquipmentRow[]): string {
   return '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n');
 }
 
-export function relicsCsv(relics: Relic[]): string {
-  const rows = [['Relic', 'Era', 'Refinement', 'Quantity', 'Notes'], ...relics.map(relic => [relic.name, parseRelicName(relic.name)?.era || '', relic.refinement, relic.quantity, relic.notes])];
+export function relicsCsv(relics: Relic[], vaulted: (name: string) => boolean | null = () => null): string {
+  const rows = [['Relic', 'Era', 'Vaulted', 'Refinement', 'Quantity', 'Notes'], ...relics.map(relic => {
+    const status = vaulted(relic.name);
+    return [relic.name, parseRelicName(relic.name)?.era || '', status === null ? '' : status ? 'Yes' : 'No', relic.refinement, relic.quantity, relic.notes];
+  })];
   return '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n');
 }
 

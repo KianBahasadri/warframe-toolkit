@@ -6,6 +6,7 @@
 .market-price.is-stale, .market-caution { color: var(--caution); }
 .market-tooltip { display: grid; gap: 8px; text-align: left; font: 12px/1.4 var(--ui); white-space: normal; }
 .market-tooltip > span { color: var(--muted); }
+.market-tooltip > .hover-line { color: var(--ink); }
 .market-tooltip dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; margin: 0; }
 .market-tooltip dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .market-dialog { width: min(1120px, calc(100vw - 48px)); max-width: calc(100vw - 48px); height: min(840px, calc(100dvh - 48px)); max-height: calc(100dvh - 48px); }
