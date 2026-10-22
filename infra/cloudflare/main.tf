@@ -13,15 +13,7 @@ variable "account_id" { type = string }
 variable "zone_id" { type = string }
 variable "hostname" {
   type    = string
-  default = "bahasadri.com"
-}
-variable "existing_apex_record_id" {
-  type    = string
-  default = "dc887e7ed77bc60d13db709223741791"
-}
-variable "apex_cname" {
-  type    = string
-  default = "02fe8370-92dd-462b-bfd8-f16dc1bf2564.cfargotunnel.com"
+  default = "grakata.com"
 }
 variable "release" { type = string }
 
@@ -30,27 +22,28 @@ locals {
   name = "warframe-toolkit"
 }
 
-# Adopt the existing record unchanged. The route serves all requests without
-# contacting the tunnel; removing the route restores its previous destination.
-import {
-  to = cloudflare_dns_record.apex
-  id = "${var.zone_id}/${var.existing_apex_record_id}"
+# Drop the records adopted from the previous zone without calling its API.
+removed {
+  from = cloudflare_dns_record.apex
+  lifecycle { destroy = false }
 }
-resource "cloudflare_dns_record" "apex" {
-  zone_id = var.zone_id
-  name    = var.hostname
-  type    = "CNAME"
-  content = var.apex_cname
-  proxied = true
-  ttl     = 1
-  lifecycle { prevent_destroy = true }
+removed {
+  from = cloudflare_zone_setting.https
+  lifecycle { destroy = false }
 }
 
-import {
-  to = cloudflare_zone_setting.https
-  id = "${var.zone_id}/always_use_https"
+# Proxied placeholder. The app route matches every request, so Cloudflare
+# never contacts this address.
+resource "cloudflare_dns_record" "app" {
+  zone_id = var.zone_id
+  name    = var.hostname
+  type    = "A"
+  content = "192.0.2.1"
+  proxied = true
+  ttl     = 1
 }
-resource "cloudflare_zone_setting" "https" {
+
+resource "cloudflare_zone_setting" "app_https" {
   zone_id    = var.zone_id
   setting_id = "always_use_https"
   value      = "on"
@@ -138,11 +131,11 @@ resource "cloudflare_workers_script_subdomain" "app" {
   previews_enabled = false
 }
 
-resource "cloudflare_workers_route" "app" {
+resource "cloudflare_workers_route" "primary" {
   zone_id    = var.zone_id
   pattern    = "${var.hostname}/*"
   script     = cloudflare_workers_script.app.script_name
-  depends_on = [cloudflare_dns_record.apex, cloudflare_zone_setting.https, cloudflare_workers_script_subdomain.app]
+  depends_on = [cloudflare_dns_record.app, cloudflare_zone_setting.app_https, cloudflare_workers_script_subdomain.app]
 }
 
 output "url" { value = "https://${var.hostname}" }

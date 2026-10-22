@@ -42,7 +42,7 @@ try {
 const releaseHash = createHash('sha256');
 for (const path of ['build/cloudflare/worker.js', 'dist/index.html']) releaseHash.update(await readFile(path));
 const release = releaseHash.digest('hex').slice(0, 16);
-const origin = 'https://bahasadri.com';
+const origin = 'https://grakata.com';
 let healthy = false;
 for (let attempt = 0; attempt < 12; attempt++) {
   try {

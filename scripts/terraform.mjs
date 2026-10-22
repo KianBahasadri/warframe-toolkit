@@ -31,7 +31,7 @@ if (existsSync('infra/cloudflare/backend.tf') && !['fmt', 'validate', 'version',
 }
 if (!['fmt', 'validate', 'version', 'init'].includes(args[0])) {
   loadCredentials();
-  const hostname = process.env.TF_VAR_hostname || 'bahasadri.com';
+  const hostname = process.env.TF_VAR_hostname || 'grakata.com';
   const zones = await cloudflare(`/zones?name=${encodeURIComponent(hostname)}`);
   if (zones.length !== 1) throw new Error(`Expected one Cloudflare zone for ${hostname}.`);
   process.env.TF_VAR_account_id ||= zones[0].account.id;

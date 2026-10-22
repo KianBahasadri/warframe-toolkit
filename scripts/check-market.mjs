@@ -28,7 +28,7 @@ export async function checkMarket(origin, { request = fetch, pause = setTimeout,
 }
 
 if (import.meta.main) {
-  const origin = process.argv[2] ?? 'https://bahasadri.com';
+  const origin = process.argv[2] ?? 'https://grakata.com';
   await checkMarket(origin);
   console.log(`Verified WFM catalog, orders, and history through ${origin}.`);
 }

@@ -1,6 +1,6 @@
 # Cloudflare deployment
 
-Terraform manages [bahasadri.com](https://bahasadri.com): Worker/assets, D1 accounts, Durable Objects, migrations, schedules, routing, DNS, an Azure WFM relay, and private R2 state. Deploy only through Terraform; no dashboard creation or `wrangler deploy`. Local and hosted accounts remain separate.
+Terraform manages [grakata.com](https://grakata.com): Worker/assets, D1 accounts, Durable Objects, migrations, schedules, routing, DNS, an Azure WFM relay, and private R2 state. Deploy only through Terraform; no dashboard creation or `wrangler deploy`. Local and hosted accounts remain separate.
 
 ## Setup
 
@@ -11,7 +11,7 @@ Set `CLOUDFLARE_API_TOKEN` in ignored `.env` or the environment. Required permis
 - Account: Workers Scripts, D1, Workers R2 Storage — Edit.
 - Zone: Zone — Read; DNS, Workers Routes, Zone Settings — Edit.
 
-Scope the token to the deployment account and `bahasadri.com`. The wrapper discovers IDs and derives R2 credentials; optional paired overrides are documented in [`.env.example`](../../.env.example).
+Scope the token to the deployment account and `grakata.com`. The wrapper discovers IDs and derives R2 credentials; optional paired overrides are documented in [`.env.example`](../../.env.example).
 
 [GitHub Actions](../../.github/workflows/deploy.yml) tests and deploys pushes to `main` or manual runs on that branch. It requires the `CLOUDFLARE_API_TOKEN` repository secret and a public repository. Manage GitHub secrets and authenticated pushes on the host; never forward GitHub credentials into the box or shared checkout. Pass secret values through stdin, never arguments or logs.
 

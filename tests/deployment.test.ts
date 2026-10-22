@@ -5,12 +5,12 @@ import { assertProductionState, assertSafePlan } from '../scripts/deployment-che
 function productionState() {
   const resources = [
     ['cloudflare_d1_database', 'accounts', '2784ba23-6688-46fe-92e8-969d9784c66b'],
-    ['cloudflare_dns_record', 'apex', 'dc887e7ed77bc60d13db709223741791'],
+    ['cloudflare_dns_record', 'app', '8ceadc20321e43d445f10968b47f877e'],
     ['cloudflare_workers_script', 'app', 'warframe-toolkit'],
     ['cloudflare_workers_script_subdomain', 'app', 'warframe-toolkit'],
     ['cloudflare_workers_cron_trigger', 'drops', 'warframe-toolkit'],
-    ['cloudflare_workers_route', 'app', 'a6ad1fffd58c4a158ec52cb1ac7d28bd'],
-    ['cloudflare_zone_setting', 'https', 'always_use_https'],
+    ['cloudflare_workers_route', 'primary', '7d07689a508c4aeca40113975198b70d'],
+    ['cloudflare_zone_setting', 'app_https', 'always_use_https'],
   ].map(([type, name, id]) => ({ mode: 'managed', type, name, instances: [{ attributes: { id } }] }));
   return { lineage: 'fda4ae0f-f27e-c291-9eea-8c87fada68c3', resources };
 }
@@ -31,7 +31,7 @@ test('deployment permits updates and migration runs but rejects infrastructure d
   const safe = { resource_changes: [change('cloudflare_workers_script.app', ['update']), change('cloudflare_d1_database.accounts', ['no-op']), change('terraform_data.schema', ['delete', 'create'])] };
   assert.doesNotThrow(() => assertSafePlan(safe));
   assert.doesNotThrow(() => assertSafePlan({ resource_changes: [] }));
-  for (const address of ['cloudflare_d1_database.accounts', 'cloudflare_workers_script.app', 'cloudflare_workers_route.app']) {
+  for (const address of ['cloudflare_d1_database.accounts', 'cloudflare_workers_script.app', 'cloudflare_workers_route.primary']) {
     for (const actions of [['delete'], ['delete', 'create'], ['create', 'delete']]) assert.throws(() => assertSafePlan({ resource_changes: [change(address, actions)] }), /refused/);
   }
   assert.throws(() => assertSafePlan({ ...safe, errored: true }), /valid production plan/);

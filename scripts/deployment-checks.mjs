@@ -6,12 +6,12 @@ export function assertProductionState(state) {
   if (state?.lineage !== 'fda4ae0f-f27e-c291-9eea-8c87fada68c3') throw new Error('Production state is missing or has a different lineage. Restore/import state before deploying.');
   const expected = {
     'cloudflare_d1_database.accounts': '2784ba23-6688-46fe-92e8-969d9784c66b',
-    'cloudflare_dns_record.apex': 'dc887e7ed77bc60d13db709223741791',
+    'cloudflare_dns_record.app': '8ceadc20321e43d445f10968b47f877e',
     'cloudflare_workers_script.app': 'warframe-toolkit',
     'cloudflare_workers_script_subdomain.app': 'warframe-toolkit',
     'cloudflare_workers_cron_trigger.drops': 'warframe-toolkit',
-    'cloudflare_workers_route.app': 'a6ad1fffd58c4a158ec52cb1ac7d28bd',
-    'cloudflare_zone_setting.https': 'always_use_https',
+    'cloudflare_workers_route.primary': '7d07689a508c4aeca40113975198b70d',
+    'cloudflare_zone_setting.app_https': 'always_use_https',
   };
   for (const [address, id] of Object.entries(expected)) {
     const resource = state.resources?.find(resource => resource.mode === 'managed' && `${resource.type}.${resource.name}` === address);
