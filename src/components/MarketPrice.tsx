@@ -28,9 +28,9 @@ export function MarketPrice({ subject }: { subject: MarketSubject }) {
     <Tooltip className={`market-price${stale ? ' is-stale' : ''}`} label={`WFM: ${subject.name}${subject.refinement ? ` ${subject.refinement}` : ''}${target ? `: ${platinum(quote?.price)}, price details` : ''}`} hasPopup={Boolean(target)}
       onClick={() => { if (target) setOpen(true); else void loadMarket(marketCatalogPath, true); }}
       content={target ? <MarketTooltip target={target} quote={quote} snapshot={orders.snapshot} error={orders.error} platform={platform} /> : <span>{catalog.error || (catalog.snapshot ? 'Not listed on Warframe Market.' : 'Loading the Warframe Market catalog…')}</span>}>
-      {loading ? error ? 'Unavailable' : '…' : <Currency value={quote?.price} currency="platinum" />}
+      {loading ? error ? 'Unavailable' : <span className="market-spinner" aria-hidden="true" /> : <Currency value={quote?.price} currency="platinum" />}
       {target?.qualifier && subject.kind === 'equipment' && <small>{target.qualifier}</small>}
-      {stale && orders.snapshot && <small>stale</small>}
+      {stale && orders.snapshot && <small className="market-stale">{orders.snapshot.refreshing && <span className="market-spinner is-inline" aria-hidden="true" />}stale</small>}
     </Tooltip>
     {open && target && <Suspense fallback={<span role="status" className="sr-only">Loading price details…</span>}><MarketDialog target={target} onClose={() => setOpen(false)} /></Suspense>}
   </span>;

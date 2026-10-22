@@ -164,7 +164,9 @@ test('stale cached SQL data renders upfront and updates in place once the backgr
   const price = page.getByRole('button', { name: /^WFM: Braton Prime:/ });
   await expect(price).toContainText('14 platinum');
   await expect(price).toContainText('stale');
+  await expect(price.locator('.market-spinner.is-inline')).toBeVisible();
   await expect(price).toHaveText('28 platinumset');
+  await expect(price.locator('.market-spinner')).toHaveCount(0);
 });
 
 test('mobile price tooltip, modal, chart and exact data stay within the viewport in both themes', async ({ page }) => {
