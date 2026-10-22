@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMarketRelayBudget, MARKET_RELAY_DAILY_REQUESTS } from '../server/marketRelayBudget.ts';
+import { createMarketRelayBudget, MARKET_RELAY_DAILY_BYTES, MARKET_RELAY_DAILY_REQUESTS, MARKET_RELAY_RESERVE_BYTES, MARKET_RELAY_RESPONSE_LIMIT } from '../server/marketRelayBudget.ts';
 
 function fixture() {
   let time = Date.UTC(2026, 9, 16, 12);
@@ -20,19 +20,28 @@ test('the relay request allowance persists across restarts and resets only on a 
 });
 
 test('large responses exhaust the daily byte allowance before the request allowance', async () => {
-  const f = fixture(), reserve = createMarketRelayBudget(f.store, f.now);
-  for (let count = 0; count < 9; count++) await (await reserve())(10_000_000);
+  const f = fixture(), reserve = createMarketRelayBudget(f.store, f.now), payload = 10_000_000;
+  const filled = Math.floor((MARKET_RELAY_DAILY_BYTES - MARKET_RELAY_RESERVE_BYTES) / payload) + 1;
+  for (let count = 0; count < filled; count++) await (await reserve())(payload);
   await assert.rejects(reserve(), /Daily market request limit/);
-  assert.deepEqual(f.data.get('relay-budget'), { day: '2026-10-16', requests: 9, bytes: 90_000_000 });
+  assert.ok(filled < MARKET_RELAY_DAILY_REQUESTS);
+  assert.deepEqual(f.data.get('relay-budget'), { day: '2026-10-16', requests: filled, bytes: filled * payload });
 });
 
 test('interrupted and oversized responses keep their reservation instead of evading the byte limit', async () => {
-  const f = fixture();
-  for (let count = 0; count < 8; count++) await createMarketRelayBudget(f.store, f.now)();
+  const f = fixture(), holes = Math.floor(MARKET_RELAY_DAILY_BYTES / MARKET_RELAY_RESERVE_BYTES);
+  for (let count = 0; count < holes; count++) await createMarketRelayBudget(f.store, f.now)();
   await assert.rejects(createMarketRelayBudget(f.store, f.now)(), /Daily market request limit/);
+  assert.equal((f.data.get('relay-budget') as { bytes: number }).bytes, holes * MARKET_RELAY_RESERVE_BYTES);
   const other = fixture(), complete = await createMarketRelayBudget(other.store, other.now)();
-  await assert.rejects(complete(12_000_001), /size limit/);
-  assert.deepEqual(other.data.get('relay-budget'), { day: '2026-10-16', requests: 1, bytes: 12_000_000 });
+  await assert.rejects(complete(MARKET_RELAY_RESPONSE_LIMIT + 1), /size limit/);
+  assert.deepEqual(other.data.get('relay-budget'), { day: '2026-10-16', requests: 1, bytes: MARKET_RELAY_RESERVE_BYTES });
+});
+
+test('a handled failure can release the byte reservation without forgetting the request', async () => {
+  const f = fixture(), complete = await createMarketRelayBudget(f.store, f.now)();
+  await complete(0);
+  assert.deepEqual(f.data.get('relay-budget'), { day: '2026-10-16', requests: 1, bytes: 0 });
 });
 
 test('unavailable or malformed budget storage fails closed before any billable request', async () => {

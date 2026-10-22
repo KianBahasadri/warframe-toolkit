@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { gzipSync } from 'node:zlib';
+import { gzipSync, gunzipSync } from 'node:zlib';
 import { cloudflareRuntime } from './runtime.ts';
 import { wfmHistory, wfmItems, wfmOrders } from '../fixtures/wfm.ts';
 import { handleMarketRelay } from '../../azure/market/handler.ts';
@@ -112,4 +112,18 @@ test('the persisted cost allowance stops Azure calls and retains stale prices ac
     assert.deepEqual(stale.data, original.data); assert.match(stale.error, /Daily market request limit/);
     assert.equal(calls, 2, 'quota checks must run before invoking Azure');
   } finally { await api.close(); await rm(persist, { recursive: true, force: true }); }
+});
+
+test('a failed relay response counts its body instead of keeping the byte reservation', async () => {
+  const api = await cloudflareRuntime({ relay: { url: 'https://relay.test', key: 'private-relay-key' }, outbound: async () => new Response('no', { status: 500 }) });
+  try {
+    const response = await api.mf.dispatchFetch('https://toolkit.test/api/wfm/items');
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /unavailable \(500\)/);
+    const storage = await api.mf.unsafeGetDurableObjectStorage('warframe-toolkit', 'DropTables', { name: 'wfm' });
+    const result = await storage.exec("SELECT hex(value) AS value FROM market_cache WHERE key = 'relay-budget'");
+    const usage = JSON.parse(gunzipSync(Buffer.from(result[0].value, 'hex')).toString('utf8')) as { requests: number; bytes: number };
+    assert.equal(usage.requests, 1);
+    assert.equal(usage.bytes, 2);
+  } finally { await api.close(); }
 });

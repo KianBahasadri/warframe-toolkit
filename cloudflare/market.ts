@@ -17,10 +17,18 @@ function relayFetch(env: Pick<Env, 'WFM_RELAY_URL' | 'WFM_RELAY_KEY'>, store: Ma
     const headers = marketHeaders(new Headers(init?.headers).get('Platform') ?? 'pc');
     headers.set('x-functions-key', env.WFM_RELAY_KEY);
     const complete = await reserve();
-    const response = await fetch(target, { method: 'GET', headers, redirect: 'manual', signal: init?.signal });
-    const body = await response.arrayBuffer();
-    await complete(body.byteLength);
-    return new Response([204, 205, 304].includes(response.status) ? null : body, { status: response.status, headers: response.headers });
+    let settled = false;
+    try {
+      const response = await fetch(target, { method: 'GET', headers, redirect: 'manual', signal: init?.signal });
+      const body = await response.arrayBuffer();
+      await complete(body.byteLength);
+      settled = true;
+      return new Response([204, 205, 304].includes(response.status) ? null : body, { status: response.status, headers: response.headers });
+    } catch (error) {
+      const oversized = error instanceof Error && error.message.includes('size limit');
+      if (!settled && !oversized) await complete(0).catch(() => undefined);
+      throw error;
+    }
   };
 }
 

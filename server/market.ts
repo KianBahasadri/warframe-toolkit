@@ -1,6 +1,7 @@
 import { MARKET_HISTORY_TTL, MARKET_ITEMS_TTL, MARKET_ORDERS_TTL, marketPlatforms, parseMarketHistory, parseMarketItems, parseMarketOrders } from '../src/lib/market.ts';
 import type { MarketItem, MarketSnapshot } from '../src/lib/market.ts';
 import { MARKET_ORIGIN, marketHeaders } from './marketUpstream.ts';
+import { MARKET_RELAY_RESPONSE_LIMIT } from './marketRelayBudget.ts';
 
 export interface MarketCacheStore { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }
 interface Cached { data?: unknown; fetchedAt?: string; retryAt: number; error?: string; touched: number }
@@ -94,9 +95,9 @@ export function createMarketService(options: Options = {}) {
       if (response.headers.get('cf-mitigated') === 'challenge') throw new Error(`WFM is blocking requests from this server (${response.status}).`);
       throw new Error(response.status === 404 ? 'WFM has no data for this item.' : response.status === 429 || response.status === 509 ? 'WFM is rate limiting requests. Prices will retry shortly.' : `WFM is unavailable (${response.status}).`);
     }
-    if (Number(response.headers.get('Content-Length') ?? 0) > 12_000_000) throw new Error('WFM response exceeded the size limit.');
+    if (Number(response.headers.get('Content-Length') ?? 0) > MARKET_RELAY_RESPONSE_LIMIT) throw new Error('WFM response exceeded the size limit.');
     const text = await response.text();
-    if (text.length > 12_000_000) throw new Error('WFM response exceeded the size limit.');
+    if (text.length > MARKET_RELAY_RESPONSE_LIMIT) throw new Error('WFM response exceeded the size limit.');
     return JSON.parse(text) as unknown;
   }
 
