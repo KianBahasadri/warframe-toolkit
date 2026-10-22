@@ -1,6 +1,6 @@
 .market-cell { display: inline-flex; max-width: 100%; }
 .market-price { display: inline-flex; align-items: baseline; justify-content: flex-end; flex-wrap: wrap; gap: 4px 8px; min-width: 48px; min-height: 28px; font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; cursor: pointer; }
-.inventory-table .market-price { min-width: 0; flex-wrap: nowrap; }
+.inventory-table .market-price { min-width: 0; flex-wrap: nowrap; justify-content: center; text-align: center; }
 .market-price:hover { color: var(--ink-strong); text-decoration: underline; text-underline-offset: 4px; }
 .market-price small { font: 11px var(--ui); color: var(--muted); }
 .market-price.is-stale, .market-caution { color: var(--caution); }
