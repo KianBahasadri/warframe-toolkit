@@ -56,3 +56,12 @@ test('production check allows a bounded retry when a previous cached failure exp
   await checkMarket('https://toolkit.test', f.options);
   assert.deepEqual(f.delays, [30_000]); assert.deepEqual(f.calls, ['items', ...f.paths]);
 });
+
+test('production check polls briefly while a stale entry is actively refreshing in the background', async () => {
+  const f = fixture(), index = 1, path = f.paths[index], success = f.responses.get(path)!;
+  let polls = 0;
+  f.responses.set(path, () => ++polls < 3 ? Response.json({ ...f.bodies[index], stale: true, refreshing: true }) : success());
+  await checkMarket('https://toolkit.test', f.options);
+  assert.deepEqual(f.delays, [2_000, 2_000]);
+  assert.deepEqual(f.calls, [f.paths[0], path, path, path, f.paths[2]]);
+});

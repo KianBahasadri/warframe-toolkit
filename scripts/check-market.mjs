@@ -12,8 +12,13 @@ export async function checkMarket(origin, { request = fetch, pause = setTimeout,
   for (const [path, valid] of checks) {
     for (let attempt = 1; ; attempt++) {
       try {
-        const response = await request(new URL(`/api/wfm/${path}`, origin), { signal: AbortSignal.timeout(30_000), cache: 'no-store' });
-        const body = await response.json().catch(() => null);
+        let response = await request(new URL(`/api/wfm/${path}`, origin), { signal: AbortSignal.timeout(30_000), cache: 'no-store' });
+        let body = await response.json().catch(() => null);
+        for (let poll = 0; response.ok && body?.refreshing === true && poll < 12; poll++) {
+          await pause(2_000);
+          response = await request(new URL(`/api/wfm/${path}`, origin), { signal: AbortSignal.timeout(30_000), cache: 'no-store' });
+          body = await response.json().catch(() => null);
+        }
         if (!response.ok || body?.stale !== false || body?.error || !Number.isFinite(Date.parse(body?.fetchedAt)) || !valid(body?.data)) {
           const detail = typeof body?.error === 'string' ? `: ${body.error.slice(0, 200)}` : '';
           throw new Error(`Production WFM ${path} failed (HTTP ${response.status}); expected current market data${detail}`);
