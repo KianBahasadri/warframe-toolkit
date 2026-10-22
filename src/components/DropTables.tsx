@@ -9,6 +9,7 @@ import { DropFacet, DropFilterForm, DropSorts } from './DropTableControls';
 import { DropDetails } from './DropDetails';
 import { DropInfo } from './DropInfo';
 import { DropResults } from './DropResults';
+import { t, useLanguage } from '../lib/i18n';
 import { DropGroupCard, DropModePicker, DropRewardCards, dropBrowseOptions } from './DropBrowser';
 import { compileDropQuery, defaultDropView, DROP_TABLES_URL, dropColumns, dropFilterLabel, dropRowsCsv, dropViewPath, filterDropRows, moveDropSort, readDropView, setDropSort, sortDropRows } from '../lib/dropTables';
 import type { DropBrowseMode, DropColumnKey, DropFilter, DropRow, DropView } from '../lib/dropTables';
@@ -23,6 +24,7 @@ let sessionView = defaultDropView();
 const facetKeys: DropColumnKey[] = ['category', 'location', 'mission', 'rotation', 'stage', 'era', 'refinement', 'rarity'];
 
 export function DropTables({ actionsRef, savedViews, savedViewsError, canSave, onSaveViews, onSignIn }: { actionsRef: Ref<DropTableActions>; savedViews: SavedDropView[]; savedViewsError: string; canSave: boolean; onSaveViews: (views: SavedDropView[]) => boolean; onSignIn: () => void }) {
+  useLanguage();
   const { data, loading, error } = useDropData();
   const notify = useToasts();
   const [view, setView] = useState(() => location.search.includes('view=') ? readDropView(location.search) : location.hash.includes('view=') ? readDropView(location.hash) : sessionView);
@@ -91,9 +93,9 @@ export function DropTables({ actionsRef, savedViews, savedViewsError, canSave, o
     setDetails(null); focusResults();
   };
 
-  return <section className="drop-tables" aria-label="Drop Tables" aria-busy={loading}>
-    <div className="drop-heading"><div className="drop-title"><h1>Drop Tables</h1><button type="button" className="icon-button" aria-label="About Drop Tables" title="About Drop Tables" aria-haspopup="dialog" onClick={() => setInfo(true)}><Info size={18} /></button></div>
-      <div className="drop-heading-actions"><button type="button" ref={viewsButton} className="button secondary" aria-expanded={viewsOpen} onClick={() => setViewsOpen(!viewsOpen)}><Bookmark size={15} />Saved views</button></div>
+  return <section className="drop-tables" aria-label={t('Drop Tables')} aria-busy={loading}>
+    <div className="drop-heading"><div className="drop-title"><h1>{t('Drop Tables')}</h1><button type="button" className="icon-button" aria-label={t('About Drop Tables')} title={t('About Drop Tables')} aria-haspopup="dialog" onClick={() => setInfo(true)}><Info size={18} /></button></div>
+      <div className="drop-heading-actions"><button type="button" ref={viewsButton} className="button secondary" aria-expanded={viewsOpen} onClick={() => setViewsOpen(!viewsOpen)}><Bookmark size={15} />{t('Saved views')}</button></div>
     </div>
     {error && <div className="callout danger" role="alert">{error}{data && <p>Showing the last successful fetch from {new Date(data.fetchedAt).toLocaleString([], { timeZoneName: 'short' })}.</p>}<p>Updates will retry automatically.</p></div>}
     {data && data.skippedRows > 0 && <p className="callout caution" role="status">{data.skippedRows.toLocaleString()} entries could not be parsed. These results are incomplete; consult the official table.</p>}

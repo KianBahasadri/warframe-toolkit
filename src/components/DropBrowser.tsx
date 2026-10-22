@@ -5,6 +5,7 @@ import { dropModeArt, dropRarityTone, groupArtwork, rewardArtwork, sourceArtwork
 import type { DropBrowseMode, DropRow } from '../lib/dropTables';
 import type { DropGroup } from '../lib/dropExplorer';
 import { DropArtwork } from './DropArtwork';
+import { t, useLanguage } from '../lib/i18n';
 import { DropResults } from './DropResults';
 
 export const dropBrowseOptions = [
@@ -17,12 +18,13 @@ export const dropBrowseOptions = [
 ] as const;
 
 export function DropModePicker({ mode, onSelect }: { mode?: DropBrowseMode; onSelect: (mode: DropBrowseMode) => void }) {
+  useLanguage();
   return <div className={`drop-browse-picker ${mode ? 'is-compact' : ''}`}>
-    <h2>Browse by</h2>
-    <div className="drop-mode-options" role="group" aria-label="Browse drop tables by">
+    <h2>{t('Browse by')}</h2>
+    <div className="drop-mode-options" role="group" aria-label={t('Browse drop tables by')}>
       {dropBrowseOptions.map(option => <button type="button" key={option.mode} className={`drop-mode-button drop-tone-${option.mode}`} aria-label={`Browse by ${option.label.toLowerCase()}`} aria-pressed={mode === option.mode} onClick={() => onSelect(option.mode)}>
         <DropArtwork art={dropModeArt[option.mode]} />
-        <span className="drop-mode-copy"><span className="drop-mode-title"><strong>{option.label}</strong><span className="drop-mode-indicator" aria-hidden="true">{mode === option.mode ? <Check size={16} /> : <ArrowRight size={18} />}</span></span><span className="drop-mode-description">{option.description}</span></span>
+        <span className="drop-mode-copy"><span className="drop-mode-title"><strong>{t(option.label)}</strong><span className="drop-mode-indicator" aria-hidden="true">{mode === option.mode ? <Check size={16} /> : <ArrowRight size={18} />}</span></span><span className="drop-mode-description">{t(option.description)}</span></span>
       </button>)}
     </div>
   </div>;

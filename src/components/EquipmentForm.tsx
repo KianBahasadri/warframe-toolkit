@@ -7,10 +7,12 @@ import { catalog } from '../data/catalog';
 import { createEquipment, maximumRank, normalizeName, slots, variants } from '../lib/model';
 import { catalogFields, withCatalogFacts } from '../lib/weaponCatalog';
 import { canSubsume } from '../lib/recommendations';
+import { t, useLanguage } from '../lib/i18n';
 import type { BooleanField } from '../lib/weaponCatalog';
 import type { Equipment, Slot, Variant, Upgrade, Override } from '../lib/model';
 
 export function EquipmentForm({ item, existing, onSave, onClose, onDelete, weapons = false, readOnly = false }: { item?: Equipment; existing: Equipment[]; onSave: (item: Equipment) => boolean; onClose: () => void; onDelete: (id: string) => boolean; weapons?: boolean; readOnly?: boolean }) {
+  useLanguage();
   const noun = weapons ? 'weapon' : 'Warframe';
   const [draft, setDraft] = useState<Equipment>(() => item ? { ...item } : createEquipment({ name: '', slot: weapons ? 'Primary' : 'Warframe', variant: 'Base' }));
   const [query, setQuery] = useState('');
@@ -48,9 +50,9 @@ export function EquipmentForm({ item, existing, onSave, onClose, onDelete, weapo
       event.preventDefault();
       const next = event.key === 'Home' ? 'details' : event.key === 'End' ? 'inventory' : view === 'details' ? 'inventory' : 'details';
       setView(next); document.getElementById(`weapon-${next}-tab`)?.focus();
-    }}><button type="button" role="tab" id="weapon-details-tab" tabIndex={view === 'details' ? 0 : -1} aria-selected={view === 'details'} aria-controls="weapon-details-panel" onClick={() => setView('details')}>{kind} details</button><button type="button" role="tab" id="weapon-inventory-tab" tabIndex={view === 'inventory' ? 0 : -1} aria-selected={view === 'inventory'} aria-controls="weapon-inventory-panel" onClick={() => setView('inventory')}>My inventory</button></div>}
-    {entry && (view === 'details' || readOnly) && <div role={readOnly ? undefined : 'tabpanel'} id="weapon-details-panel" aria-labelledby={readOnly ? undefined : 'weapon-details-tab'}><WeaponDetails item={entry} /><div className="dialog-footer"><button type="button" className="button secondary" onClick={onClose}>Close details</button>{!readOnly && <button type="button" className="button primary" onClick={() => tracked ? setView('inventory') : save({ ...draft, owned: true })}>{tracked ? 'Edit inventory' : 'Mark owned'}</button>}</div>{error && <p className="callout danger" role="alert"><strong>Couldn’t save:</strong> {error}</p>}</div>}
-    {!entry && readOnly && <div className="dialog-footer"><button type="button" className="button secondary" onClick={onClose}>Close details</button></div>}
+    }}><button type="button" role="tab" id="weapon-details-tab" tabIndex={view === 'details' ? 0 : -1} aria-selected={view === 'details'} aria-controls="weapon-details-panel" onClick={() => setView('details')}>{t(`${kind} details`)}</button><button type="button" role="tab" id="weapon-inventory-tab" tabIndex={view === 'inventory' ? 0 : -1} aria-selected={view === 'inventory'} aria-controls="weapon-inventory-panel" onClick={() => setView('inventory')}>{t('My inventory')}</button></div>}
+    {entry && (view === 'details' || readOnly) && <div role={readOnly ? undefined : 'tabpanel'} id="weapon-details-panel" aria-labelledby={readOnly ? undefined : 'weapon-details-tab'}><WeaponDetails item={entry} /><div className="dialog-footer"><button type="button" className="button secondary" onClick={onClose}>{t('Close details')}</button>{!readOnly && <button type="button" className="button primary" onClick={() => tracked ? setView('inventory') : save({ ...draft, owned: true })}>{t(tracked ? 'Edit inventory' : 'Mark owned')}</button>}</div>{error && <p className="callout danger" role="alert"><strong>Couldn’t save:</strong> {error}</p>}</div>}
+    {!entry && readOnly && <div className="dialog-footer"><button type="button" className="button secondary" onClick={onClose}>{t('Close details')}</button></div>}
     {view === 'inventory' && !readOnly && <form role={entry ? 'tabpanel' : undefined} id="weapon-inventory-panel" aria-labelledby={entry ? 'weapon-inventory-tab' : undefined} onSubmit={event => { event.preventDefault(); save(draft); }}>
       {!item && <div className="catalog-picker">
         <label htmlFor="catalog-search">Find in the {noun} catalog</label>

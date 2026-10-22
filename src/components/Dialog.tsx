@@ -2,10 +2,12 @@ import { useEffect, useId, useRef } from 'react';
 import type { KeyboardEventHandler, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { t, useLanguage } from '../lib/i18n';
 
 let openDialogs = 0, previousOverflow = '';
 
 export function Dialog({ title, onClose, children, className = '', onKeyDown, initialFocus }: { title: string; onClose: () => void; children: ReactNode; className?: string; onKeyDown?: KeyboardEventHandler<HTMLDialogElement>; initialFocus?: string }) {
+  useLanguage();
   const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const close = useRef(onClose);
@@ -29,7 +31,7 @@ export function Dialog({ title, onClose, children, className = '', onKeyDown, in
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
   }} onCancel={event => { event.preventDefault(); event.stopPropagation(); close.current(); }} onClick={event => { event.stopPropagation(); if (event.target === event.currentTarget) close.current(); }}>
     <div className="dialog-inner">
-      <div className="dialog-header"><h2 id={titleId}>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label="Close" title="Close"><X size={18} /></button></div>
+      <div className="dialog-header"><h2 id={titleId}>{t(title)}</h2><button type="button" className="icon-button" onClick={onClose} aria-label={t('Close')} title={t('Close')}><X size={18} /></button></div>
       {children}
     </div>
   </dialog>, document.body);

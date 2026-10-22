@@ -9,6 +9,7 @@ import { CraftingArtwork } from './CraftingArtwork';
 import { CraftingDetails } from './CraftingDetails';
 import { Currency, CurrencySymbol } from './Currency';
 import { QuantitySlider } from './QuantitySlider';
+import { t, useLanguage } from '../lib/i18n';
 import { Tooltip } from './Tooltip';
 import './Crafting.css';
 
@@ -18,6 +19,7 @@ const featured = ['Rhino', 'Wisp Prime', 'Boltor', 'Akjagara', 'Forma', 'Fieldro
 const itemType = (item: CraftingItem) => item.modular ? 'Modular component' : item.catalogItem?.weaponType || (item.kind === 'Materials' ? 'Material / component' : item.kind);
 
 function ItemPicker({ onPick, disabled }: { onPick: (item: CraftingItem) => void; disabled: boolean }) {
+  useLanguage();
   const [query, setQuery] = useState(''), [kind, setKind] = useState('All'), [limit, setLimit] = useState(24);
   const deferred = useDeferredValue(query);
   const matches = useMemo(() => {
@@ -27,12 +29,12 @@ function ItemPicker({ onPick, disabled }: { onPick: (item: CraftingItem) => void
   const preview = !deferred.trim() && kind === 'All';
   const visible = preview ? featured.flatMap(name => { const item = craftable.find(item => item.name === name); return item ? [item] : []; }) : matches.slice(0, limit);
   return <div className="craft-picker">
-    <div className="craft-picker-tools"><label className="search-field"><Search size={17} /><input type="search" aria-label="Search craftable items" placeholder="Search items or blueprints…" value={query} onChange={event => { setQuery(event.target.value); setLimit(24); }} /></label><Select label="Crafting category" value={kind} options={['All', ...craftingKinds].map(value => ({ value, label: value === 'All' ? 'All items' : value }))} onChange={value => { setKind(value); setLimit(24); }} /></div>
-    <div className="craft-picker-heading"><h2>{preview ? 'Choose an item' : 'Results'}</h2><span className="small muted" role="status">{preview ? `${craftable.length.toLocaleString()} craftable items` : `${matches.length.toLocaleString()} items`}</span></div>
+    <div className="craft-picker-tools"><label className="search-field"><Search size={17} /><input type="search" aria-label={t('Search craftable items')} placeholder={t('Search items or blueprints…')} value={query} onChange={event => { setQuery(event.target.value); setLimit(24); }} /></label><Select label={t('Crafting category')} value={kind} options={['All', ...craftingKinds].map(value => ({ value, label: t(value === 'All' ? 'All items' : value) }))} onChange={value => { setKind(value); setLimit(24); }} /></div>
+    <div className="craft-picker-heading"><h2>{t(preview ? 'Choose an item' : 'Results')}</h2><span className="small muted" role="status">{preview ? `${craftable.length.toLocaleString()} craftable items` : `${matches.length.toLocaleString()} items`}</span></div>
     <div className="craft-picker-grid">{visible.map(item => <button type="button" key={item.id} className="craft-pick" aria-label={`Craft ${item.name}`} disabled={disabled} onClick={() => onPick(item)}><CraftingArtwork item={item} /><span className="craft-pick-copy"><strong>{item.name}</strong><span>{itemType(item)}<ChevronRight size={14} /></span></span></button>)}</div>
-    {!matches.length && <p className="craft-empty muted">No craftable items match. Try another name or category.</p>}
-    {!preview && matches.length > limit && <button type="button" className="button secondary craft-more" onClick={() => setLimit(value => value + 24)}>Show more</button>}
-    {preview && <button type="button" className="button quiet craft-more" onClick={() => setKind('Weapons')}>Browse weapons</button>}
+    {!matches.length && <p className="craft-empty muted">{t('No craftable items match. Try another name or category.')}</p>}
+    {!preview && matches.length > limit && <button type="button" className="button secondary craft-more" onClick={() => setLimit(value => value + 24)}>{t('Show more')}</button>}
+    {preview && <button type="button" className="button quiet craft-more" onClick={() => setKind('Weapons')}>{t('Browse weapons')}</button>}
   </div>;
 }
 

@@ -10,6 +10,7 @@ import type { RelicDetection } from '../lib/relicMatching';
 import { matchRelicReadings } from '../lib/relicRecognition';
 import type { Relic } from '../lib/relics';
 import { Select } from './Select';
+import { t, useLanguage } from '../lib/i18n';
 import { ScreenshotHelp } from './ScreenshotHelp';
 import { ScreenshotGallery } from './ScreenshotGallery';
 
@@ -25,6 +26,7 @@ export function ScreenshotImport({ onImport, onRelicImport, initialSource = 'inv
   onRelicImport: (observations: Pick<Relic, 'name' | 'refinement' | 'quantity'>[], files: string[]) => boolean;
   initialSource?: ScreenshotSource;
 }) {
+  useLanguage();
   const [mode, setMode] = useState<'equipment' | 'relics'>(initialSource === 'relics' ? 'relics' : 'equipment');
   const [source, setSource] = useState<ScreenshotSource>(initialSource);
   const [pasteTarget, setPasteTarget] = useState<ScreenshotSource>(initialSource);
@@ -168,25 +170,25 @@ export function ScreenshotImport({ onImport, onRelicImport, initialSource = 'inv
     const observations = selected.map(detection => ({ ...createEquipment(detection.item), owned: detection.owned, mastered: detection.mastered, rank: detection.rank, source: `Screenshot · ${detection.filename}` }));
     if (onImport(observations, scans.filter(scan => scan.read).map(scan => scan.file.name))) batch.current.completed = true;
   };
-  return <section className="import-section" aria-label="Import screenshots">
+  return <section className="import-section" aria-label={t('Import screenshots')}>
     {!hasBatch && <div className="import-type-options" role="group" aria-label="Screenshot type">{(['equipment', 'relics'] as const).map(value => <button key={value} type="button" className="button quiet" aria-pressed={mode === value} onClick={() => {
       setMode(value); const next = value === 'relics' ? 'relics' : 'inventory'; setSource(next); setPasteTarget(next); pasteSource.current = next; setError(''); setStatus('');
-    }}>{value === 'relics' ? 'Relics' : 'Equipment'}</button>)}</div>}
+    }}>{t(value === 'relics' ? 'Relics' : 'Equipment')}</button>)}</div>}
     <div ref={sourceStage} className={`import-sources${hasBatch ? ' has-batch' : ''}${mode === 'relics' ? ' is-single' : ''}`}>{visibleSources.map(({ value, label }) => <section key={value} data-source={value} className={`import-source${!hasBatch && pasteTarget === value ? ' is-paste-target' : ''}${departing === value ? ' is-exiting' : ''}`} inert={departing === value} aria-hidden={departing === value ? true : undefined} aria-labelledby={`${value}-import-title`} aria-description={!hasBatch && pasteTarget === value ? 'Selected for screenshot paste' : undefined} onFocusCapture={() => choosePasteSource(value)} onPointerDownCapture={() => choosePasteSource(value)} onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === 'transform' && departing === value) setDeparting(null); }}>
       <div className="import-source-content">
       <div className="section-heading import-source-heading">
-        <h2 id={`${value}-import-title`}>{label}</h2>
+        <h2 id={`${value}-import-title`}>{t(label)}</h2>
         <div className="import-actions">
-          <button type="button" className="button quiet" aria-label={`${label} instructions`} aria-haspopup="dialog" onClick={() => setHelp(value)}><CircleHelp size={16} aria-hidden="true" />Instructions</button>
-          {source === value && (busy ? <button type="button" className="button secondary" onClick={() => controller.current?.abort()}>Cancel reading</button> : (scans.length > 0 || status || error) && <button type="button" className="button secondary" onClick={clear}>Clear</button>)}
+          <button type="button" className="button quiet" aria-label={`${label} instructions`} aria-haspopup="dialog" onClick={() => setHelp(value)}><CircleHelp size={16} aria-hidden="true" />{t('Instructions')}</button>
+          {source === value && (busy ? <button type="button" className="button secondary" onClick={() => controller.current?.abort()}>{t('Cancel reading')}</button> : (scans.length > 0 || status || error) && <button type="button" className="button secondary" onClick={clear}>{t('Clear')}</button>)}
         </div>
       </div>
     <input ref={node => { inputs.current[value] = node; }} className="sr-only" type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label={`Choose ${label.toLowerCase()} screenshots`} tabIndex={-1} onChange={event => { void processFiles([...event.target.files || []], value); event.target.value = ''; }} />
     {source === value && error && <p className="callout danger" role="alert">{error}</p>}
     <button type="button" className={`drop-zone ${scans.length && source === value ? 'drop-zone-compact' : ''} ${dragging === value ? 'dragging' : ''}`} aria-labelledby={`${value}-upload-label ${value}-upload-limits`} onClick={() => inputs.current[value]?.click()} onDragOver={event => { event.preventDefault(); choosePasteSource(value); setDragging(value); }} onDragLeave={() => setDragging(null)} onDrop={event => { event.preventDefault(); setDragging(null); void processFiles([...event.dataTransfer.files], value); }}>
       {(!hasBatch || departing === value) && <img className="import-source-example" src={value === 'relics' ? '/images/import/relics.png' : `/images/import/${value}-weapons.png`} width={1920} height={1200} alt={value === 'relics' ? 'Example Warframe Void Relics / Refinement screen showing relic names, refinements, and quantities' : value === 'inventory' ? 'Example Warframe Inventory screen showing weapons and ranks' : 'Example Warframe Codex screen showing weapons and mastery badges'} draggable={false} />}
-      <span id={`${value}-upload-label`}>{scans.length && source === value ? 'Add screenshots' : 'Drag and drop or Ctrl+V to paste. Or click to open file browser'}</span>
-      <small id={`${value}-upload-limits`}>{scans.length && source === value ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each'}</small>
+      <span id={`${value}-upload-label`}>{t(scans.length && source === value ? 'Add screenshots' : 'Drag and drop or Ctrl+V to paste. Or click to open file browser')}</span>
+      <small id={`${value}-upload-limits`}>{t(scans.length && source === value ? `Drop, paste, or choose · ${scans.length}/10 images` : 'PNG, JPG, WebP · up to 10 images · 20 MB each')}</small>
     </button>
     {source === value && <>
     {busy && <div className="import-progress"><span role="status">Reading screenshots… {Math.round(progress * 100)}%</span><progress value={progress} max={1} aria-label="Screenshot reading progress" /></div>}

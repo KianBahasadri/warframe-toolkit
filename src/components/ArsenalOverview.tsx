@@ -7,6 +7,7 @@ import type { ArsenalBuild, ArsenalSlot } from '../lib/modderModel';
 import type { CatalogItem } from '../lib/model';
 import { go, sameDocumentLink } from '../lib/routes';
 import { Dialog } from './Dialog';
+import { t, useLanguage } from '../lib/i18n';
 import { GameIcon } from './ModderVisuals';
 import type { GameIconName } from './ModderVisuals';
 
@@ -36,6 +37,7 @@ export function ArsenalOverview({ build, slot, item, name, stats, actions, disab
   build: ArsenalBuild; slot: ArsenalSlot; item?: CatalogItem; name: ReactNode; stats: ReactNode; actions: ReactNode; disabled: boolean;
   onSlot: (slot: ArsenalSlot) => void; onSwap: () => void; onUpgrade: () => void; onAbilities: () => void;
 }) {
+  useLanguage();
   const portrait = item && (portraits[item.name] ?? item.image);
   return <div className="arsenal-overview">
     <div className="arsenal-overview-grid">
@@ -50,9 +52,9 @@ export function ArsenalOverview({ build, slot, item, name, stats, actions, disab
               {selectedItem?.image && <img src={selectedItem.image} alt="" draggable={false} />}
             </button>
             {selected && <div className="arsenal-equipment-actions">
-              <button type="button" disabled={disabled} onClick={onSwap}>Swap</button>
-              <button type="button" disabled={!item} onClick={onUpgrade}>Upgrade</button>
-              {key === 'Warframe' && !!frames.get(equipment.id)?.abilities.length && <button type="button" onClick={onAbilities}>Abilities</button>}
+              <button type="button" disabled={disabled} onClick={onSwap}>{t('Swap')}</button>
+              <button type="button" disabled={!item} onClick={onUpgrade}>{t('Upgrade')}</button>
+              {key === 'Warframe' && !!frames.get(equipment.id)?.abilities.length && <button type="button" onClick={onAbilities}>{t('Abilities')}</button>}
             </div>}
           </div>;
         })}</div>

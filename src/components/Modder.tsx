@@ -12,6 +12,7 @@ import { ModderLibrary, targetLabel } from './ModderLibrary';
 import type { PickerTarget } from './ModderLibrary';
 import { GameIcon, PolarityIcon, rankText, UpgradeFace } from './ModderVisuals';
 import { AbilitiesDialog, AbilityIcons, ArsenalOverview } from './ArsenalOverview';
+import { t, useLanguage } from '../lib/i18n';
 import { ArsenalWeaponStats } from './ArsenalWeaponStats';
 import { Select } from './Select';
 import './QuantitySlider.css';
@@ -90,6 +91,7 @@ function Conditions({ value, onChange, disabled, slot }: { value: ModderConditio
 }
 
 export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds: ArsenalBuild[]; onSave: (builds: ArsenalBuild[]) => boolean; canSave: boolean; disabled: boolean; onSignIn: () => void }) {
+  useLanguage();
   const [view, setView] = useState<'arsenal' | 'upgrades'>('arsenal'), [abilitiesOpen, setAbilitiesOpen] = useState(false);
   const [draft] = useState(starter), [selected, setSelected] = useState(builds[0]?.id ?? ''), [slot, setSlot] = useState<ArsenalSlot>('Warframe');
   const [picker, setPicker] = useState<PickerTarget | null>(null), [compareId, setCompareId] = useState('');
@@ -189,9 +191,9 @@ export function Modder({ builds, onSave, canSave, disabled, onSignIn }: { builds
       event.preventDefault(); if (drag) endDrag(); else navigate('arsenal');
     }
   }}>
-    <div className="modder-toolbar"><div className="modder-title"><h1 tabIndex={-1}>{view === 'arsenal' ? 'Arsenal' : <><span>Upgrades /</span> {item?.name ?? slot}</>}</h1></div><span className="modder-session-note">{canSave ? 'Account arsenal' : 'Temporary arsenal'}</span>{view === 'upgrades' && <button type="button" className="modder-game-button modder-header-back" aria-label="Return to Arsenal" onClick={() => navigate('arsenal')}><GameIcon name="back" size={18} />Arsenal</button>}</div>
+    <div className="modder-toolbar"><div className="modder-title"><h1 tabIndex={-1}>{view === 'arsenal' ? t('Arsenal') : <><span>Upgrades /</span> {item?.name ?? slot}</>}</h1></div><span className="modder-session-note">{t(canSave ? 'Account arsenal' : 'Temporary arsenal')}</span>{view === 'upgrades' && <button type="button" className="modder-game-button modder-header-back" aria-label="Return to Arsenal" onClick={() => navigate('arsenal')}><GameIcon name="back" size={18} />{t('Arsenal')}</button>}</div>
     <div className="modder-layout">
-    {view === 'arsenal' ? <ArsenalOverview build={build} slot={slot} item={item} name={name} stats={stats} actions={<>{!canSave && <button type="button" className="modder-game-button" onClick={onSignIn}>Sign in to save</button>}{buildActions}</>} disabled={disabled} onSlot={changeSlot} onSwap={() => setPicker({ kind: 'equipment', index: 0 })} onUpgrade={() => navigate('upgrades')} onAbilities={() => setAbilitiesOpen(true)} /> :
+    {view === 'arsenal' ? <ArsenalOverview build={build} slot={slot} item={item} name={name} stats={stats} actions={<>{!canSave && <button type="button" className="modder-game-button" onClick={onSignIn}>{t('Sign in to save')}</button>}{buildActions}</>} disabled={disabled} onSlot={changeSlot} onSwap={() => setPicker({ kind: 'equipment', index: 0 })} onUpgrade={() => navigate('upgrades')} onAbilities={() => setAbilitiesOpen(true)} /> :
     <div className="modder-workbench">
     <div className="modder-workspace">
       <aside className={`modder-arsenal-panel${slot !== 'Warframe' ? ' is-weapon' : ''}`} aria-label="Arsenal and stats">

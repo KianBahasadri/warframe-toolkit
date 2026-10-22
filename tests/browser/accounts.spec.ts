@@ -428,18 +428,33 @@ test('hovering the username opens account options, clicking opens the modal, and
   const menu = page.getByRole('menu', { name: 'Account options', exact: true });
 
   await trigger.hover();
-  await expect(menu.getByRole('menuitem')).toHaveText(['Share inventory', 'Replace access key', 'Sign out']);
+  await expect(menu.getByRole('menuitem')).toHaveText(['Share inventory', 'Replace access key', 'Change language', 'Sign out']);
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   const menuBox = (await menu.boundingBox())!;
   const replaceLabelBox = (await menu.getByRole('menuitem', { name: 'Replace access key', exact: true }).locator('span').boundingBox())!;
   expect(menuBox.x + menuBox.width - (replaceLabelBox.x + replaceLabelBox.width)).toBeLessThanOrEqual(20);
-  expect(menuBox.height).toBeLessThanOrEqual(112);
+  expect(menuBox.height).toBeLessThanOrEqual(148);
+
+  await menu.getByRole('menuitem', { name: 'Change language', exact: true }).click();
+  const languageDialog = page.getByRole('dialog', { name: 'Change language', exact: true });
+  await expect(languageDialog.getByRole('radio', { name: 'English', exact: true })).toBeChecked();
+  await languageDialog.getByRole('radio', { name: '简体中文', exact: true }).check();
+  const zhLanguageDialog = page.getByRole('dialog', { name: '更改语言', exact: true });
+  await expect(zhLanguageDialog).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.lang)).toBe('zh-CN');
+  await expect(page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('link', { name: '武器', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit Boltor', exact: true })).toBeVisible();
+  await zhLanguageDialog.getByRole('radio', { name: 'English', exact: true }).check();
+  expect(await page.evaluate(() => document.documentElement.lang)).toBe('en');
+  await languageDialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(languageDialog).toHaveCount(0);
 
   await trigger.click();
   await expect(menu).toHaveCount(0);
   const dialog = page.getByRole('dialog', { name: 'Account', exact: true });
   await expect(dialog.getByRole('button', { name: 'Share inventory', exact: true })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Replace access key', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Change language', exact: true })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);

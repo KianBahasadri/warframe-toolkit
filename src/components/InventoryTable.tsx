@@ -10,6 +10,7 @@ import { catalogFields, defaultWeaponFilters, filterEquipment } from '../lib/wea
 import type { BooleanField, EquipmentRow } from '../lib/weaponCatalog';
 import { COLUMNS_STORAGE_KEY, defaultColumns, defaultWarframeColumns, equipmentTableModel, inventoryColumns, retiredWarframeColumns, WARFRAME_COLUMNS_STORAGE_KEY, warframeColumns } from '../lib/inventoryColumns';
 import { craftingHover, equipmentHover, HoverTip, incarnonHover, questHover, rankHover, slotHover, variantHover } from './HoverFacts';
+import { t, useLanguage } from '../lib/i18n';
 import { CollectionTable } from './CollectionTable';
 import type { CollectionActions, CollectionDefinition, CollectionFilter } from './CollectionTable';
 
@@ -42,6 +43,7 @@ export function InventoryTable({ items, onEdit, onToggle, onNotesChange, onAdd, 
   onAdd: () => void; onExport: () => void; onImport: () => void; actionsRef?: Ref<CollectionActions>;
   weapons?: boolean; ownedOnlyDefault?: boolean; readOnly?: boolean;
 }) {
+  useLanguage();
   const noun = weapons ? 'weapons' : 'Warframes';
   const definition: CollectionDefinition<EquipmentRow> = {
     label: weapons ? 'Weapons' : 'Warframes', itemLabel: weapons ? 'weapon' : 'Warframe', searchLabel: weapons ? 'Search weapons' : 'Search Warframes',
@@ -60,21 +62,21 @@ export function InventoryTable({ items, onEdit, onToggle, onNotesChange, onAdd, 
       : { title: rows.length ? `No matching ${noun}` : `No ${noun} added`, description: rows.length ? `Change your filters to see more ${noun}.` : `Add ${weapons ? 'a weapon' : 'a Warframe'} or import an inventory screenshot.` },
   };
   return <CollectionTable definition={definition} items={items} onEdit={onEdit} onAdd={readOnly ? undefined : onAdd} onExport={onExport} actionsRef={actionsRef}
-    extraActions={readOnly ? undefined : <button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
+    extraActions={readOnly ? undefined : <button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />{t('Import screenshots')}</button>}
     renderCell={(item, column, visibleColumns) => column.key === 'name'
-      ? <>{item.catalogItem?.image ? <img className="equipment-image" src={item.catalogItem.image} width="88" height="56" alt="" loading="lazy" /> : <span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span>}<span className="equipment-identity"><span className="equipment-label">{item.name}</span>{weapons ? !visibleColumns.includes('slot') && <span className="equipment-meta">{item.slot}</span> : <span className="equipment-meta">{item.catalogItem?.weaponType === 'Necramech' ? 'Necramech' : !visibleColumns.includes('variant') ? item.variant : null}</span>}</span></>
+      ? <>{item.catalogItem?.image ? <img className="equipment-image" src={item.catalogItem.image} width="88" height="56" alt="" loading="lazy" /> : <span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span>}<span className="equipment-identity"><span className="equipment-label">{item.name}</span>{weapons ? !visibleColumns.includes('slot') && <span className="equipment-meta">{t(item.slot)}</span> : <span className="equipment-meta">{item.catalogItem?.weaponType === 'Necramech' ? t('Necramech') : !visibleColumns.includes('variant') ? item.variant : null}</span>}</span></>
       : column.key === 'wfm' ? <MarketPrice subject={{ name: item.name, kind: 'equipment', gameRef: item.catalogItem?.id }} />
-      : column.key === 'incarnon' && item.catalogItem ? <HoverTip content={incarnonHover(item)}><span className="catalog-fact" aria-label={`Incarnon: ${item.name}: ${item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}`}>{item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}</span></HoverTip>
-      : column.key === 'questWeapon' && item.catalogItem ? <HoverTip content={questHover(item)}><span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item.questWeapon ? 'Yes' : 'No'}`}>{item.questWeapon ? 'Yes' : 'No'}</span></HoverTip>
-      : column.key === 'craftingIngredient' && item.catalogItem ? <HoverTip content={item.craftingIngredient ? craftingHover(item) : null}><span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item.craftingIngredient ? 'Yes' : 'No'}`}>{item.craftingIngredient ? 'Yes' : 'No'}</span></HoverTip>
-      : column.kind === 'boolean' ? item.catalogItem && catalogFields.some(key => key === column.key) ? <span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item[column.key as keyof Equipment] ? 'Yes' : 'No'}`}>{item[column.key as keyof Equipment] ? 'Yes' : 'No'}</span> : <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} disabled={readOnly} onChange={() => { if (!readOnly) onToggle(item, column.key as BooleanField); }} /></label>
-      : column.key === 'keep' ? <Tooltip className="recommended-action" content={recommendationFor(item).reason}>{recommendationFor(item).action}</Tooltip>
-      : column.key === 'helminth' ? <span className={['Unknown', 'Not applicable'].includes(helminthStatus(item)) ? 'table-secondary' : ''}>{helminthStatus(item)}</span>
+      : column.key === 'incarnon' && item.catalogItem ? <HoverTip content={incarnonHover(item)}><span className="catalog-fact" aria-label={`Incarnon: ${item.name}: ${item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}`}>{t(item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No')}</span></HoverTip>
+      : column.key === 'questWeapon' && item.catalogItem ? <HoverTip content={questHover(item)}><span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item.questWeapon ? 'Yes' : 'No'}`}>{t(item.questWeapon ? 'Yes' : 'No')}</span></HoverTip>
+      : column.key === 'craftingIngredient' && item.catalogItem ? <HoverTip content={item.craftingIngredient ? craftingHover(item) : null}><span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item.craftingIngredient ? 'Yes' : 'No'}`}>{t(item.craftingIngredient ? 'Yes' : 'No')}</span></HoverTip>
+      : column.kind === 'boolean' ? item.catalogItem && catalogFields.some(key => key === column.key) ? <span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item[column.key as keyof Equipment] ? 'Yes' : 'No'}`}>{t(item[column.key as keyof Equipment] ? 'Yes' : 'No')}</span> : <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} disabled={readOnly} onChange={() => { if (!readOnly) onToggle(item, column.key as BooleanField); }} /></label>
+      : column.key === 'keep' ? <Tooltip className="recommended-action" content={recommendationFor(item).reason}>{t(recommendationFor(item).action)}</Tooltip>
+      : column.key === 'helminth' ? <span className={['Unknown', 'Not applicable'].includes(helminthStatus(item)) ? 'table-secondary' : ''}>{t(helminthStatus(item))}</span>
       : column.key === 'rank' ? <HoverTip content={rankHover(item)}>{item.rank === null ? <span className="table-missing" aria-label="Rank unknown">—</span> : item.rank}</HoverTip>
       : column.key === 'craftingTarget' ? <HoverTip className="crafting-cell" content={craftingHover(item)}>{item.craftingTarget || <span className="table-missing">—</span>}</HoverTip>
       : column.key === 'variant' ? <HoverTip content={variantHover(item)}>{item.variant}</HoverTip>
-      : column.key === 'slot' ? <HoverTip content={slotHover(item)}>{item.slot}</HoverTip>
+      : column.key === 'slot' ? <HoverTip content={slotHover(item)}>{t(item.slot)}</HoverTip>
       : column.key === 'notes' ? (readOnly ? (item.notes || <span className="table-missing">—</span>) : <TableNotes name={item.name} value={item.notes} onChange={notes => onNotesChange(item, notes)} />)
-      : <span className={column.key === 'upgraded' && item.upgraded === 'Unknown' ? 'table-secondary' : ''}>{String(item[column.key as keyof Equipment] ?? '—')}</span>}
+      : <span className={column.key === 'upgraded' && item.upgraded === 'Unknown' ? 'table-secondary' : ''}>{t(String(item[column.key as keyof Equipment] ?? '—'))}</span>}
   />;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Hammer } from 'lucide-react';
 import { craftingPlanLabel } from '../lib/crafting';
+import { t, useLanguage } from '../lib/i18n';
 import { sameDocumentLink } from '../lib/routes';
 import type { CraftingItem, CraftingPlan } from '../lib/crafting';
 import { CraftingArtwork } from './CraftingArtwork';
@@ -9,6 +10,7 @@ import './CraftingNav.css';
 export function CraftingNav({ plans, active, selected, onHome, onPlan }: {
   plans: CraftingPlan[]; active: boolean; selected: string; onHome: () => void; onPlan: (id: string) => void;
 }) {
+  useLanguage();
   const id = useId(), root = useRef<HTMLLIElement>(null), trigger = useRef<HTMLAnchorElement>(null), menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false), [items, setItems] = useState<Map<string, CraftingItem>>(), [error, setError] = useState(false);
   const closing = useRef<number>(undefined);
@@ -93,8 +95,8 @@ export function CraftingNav({ plans, active, selected, onHome, onPlan }: {
         const end = event.key === 'ArrowUp' ? 'last' : 'first';
         if (open && (items || !plans.length || error)) focusItem(end);
         else { pendingFocus.current = end; setOpen(true); }
-      }}><span className="nav-icon" aria-hidden="true" style={{ background: 'none' }}><Hammer size={20} /></span><span>Crafting</span></a>
-    {open && <div ref={menu} id={id} role="menu" aria-label="Open crafting plans" className="craft-plan-menu" tabIndex={-1} onKeyDown={event => {
+      }}><span className="nav-icon" aria-hidden="true" style={{ background: 'none' }}><Hammer size={20} /></span><span>{t('Crafting')}</span></a>
+    {open && <div ref={menu} id={id} role="menu" aria-label={t('Open crafting plans')} className="craft-plan-menu" tabIndex={-1} onKeyDown={event => {
       if (event.key === 'Tab') { closing.current = window.setTimeout(dismiss, 0); return; }
       if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault(); event.stopPropagation();
@@ -103,7 +105,7 @@ export function CraftingNav({ plans, active, selected, onHome, onPlan }: {
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus();
     }}>
-      {!plans.length ? <p className="craft-plan-menu-message">No open plans.</p> : error ? <p className="craft-plan-menu-message" role="status">Couldn’t load plan names. Open Crafting to view plans.</p> : !items ? <p className="craft-plan-menu-message" role="status">Loading plans…</p> : plans.map((plan, index) => {
+      {!plans.length ? <p className="craft-plan-menu-message">{t('No open plans.')}</p> : error ? <p className="craft-plan-menu-message" role="status">{t('Couldn’t load plan names. Open Crafting to view plans.')}</p> : !items ? <p className="craft-plan-menu-message" role="status">{t('Loading plans…')}</p> : plans.map((plan, index) => {
         const item = items.get(plan.itemId);
         return <button type="button" role="menuitem" key={plan.id} tabIndex={-1} aria-current={active && selected === plan.id ? 'page' : undefined} onClick={() => {
           dismiss(); trigger.current?.focus({ preventScroll: true }); onPlan(plan.id);

@@ -9,6 +9,7 @@ import { ColumnPicker } from './ColumnPicker';
 import { Select } from './Select';
 import { useColumnDrag } from './useColumnDrag';
 import type { MarketSubject } from '../lib/market';
+import { t, useLanguage } from '../lib/i18n';
 import { marketPrice, useMarketPrefetch, useMarketRevision } from '../lib/marketClient';
 
 export type FilterValues = Record<string, string | boolean>;
@@ -38,6 +39,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   onEdit: (item: Row) => void; onAdd?: () => void; onExport: () => void; actionsRef?: Ref<CollectionActions>;
   extraActions?: ReactNode; renderCell: (item: Row, column: TableColumn, visibleColumns: string[]) => ReactNode;
 }) {
+  useLanguage();
   const defaults = Object.fromEntries(definition.filters.map(field => [field.key, field.defaultValue ?? (field.kind === 'checkbox' ? false : '')]));
   useMarketRevision();
   const model: TableModel<Row> = { ...definition.model, value: (item, key) => key === 'wfm' && definition.marketSubject ? marketPrice(definition.marketSubject(item)) : definition.model.value(item, key) };
@@ -131,33 +133,33 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   };
   const menuColumn = menu && definition.columns.find(column => column.key === menu.key)!;
   const empty = definition.emptyState(items, filters);
-  return <section className="inventory-section" aria-label={definition.label}>
+  return <section className="inventory-section" aria-label={t(definition.label)}>
     <div className="inventory-toolbar">
-      <div className="search-field inventory-search"><Search size={16} /><input aria-label={definition.searchLabel} placeholder={`${definition.searchLabel}…`} value={search} onChange={event => setSearch(event.target.value)} /></div>
-      <button ref={filterButton} type="button" className={`button secondary ${filtersOpen ? 'selected' : ''}`} aria-label="Filters" aria-expanded={filtersOpen} aria-controls={filtersId} onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />Filters{filterCount > 0 ? ` (${filterCount})` : ''}</button>
+      <div className="search-field inventory-search"><Search size={16} /><input aria-label={t(definition.searchLabel)} placeholder={`${t(definition.searchLabel)}…`} value={search} onChange={event => setSearch(event.target.value)} /></div>
+      <button ref={filterButton} type="button" className={`button secondary ${filtersOpen ? 'selected' : ''}`} aria-label={t('Filters')} aria-expanded={filtersOpen} aria-controls={filtersId} onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />{t(filterCount > 0 ? `Filters (${filterCount})` : 'Filters')}</button>
       <ColumnPicker options={definition.columns} selected={visibleColumns} onChange={changeVisibility} onReset={resetColumns} />
-      {changed && <button type="button" className="button quiet" onClick={() => clearFilters()}>Reset filters</button>}
-      <span className="filter-result" role="status">{definition.summary?.(filtered.length, items, filters) ?? `${filtered.length} of ${items.length}`}</span>
+      {changed && <button type="button" className="button quiet" onClick={() => clearFilters()}>{t('Reset filters')}</button>}
+      <span className="filter-result" role="status">{t(definition.summary?.(filtered.length, items, filters) ?? `${filtered.length} of ${items.length}`)}</span>
       {pricing && <span className="small muted" role="status">{pricing}</span>}
       <div className="inventory-actions">
-        {onAdd && <button type="button" className="button secondary" onClick={onAdd}><Plus size={16} />Add {definition.itemLabel}</button>}
+        {onAdd && <button type="button" className="button secondary" onClick={onAdd}><Plus size={16} />{t(`Add ${definition.itemLabel}`)}</button>}
         {extraActions}
-        <button type="button" className="button quiet" onClick={onExport}><ArrowDownToLine size={15} />Export CSV</button>
+        <button type="button" className="button quiet" onClick={onExport}><ArrowDownToLine size={15} />{t('Export CSV')}</button>
       </div>
     </div>
-    {(filtersOpen || filterCount > 0) && <div id={filtersId} className={filtersOpen ? 'inventory-filters' : 'inventory-active-filters'} role="group" aria-label={filtersOpen ? definition.filterLabel : `Active ${definition.filterLabel.toLowerCase()}`}>
+    {(filtersOpen || filterCount > 0) && <div id={filtersId} className={filtersOpen ? 'inventory-filters' : 'inventory-active-filters'} role="group" aria-label={t(filtersOpen ? definition.filterLabel : `Active ${definition.filterLabel.toLowerCase()}`)}>
       {definition.filters.filter(field => filtersOpen || filters[field.key] !== defaults[field.key]).map(field => field.kind === 'checkbox'
-        ? <label key={field.key} className="owned-filter"><input type="checkbox" checked={Boolean(filters[field.key])} onChange={event => changeFilter(field, event.target.checked)} />{field.label}</label>
-        : <label key={field.key}>{field.label}{field.kind === 'select'
-          ? <Select label={field.label} value={String(filters[field.key])} onChange={value => changeFilter(field, value)} options={[{ value: '', label: field.placeholder ?? 'Any' }, ...field.choices ?? []]} />
-          : <input type="number" min={field.min} max={field.max} step="1" placeholder={field.placeholder ?? 'Any'} value={String(filters[field.key])} onChange={event => changeFilter(field, event.target.value)} />}</label>)}
+        ? <label key={field.key} className="owned-filter"><input type="checkbox" checked={Boolean(filters[field.key])} onChange={event => changeFilter(field, event.target.checked)} />{t(field.label)}</label>
+        : <label key={field.key}>{t(field.label)}{field.kind === 'select'
+          ? <Select label={t(field.label)} value={String(filters[field.key])} onChange={value => changeFilter(field, value)} options={[{ value: '', label: t(field.placeholder ?? 'Any') }, ...(field.choices ?? []).map(choice => ({ ...choice, label: t(choice.label) }))]} />
+          : <input type="number" min={field.min} max={field.max} step="1" placeholder={t(field.placeholder ?? 'Any')} value={String(filters[field.key])} onChange={event => changeFilter(field, event.target.value)} />}</label>)}
     </div>}
     {Object.keys(columnFilters).length > 0 && <div className="column-filter-list" role="group" aria-label="Column filters">{definition.columns.filter(column => columnFilters[column.key]).map(column => <div className="column-filter-chip" key={column.key}>
-      <button type="button" onClick={event => openMenu(column.key, event.currentTarget, undefined, 'filter')}><Filter size={14} aria-hidden="true" />{column.title}: {filterLabel(columnFilters[column.key]!, filterChoices(column, items, model))}</button>
+      <button type="button" onClick={event => openMenu(column.key, event.currentTarget, undefined, 'filter')}><Filter size={14} aria-hidden="true" />{t(column.title)}: {filterLabel(columnFilters[column.key]!, filterChoices(column, items, model))}</button>
       <button type="button" className="icon-button" aria-label={`Remove ${column.title} filter`} title={`Remove ${column.title} filter`} onClick={() => { changeColumnFilter(column.key); filterButton.current?.focus(); }}><X size={14} aria-hidden="true" /></button>
     </div>)}</div>}
     <span className="sr-only" aria-live="polite">{columnAnnouncement}</span>
-    <div ref={tableScroll} className="table-scroll inventory-grid" role="region" aria-label={definition.regionLabel} aria-busy={Boolean(pricing)} tabIndex={0}>
+    <div ref={tableScroll} className="table-scroll inventory-grid" role="region" aria-label={t(definition.regionLabel)} aria-busy={Boolean(pricing)} tabIndex={0}>
       <table className="inventory-table">
         <caption className="sr-only">{definition.label}. Changes save automatically when signed in. Select a name to view or edit an entry. Drag a header to move its column. Click or right-click a header, or press Shift+F10, for column actions, including Move left and Move right.</caption>
         <thead><tr>{columns.map(column => {
@@ -166,7 +168,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
           return <th scope="col" key={column.key} data-column-key={column.key} {...columnDrag.headerProps(column.key)} title="Drag to move; click for column options" className={column.kind === 'boolean' ? 'check-cell' : column.kind === 'number' ? 'number-cell' : ''} aria-sort={sortIndex === 0 ? sort.direction === 1 ? 'ascending' : 'descending' : undefined}
             onClick={event => openHeaderMenu(column.key, event)} onContextMenu={event => openHeaderMenu(column.key, event)}
             onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { event.preventDefault(); event.stopPropagation(); openMenu(column.key, event.target as HTMLElement); } }}>
-            <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" aria-label={`${column.title} column options`} aria-expanded={menu?.key === column.key} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{column.title}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button></div>
+            <div className="column-header"><button ref={node => { if (node) headerButtons.current.set(column.key, node); else headerButtons.current.delete(column.key); }} type="button" className="sort-button" aria-label={`${column.title} column options`} aria-expanded={menu?.key === column.key} aria-description={sort ? `Sort priority ${sortIndex + 1} of ${sorting.length}, ${sort.direction === 1 ? 'ascending' : 'descending'}` : 'Unsorted'}>{t(column.title)}<span className="sort-indicator" aria-hidden="true">{sort && <>{sort.direction === 1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}{sortIndex + 1}</>}</span></button></div>
           </th>;
         })}</tr></thead>
         <tbody>{visible.map((item, index) => {
@@ -183,9 +185,9 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
           </tr>;
         })}</tbody>
       </table>
-      {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{empty.title}</h3>{empty.description && <p>{empty.description}</p>}{items.length > 0 && <button type="button" className="button secondary" onClick={() => clearFilters(empty.resetValues)}>{empty.resetLabel ?? 'Reset filters'}</button>}</div>}
+      {!sorted.length && <div className="empty-state"><Search size={28} /><h3>{t(empty.title)}</h3>{empty.description && <p>{t(empty.description)}</p>}{items.length > 0 && <button type="button" className="button secondary" onClick={() => clearFilters(empty.resetValues)}>{t(empty.resetLabel ?? 'Reset filters')}</button>}</div>}
     </div>
-    {pageCount > 1 && <nav className="collection-pagination" aria-label={`${definition.label} pages`}><button type="button" className="button secondary" disabled={currentPage === 0} onClick={() => changePage(currentPage - 1)}>Previous</button><span aria-live="polite">{currentPage + 1} / {pageCount}</span><button type="button" className="button secondary" disabled={currentPage + 1 === pageCount} onClick={() => changePage(currentPage + 1)}>Next</button></nav>}
+    {pageCount > 1 && <nav className="collection-pagination" aria-label={`${definition.label} pages`}><button type="button" className="button secondary" disabled={currentPage === 0} onClick={() => changePage(currentPage - 1)}>{t('Previous')}</button><span aria-live="polite">{currentPage + 1} / {pageCount}</span><button type="button" className="button secondary" disabled={currentPage + 1 === pageCount} onClick={() => changePage(currentPage + 1)}>{t('Next')}</button></nav>}
     {menu && menuColumn && <ColumnMenu key={menu.id} anchor={menu.anchor} point={menu.point} initialView={menu.initialView} column={menuColumn} columns={definition.columns} selected={visibleColumns} choices={filterChoices(menuColumn, items, model)} sorting={sorting} filter={columnFilters[menu.key]}
       onVisibility={changeVisibility} onReset={resetColumns} onMove={direction => { const target = visibleColumns[visibleColumns.indexOf(menu.key) + direction]; if (target) reorderColumn(menu.key, { key: target, edge: direction === -1 ? 'before' : 'after' }); }} onSort={direction => setSorting(current => setColumnSort(current, menu.key, direction))} onPriority={index => setSorting(current => moveColumnSort(current, menu.key, index))} onFilter={filter => changeColumnFilter(menu.key, filter)} onClose={() => {
         setMenu(null);

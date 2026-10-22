@@ -6,6 +6,7 @@ import { Select } from './Select';
 import { TableNotes } from './TableNotes';
 import { MarketPrice } from './MarketPrice';
 import { HoverTip, relicHover } from './HoverFacts';
+import { t, useLanguage } from '../lib/i18n';
 import { CollectionTable } from './CollectionTable';
 import { RelicDetails } from './RelicDetails';
 import type { CollectionActions, CollectionDefinition } from './CollectionTable';
@@ -165,14 +166,15 @@ export function Relics({ relics, trackedOnlyDefault, readOnly = false, onSave, o
   trackedOnlyDefault: boolean; readOnly?: boolean; onNotesChange: (item: RelicRow, notes: string) => void;
   onQuantityChange: (item: RelicRow, change: number) => void; onExport: () => void; onImport: () => void; actionsRef?: Ref<CollectionActions>;
 }) {
+  useLanguage();
   const [editing, setEditing] = useState<Relic | 'new' | null>(null);
   const rows = useMemo(() => relicRows(relics, relicCatalog), [relics]);
   const definition = { ...relicDefinition, filters: relicDefinition.filters.map(field => field.key === 'trackedOnly' ? { ...field, defaultValue: trackedOnlyDefault } : field) };
   return <>
     <CollectionTable definition={definition} items={rows} onEdit={row => setEditing(editableRelic(row))} onAdd={readOnly ? undefined : () => setEditing('new')} onExport={onExport} actionsRef={actionsRef}
-      extraActions={readOnly ? undefined : <button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
+      extraActions={readOnly ? undefined : <button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />{t('Import screenshots')}</button>}
       renderCell={(relic, column) => column.key === 'name' ? <>{relic.catalogItem && <img className="equipment-image" src={relic.catalogItem.image} alt="" width="88" height="56" loading="lazy" />}<span className="equipment-label">{relic.name}</span></>
-        : column.key === 'vaulted' ? relic.vaulted === null ? <span className="table-missing" aria-label={`Vaulted: ${relic.name}: Unknown`}>—</span> : <span className="catalog-fact" aria-label={`Vaulted: ${relic.name}: ${relic.vaulted ? 'Yes' : 'No'}`}>{relic.vaulted ? 'Yes' : 'No'}</span>
+        : column.key === 'vaulted' ? relic.vaulted === null ? <span className="table-missing" aria-label={`Vaulted: ${relic.name}: Unknown`}>—</span> : <span className="catalog-fact" aria-label={`Vaulted: ${relic.name}: ${relic.vaulted ? 'Yes' : 'No'}`}>{t(relic.vaulted ? 'Yes' : 'No')}</span>
         : column.key === 'refinement' ? <HoverTip content={relicHover(relic)}>{relic.refinement}</HoverTip>
         : column.key === 'wfm' ? <MarketPrice subject={{ name: relic.name, kind: 'relic', refinement: relic.refinement }} />
         : column.key === 'quantity' ? (readOnly ? <span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span> : <div className="quantity-control"><button type="button" className="icon-button" aria-label={`Decrease ${relic.name} ${relic.refinement} quantity`} title="Decrease quantity" disabled={relic.quantity === 0} onClick={() => onQuantityChange(relic, -1)}><Minus size={14} /></button><span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span><button type="button" className="icon-button" aria-label={`Increase ${relic.name} ${relic.refinement} quantity`} title="Increase quantity" disabled={relic.quantity === MAX_RELIC_QUANTITY} onClick={() => onQuantityChange(relic, 1)}><Plus size={14} /></button></div>)
