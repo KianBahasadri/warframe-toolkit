@@ -16,6 +16,8 @@
 .account-bookmark { font-size: 12px; color: var(--ink); text-underline-offset: 3px; }
 .account-username { font-size: 18px; overflow-wrap: anywhere; }
 .account-option-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.account-menu { width: max-content; }
+.account-menu [role=menuitem] { min-height: 0; padding: 6px 10px; gap: 8px; line-height: 1.35; }
 .account-menu [role=menuitem] svg { flex-shrink: 0; color: var(--muted); }
 .account-menu [role=menuitem]:hover svg, .account-menu [role=menuitem]:focus-visible svg { color: var(--ink-strong); }
 .shared-inventory-callout { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }

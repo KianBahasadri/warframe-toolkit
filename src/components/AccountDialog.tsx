@@ -38,9 +38,9 @@ export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }
       const width = viewport?.width ?? document.documentElement.clientWidth, height = viewport?.height ?? innerHeight;
       const bounds = anchor.getBoundingClientRect();
       if (bounds.bottom <= top || bounds.top >= top + height) { dismiss(); return; }
-      panel.style.width = `${Math.min(220, width - 24)}px`;
+      panel.style.maxWidth = `${Math.max(0, width - 24)}px`;
       panel.style.maxHeight = `${Math.max(0, Math.min(360, top + height - bounds.bottom - 16))}px`;
-      panel.style.left = `${Math.max(left + 12, Math.min(bounds.right - panel.offsetWidth, left + width - panel.offsetWidth - 12))}px`;
+      panel.style.left = `${Math.max(left + 12, Math.min(bounds.left, left + width - panel.offsetWidth - 12))}px`;
       panel.style.top = `${bounds.bottom + 4}px`;
     };
     position();

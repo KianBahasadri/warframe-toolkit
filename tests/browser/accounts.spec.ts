@@ -430,6 +430,10 @@ test('hovering the username opens account options, clicking opens the modal, and
   await trigger.hover();
   await expect(menu.getByRole('menuitem')).toHaveText(['Share inventory', 'Replace access key', 'Sign out']);
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  const menuBox = (await menu.boundingBox())!;
+  const replaceLabelBox = (await menu.getByRole('menuitem', { name: 'Replace access key', exact: true }).locator('span').boundingBox())!;
+  expect(menuBox.x + menuBox.width - (replaceLabelBox.x + replaceLabelBox.width)).toBeLessThanOrEqual(20);
+  expect(menuBox.height).toBeLessThanOrEqual(112);
 
   await trigger.click();
   await expect(menu).toHaveCount(0);
