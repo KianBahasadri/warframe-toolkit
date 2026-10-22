@@ -164,7 +164,7 @@ test('column choices migrate to Warframes once and persist independently without
   await expect(columns).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Incarnon column options', exact: true })).toHaveAccessibleDescription('Unsorted');
   await page.getByRole('link', { name: 'Warframes', exact: true }).click();
-  await expect(page.getByRole('columnheader')).toHaveText(['Warframe', 'WFM', 'Owned', 'Rank', 'Mastered', 'Upgraded', 'Notes']);
+  await expect(page.getByRole('columnheader')).toHaveText(['Warframe', 'WFM', 'Owned', 'Rank', 'Mastered', 'Upgraded', 'Notes', 'Helminth unlocked']);
   await trigger.click();
   await columns.getByRole('button', { name: 'Reset to default' }).click();
   await page.keyboard.press('Escape');
@@ -661,7 +661,7 @@ test('relic CSV exports records and deletions persist without changing equipment
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
   const csv = await csvPromise;
   expect(csv.suggestedFilename()).toMatch(/^grakata-relics-.*\.csv$/);
-  expect(await readFile((await csv.path())!, 'utf8')).toContain('"Neo N1","Neo","Flawless","5"');
+  expect(await readFile((await csv.path())!, 'utf8')).toContain('"Neo N1","Neo","Yes","Flawless","5"');
   await page.getByRole('button', { name: 'Edit Neo N1 Flawless' }).click();
   await page.getByRole('tab', { name: 'My inventory', exact: true }).click();
   await expect(page.getByRole('listbox', { name: 'Matching relics' })).toHaveCount(0);
