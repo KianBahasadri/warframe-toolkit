@@ -47,8 +47,11 @@ function SourceButton({ node, onClick }: { node: CraftingNode; onClick: () => vo
   return <Tooltip className="button quiet craft-source-button" label={`Sources for ${node.item.name}: ${text}`} content={text} hasPopup onClick={onClick}><MapPin size={14} aria-hidden="true" /><span>{text}</span></Tooltip>;
 }
 
+const branchStem = 20;
+
 function IngredientList({ nodes, actions, parent, nested = false, id, hidden }: { nodes: CraftingNode[]; actions: NodeActions; parent: string; nested?: boolean; id?: string; hidden?: boolean }) {
-  const list = useRef<HTMLUListElement>(null);
+  const frame = useRef<HTMLDivElement>(null), list = useRef<HTMLUListElement>(null);
+  const [rails, setRails] = useState<{ top: number; height: number; rule: number }[]>([]);
   const focus = useRef<string | null>(null);
   const completed = nodes.filter(node => node.completed);
   const rememberFocus = (key: string, done: boolean) => { if (nodes.some(node => node.key === key && node.completed !== done)) focus.current = key; };
@@ -61,12 +64,34 @@ function IngredientList({ nodes, actions, parent, nested = false, id, hidden }: 
     const target = focus.current; focus.current = null;
     list.current?.querySelector<HTMLInputElement>(`[data-node-key="${CSS.escape(target)}"] input[type="checkbox"]`)?.focus({ preventScroll: true });
   }, [nodes]);
-  return <ul ref={list} id={id} className={nested ? 'craft-children' : 'craft-branches'} hidden={hidden}>
+  useLayoutEffect(() => {
+    if (nested) return;
+    const frameEl = frame.current, listEl = list.current;
+    if (!frameEl || !listEl) return;
+    const measure = () => {
+      const frameTop = frameEl.getBoundingClientRect().top;
+      const rows = [...new Set([...listEl.querySelectorAll<HTMLElement>(':scope > .craft-branch')].map(branch => Math.round(branch.getBoundingClientRect().top - frameTop)))].sort((a, b) => a - b);
+      const next = rows.slice(1).map((top, index) => {
+        const rule = top - branchStem;
+        const prev = (index === 0 ? rows[0] : rows[index]) - branchStem;
+        return { top: prev, height: Math.max(0, rule - prev), rule };
+      });
+      setRails(current => current.length === next.length && current.every((segment, index) => segment.top === next[index].top && segment.height === next[index].height && segment.rule === next[index].rule) ? current : next);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(listEl);
+    for (const branch of listEl.querySelectorAll(':scope > .craft-branch')) observer.observe(branch);
+    return () => observer.disconnect();
+  }, [nodes, nested]);
+  const branches = <ul ref={list} id={id} className={nested ? 'craft-children' : 'craft-branches'} hidden={hidden}>
     {nodes.filter(node => !node.completed).map(node => <IngredientNode key={node.key} node={node} actions={localActions} />)}
     {!!completed.length && <li className="craft-completed-group"><ul aria-label={`Completed ingredients for ${parent}`}>
       {completed.map(node => <li key={node.key} data-node-key={node.key} className="craft-completed-item"><label><input type="checkbox" aria-label={`Completed: ${node.item.name}`} checked disabled={actions.disabled} onChange={() => localActions.onCheck(node.key, false, node.quantity)} /><CraftingArtwork item={node.item} /><span>{node.item.name}</span><small>× {number(node.quantity)}</small></label><button type="button" className="icon-button" aria-label={`Sources for ${node.item.name}`} title={`Sources for ${node.item.name}`} onClick={() => actions.onDetails(node)}><MapPin size={14} aria-hidden="true" /></button></li>)}
     </ul></li>}
   </ul>;
+  if (nested) return branches;
+  return <div ref={frame} className="craft-branch-tree">{rails.map(segment => <span key={segment.rule} className="craft-branch-join"><span className="craft-branch-rail" aria-hidden="true" style={{ top: segment.top, height: segment.height }} /><span className="craft-branch-rule" aria-hidden="true" style={{ top: segment.rule }} /></span>)}{branches}</div>;
 }
 
 function IngredientNode({ node, actions }: { node: CraftingNode; actions: NodeActions }) {

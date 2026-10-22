@@ -31,6 +31,52 @@ async function closeSelected(page: Page) {
   await page.locator('.craft-plan-tab').filter({ has: page.getByRole('tab', { selected: true }) }).getByRole('button', { name: /^Close / }).click();
 }
 
+test('the plan close control sits in the vertical center of the tab', async ({ page }) => {
+  await open(page);
+  await page.getByRole('searchbox', { name: 'Search craftable items' }).fill('Oxylus');
+  await page.getByRole('button', { name: 'Craft Oxylus', exact: true }).click();
+  const tab = page.locator('.craft-plan-tab').filter({ has: page.getByRole('tab', { name: 'Oxylus', exact: true }) });
+  await expect(tab).toBeVisible();
+  const offset = await tab.evaluate(element => {
+    const close = element.querySelector('.craft-plan-close')!.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    return (close.top + close.height / 2) - (box.top + box.height / 2);
+  });
+  expect(Math.abs(offset)).toBeLessThan(1);
+});
+
+test('later ingredient rows hang from the top bar by a left drop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(page);
+  await page.getByRole('button', { name: 'Craft Wisp Prime', exact: true }).click();
+  const tree = page.locator('.craft-branch-tree');
+  await expect(tree.locator('.craft-branches > .craft-branch').nth(3)).toBeVisible();
+  const joined = (element: HTMLElement) => {
+    const stem = 20;
+    const frame = element.getBoundingClientRect();
+    const branches = [...element.querySelectorAll<HTMLElement>(':scope > .craft-branches > .craft-branch')];
+    const rows = [...new Set(branches.map(branch => Math.round(branch.getBoundingClientRect().top)))].sort((a, b) => a - b);
+    const rules = [...element.querySelectorAll<HTMLElement>('.craft-branch-rule')].map(rule => rule.getBoundingClientRect());
+    const rails = [...element.querySelectorAll<HTMLElement>('.craft-branch-rail')].map(rail => rail.getBoundingClientRect());
+    const later = branches.filter(branch => Math.round(branch.getBoundingClientRect().top) !== rows[0]);
+    const hooked = later.every(branch => {
+      const box = branch.getBoundingClientRect();
+      const before = getComputedStyle(branch, '::before');
+      const stemLeft = box.left + parseFloat(before.left);
+      const stemTop = box.top + parseFloat(before.top);
+      return rules.some(rule => Math.abs(rule.top - stemTop) <= 1 && rule.left <= stemLeft && rule.right >= stemLeft);
+    });
+    const linked = rows.slice(1).every(row => rails.some(rail => Math.abs(rail.left - frame.left) <= 1 && rail.top < row - stem && rail.bottom >= row - stem - 1));
+    const firstRule = rows[0] - stem;
+    const meetsTop = rails.some(rail => rail.top <= firstRule + 1 && rail.bottom > firstRule);
+    return hooked && linked && meetsTop && rules.length === rows.length - 1 ? 'joined' : `rows ${rows.length} rules ${rules.length} hooked ${hooked} linked ${linked} meetsTop ${meetsTop}`;
+  };
+  for (const width of [1280, 900, 500]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect.poll(() => tree.evaluate(joined)).toBe('joined');
+  }
+});
+
 test('Oxylus blueprint search exposes exact ingredients, nested batches, and saved progress', async ({ page, account }) => {
   await open(page);
   const before = (await account.profile()).inventory;

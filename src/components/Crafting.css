@@ -52,7 +52,13 @@
 .craft-section-heading { justify-content: space-between; margin-bottom: 18px; }
 .craft-section-heading h3 { margin: 0; font-size: 14px; }
 .craft-branches, .craft-children { list-style: none; margin: 0; padding: 0; }
-.craft-branches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 24px; align-items: start; border-top: 1px solid var(--line-strong); padding-top: 20px; }
+.craft-branch-tree { position: relative; }
+.craft-branch-join { display: contents; }
+.craft-branch-tree:has(.craft-branch-rail) .craft-branches { padding-left: 14px; }
+.craft-branch-rail, .craft-branch-rule { position: absolute; left: 0; background: var(--line-strong); pointer-events: none; }
+.craft-branch-rail { width: 1px; }
+.craft-branch-rule { right: 0; height: 1px; }
+.craft-branches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 44px 24px; align-items: start; border-top: 1px solid var(--line-strong); padding-top: 20px; }
 .craft-branch { position: relative; min-width: 0; }
 .craft-branches > .craft-branch::before { content: ''; position: absolute; left: 26px; height: 20px; top: -20px; border-left: 1px solid var(--line-strong); }
 .craft-node { padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
@@ -159,12 +165,12 @@
   .craft-plan-toolbar { gap: 8px; }
   .craft-root { gap: 14px; padding: 16px; flex-wrap: wrap; }.craft-root > .craft-art { width: 70px; height: 86px; }.craft-root h2 { font-size: 21px; }.craft-root-controls { width: 100%; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; gap: 8px; }
   .craft-progress { gap: 12px; padding-block: 20px; }.craft-progress progress { max-width: none; min-width: 60px; }.craft-progress > span:last-child { flex-basis: 100%; }
-  .craft-branches { grid-template-columns: minmax(0, 1fr); gap: 24px; }.craft-remaining ul, .craft-areas ul { grid-template-columns: minmax(0, 1fr); }
+  .craft-branches { grid-template-columns: minmax(0, 1fr); gap: 44px 24px; }.craft-remaining ul, .craft-areas ul { grid-template-columns: minmax(0, 1fr); }
   .craft-detail-intro { gap: 12px; }.craft-detail-intro > .craft-art { width: 60px; height: 70px; }.craft-facts { gap: 16px 10px; }.craft-facts dd { font-size: 12px; }
   .craft-source-list li { gap: 8px; }.craft-source-chance { font-size: 11px; max-width: 80px; }
 }
 @media (prefers-reduced-motion: reduce) { .crafting-page * { transition: none; } }
 
 .craft-plan-tab { position: relative; max-width: 100%; }
-.craft-plan-close { position: absolute; top: 0; right: 0; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
+.craft-plan-close { position: absolute; top: 0; bottom: 0; right: 0; margin-block: auto; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
 .craft-plan-close:hover { background: var(--surface-raised); color: var(--ink-strong); }
