@@ -7,25 +7,87 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
-# Never interrupt an apply. Terraform's remote lock also covers local deployments.
-concurrency:
-  group: production
-  cancel-in-progress: false
+env:
+  CI: 'true'
+  WRANGLER_SEND_METRICS: 'false'
 
 jobs:
-  deploy:
+  checks:
+    name: Unit and local account tests
     # Standard runners are free for public repositories. Stop if visibility changes.
     if: github.ref == 'refs/heads/main' && github.event.repository.private == false
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # A newer push retests everything it contains. Deploys below are never cancelled.
+    concurrency:
+      group: checks-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.11.1'
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:cloudflare
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Test the local account server
+        run: |
+          export CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "@playwright/test"; process.stdout.write(chromium.executablePath())')"
+          npm run test:browser -- tests/browser/accounts.spec.ts
+
+  browser:
+    name: Test the app with D1 (${{ matrix.shard }}/${{ strategy.job-total }})
+    if: github.ref == 'refs/heads/main' && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: browser-${{ github.ref }}-${{ matrix.shard }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        # Split across runners: parallel browsers on one 4-core runner time out.
+        shard: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.11.1'
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run build:worker
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Test the app with D1
+        env:
+          WARFRAME_TEST_BACKEND: cloudflare
+        run: |
+          export CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "@playwright/test"; process.stdout.write(chromium.executablePath())')"
+          npm run test:browser -- --fully-parallel --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+
+  deploy:
+    needs: [checks, browser]
+    if: github.ref == 'refs/heads/main' && github.event.repository.private == false
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
     environment:
       name: production
       url: https://grakata.com
-    env:
-      CI: 'true'
-      WRANGLER_SEND_METRICS: 'false'
+    # Never interrupt an apply. Terraform's remote lock also covers local deployments.
+    concurrency:
+      group: production
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -41,20 +103,6 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
         run: node scripts/check-azure-auth.mjs
       - run: npm ci
-      - run: npm test
-      - run: npm run test:cloudflare
-      - name: Install Chromium
-        run: npx --no-install playwright install --with-deps chromium
-      - name: Test the local account server
-        run: |
-          export CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "@playwright/test"; process.stdout.write(chromium.executablePath())')"
-          npm run test:browser -- tests/browser/accounts.spec.ts
-      - name: Test the app with D1
-        env:
-          WARFRAME_TEST_BACKEND: cloudflare
-        run: |
-          export CHROMIUM_PATH="$(node --input-type=module -e 'import { chromium } from "@playwright/test"; process.stdout.write(chromium.executablePath())')"
-          npm run test:browser
       - run: npm run build:cloudflare
       - name: Deploy through Terraform and verify production
         env:

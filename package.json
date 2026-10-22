@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
-    "build:cloudflare": "npm run build && tsc -p tsconfig.cloudflare.json && node scripts/build-cloudflare.mjs && npm run build:market-relay",
+    "build:cloudflare": "npm run build && npm run build:worker && npm run build:market-relay",
+    "build:worker": "tsc -p tsconfig.cloudflare.json && node scripts/build-cloudflare.mjs",
     "build:market-relay": "tsc -p tsconfig.azure.json && node scripts/build-market-relay.mjs",
-    "test:cloudflare": "tsc -p tsconfig.cloudflare.json && node scripts/build-cloudflare.mjs && node --experimental-strip-types --test tests/cloudflare/*.test.ts",
+    "test:cloudflare": "npm run build:worker && node --experimental-strip-types --test tests/cloudflare/*.test.ts",
     "infra": "node scripts/terraform.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --experimental-strip-types --test tests/*.test.ts",

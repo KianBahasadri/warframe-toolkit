@@ -1,4 +1,4 @@
-// Check the real CI identity before spending time on browser tests. Tokens stay
+// Check the real CI identity before building or applying. Tokens stay
 // in memory and are never logged, written to files, or passed to subprocesses.
 const env = process.env;
 for (const name of ['ARM_CLIENT_ID', 'ARM_TENANT_ID', 'ARM_SUBSCRIPTION_ID', 'ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN']) {
