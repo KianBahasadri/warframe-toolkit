@@ -1,6 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Hammer } from 'lucide-react';
 import { craftingPlanLabel } from '../lib/crafting';
+import { sameDocumentLink } from '../lib/routes';
 import type { CraftingItem, CraftingPlan } from '../lib/crafting';
 import { CraftingArtwork } from './CraftingArtwork';
 import './CraftingNav.css';
@@ -85,8 +86,8 @@ export function CraftingNav({ plans, active, selected, onHome, onPlan }: {
     clearCloseTimer();
     if (!menu.current?.contains(document.activeElement)) closing.current = window.setTimeout(dismiss, 200);
   }}>
-    <a ref={trigger} href="#crafting" aria-current={active ? 'page' : undefined} aria-keyshortcuts="Alt+5" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined}
-      onClick={event => { event.preventDefault(); dismiss(); onHome(); }} onKeyDown={event => {
+    <a ref={trigger} href="/crafting" aria-current={active ? 'page' : undefined} aria-keyshortcuts="Alt+5" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined}
+      onClick={event => { if (!sameDocumentLink(event)) return; dismiss(); onHome(); }} onKeyDown={event => {
         if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowDown', 'ArrowUp', ' '].includes(event.key)) return;
         event.preventDefault(); clearCloseTimer();
         const end = event.key === 'ArrowUp' ? 'last' : 'first';

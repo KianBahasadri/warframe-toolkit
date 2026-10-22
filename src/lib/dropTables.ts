@@ -180,6 +180,11 @@ export function dropRowsCsv(rows: DropRow[], columns: DropColumnKey[]): string {
 }
 
 /** View links contain display preferences only; live drop data is never saved in them. */
+export function dropViewPath(view: DropView): string {
+  return `/droptables?view=${encodeURIComponent(JSON.stringify(view))}`;
+}
+
+/** Older shared links kept the same settings in the fragment. */
 export function dropViewHash(view: DropView): string {
   return `#droptables?view=${encodeURIComponent(JSON.stringify(view))}`;
 }

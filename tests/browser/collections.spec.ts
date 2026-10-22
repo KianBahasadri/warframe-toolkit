@@ -77,7 +77,7 @@ test('all collections share the toolbar, column menus, responsive layout, and ad
 });
 
 test('relics share numeric filters, sort priorities, hidden-column filters, and isolated column preferences', async ({ page, account }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   const inventory = await account.inventory();
   inventory.relics = [
     { ...createRelic(), name: 'Lith A1', quantity: 0 },
@@ -139,7 +139,7 @@ test('relics share numeric filters, sort priorities, hidden-column filters, and 
 });
 
 test('Warframes browse the full catalog and use shared filters without saving catalog entries', async ({ page, account }) => {
-  await page.goto('/#warframes');
+  await page.goto('/warframes');
   const saved = JSON.stringify(await account.inventory());
   await page.getByRole('button', { name: 'Browse all Warframes', exact: true }).click();
   await page.getByRole('textbox', { name: 'Search Warframes' }).fill('Wisp');

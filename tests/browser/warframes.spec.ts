@@ -13,7 +13,7 @@ async function choose(page: Page, label: string, option: string) {
 }
 
 test('Warframes exposes relevant columns, filters and Necramech types without changing inventory', async ({ page, account }) => {
-  await page.goto('/#warframes');
+  await page.goto('/warframes');
   const before = await account.inventory();
   await expect(page.getByRole('heading', { name: 'No owned Warframes yet' })).toBeVisible();
   await expect(page.getByRole('columnheader')).toHaveText(['Warframe', 'WFM', 'Owned', 'Rank', 'Mastered', 'Upgraded', 'Recommended action', 'Has Prime variant', 'Helminth unlocked']);
@@ -50,7 +50,7 @@ test('Warframes exposes relevant columns, filters and Necramech types without ch
 
 test('Warframe details and editing honor Helminth eligibility, rank limits and legacy planning data', async ({ page, account }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto('/#warframes');
+  await page.goto('/warframes');
   const inventory = await account.inventory();
   const wisp = frame('Wisp', { mastered: true, rank: 30, helminth: 'No', craftingIngredient: true, craftingTarget: 'Legacy target', incarnon: true, incarnonInstalled: 'Yes', source: 'Weapon catalog' });
   inventory.items = [wisp, frame('Wisp Prime'), frame('Excalibur Umbra'), frame('Voidrig')];
@@ -105,7 +105,7 @@ test('Warframe details and editing honor Helminth eligibility, rank limits and l
 });
 
 test('adding Warframes uses the correct catalog, custom fields and collection', async ({ page, account }) => {
-  await page.goto('/#warframes');
+  await page.goto('/warframes');
   await account.inventory();
   await page.getByRole('button', { name: 'Add Warframe', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Add Warframe', exact: true });
@@ -137,7 +137,7 @@ test('adding Warframes uses the correct catalog, custom fields and collection', 
 });
 
 test('Warframes export includes only tracked Warframes and uses relevant CSV headings', async ({ page, account }) => {
-  await page.goto('/#warframes');
+  await page.goto('/warframes');
   const inventory = await account.inventory();
   inventory.items.push(frame('Wisp', { mastered: true, helminth: 'No', notes: 'For Helminth' }), frame('Wisp Prime', { owned: false }), frame('Voidrig'));
   await account.setInventory(inventory);

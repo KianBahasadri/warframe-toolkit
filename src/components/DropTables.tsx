@@ -10,7 +10,7 @@ import { DropDetails } from './DropDetails';
 import { DropInfo } from './DropInfo';
 import { DropResults } from './DropResults';
 import { DropGroupCard, DropModePicker, DropRewardCards, dropBrowseOptions } from './DropBrowser';
-import { compileDropQuery, defaultDropView, DROP_TABLES_URL, dropColumns, dropFilterLabel, dropRowsCsv, dropViewHash, filterDropRows, moveDropSort, readDropView, setDropSort, sortDropRows } from '../lib/dropTables';
+import { compileDropQuery, defaultDropView, DROP_TABLES_URL, dropColumns, dropFilterLabel, dropRowsCsv, dropViewPath, filterDropRows, moveDropSort, readDropView, setDropSort, sortDropRows } from '../lib/dropTables';
 import type { DropBrowseMode, DropColumnKey, DropFilter, DropRow, DropView } from '../lib/dropTables';
 import { groupDropRows } from '../lib/dropExplorer';
 import { useDropData } from '../lib/useDropData';
@@ -25,7 +25,7 @@ const facetKeys: DropColumnKey[] = ['category', 'location', 'mission', 'rotation
 export function DropTables({ actionsRef, savedViews, savedViewsError, canSave, onSaveViews, onSignIn }: { actionsRef: Ref<DropTableActions>; savedViews: SavedDropView[]; savedViewsError: string; canSave: boolean; onSaveViews: (views: SavedDropView[]) => boolean; onSignIn: () => void }) {
   const { data, loading, error } = useDropData();
   const notify = useToasts();
-  const [view, setView] = useState(() => location.hash.includes('?') ? readDropView(location.hash) : sessionView);
+  const [view, setView] = useState(() => location.search.includes('view=') ? readDropView(location.search) : location.hash.includes('view=') ? readDropView(location.hash) : sessionView);
   const [filtersOpen, setFiltersOpen] = useState(false), [help, setHelp] = useState(false), [viewsOpen, setViewsOpen] = useState(false);
   const [info, setInfo] = useState(false);
   const [chanceOpen, setChanceOpen] = useState(false);
@@ -37,13 +37,17 @@ export function DropTables({ actionsRef, savedViews, savedViewsError, canSave, o
   const changeView = (next: DropView) => setView(next);
   useEffect(() => {
     sessionView = view;
-    const timer = window.setTimeout(() => history.replaceState(null, '', dropViewHash(view)), 250);
+    const timer = window.setTimeout(() => {
+      if (location.pathname !== '/droptables' || location.hash.startsWith('#sign-in')) return;
+      const next = dropViewPath(view);
+      if (`${location.pathname}${location.search}` !== next) history.replaceState(history.state, '', next);
+    }, 250);
     return () => window.clearTimeout(timer);
   }, [view]);
   useEffect(() => {
     // A plain tab link resumes the session; a shared view link replaces its settings.
-    const onHash = () => { if (location.hash.startsWith('#droptables?')) setView(readDropView(location.hash)); };
-    window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash);
+    const onPop = () => { if (location.pathname === '/droptables') setView(location.search.includes('view=') ? readDropView(location.search) : sessionView); };
+    window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop);
   }, []);
 
 
@@ -109,7 +113,7 @@ export function DropTables({ actionsRef, savedViews, savedViewsError, canSave, o
           <div className="drop-result-summary" role="status">{data ? <>{groupKey === undefined && <><strong>{groups.length.toLocaleString()}</strong> {option!.noun}<span aria-hidden="true"> · </span></>}<strong>{rows.length.toLocaleString()}</strong> matching entries</> : loading ? 'Loading saved drop tables…' : 'Waiting for an automatic update'}</div>
         </div>
         <div className="drop-results-actions"><label className="drop-sort-label"><span>Sort by</span><Select label="Sort results" value={sortValue} options={[{ value: 'name', label: 'Name A–Z' }, { value: 'chance-desc', label: 'Chance: high to low' }, { value: 'chance-asc', label: 'Chance: low to high' }, ...(sortValue === 'custom' ? [{ value: 'custom', label: 'Custom order' }] : [])]} onChange={value => changeView({ ...view, sorting: value === 'name' ? [] : [{ key: 'chance', direction: value === 'chance-desc' ? -1 : 1 }] })} /></label>
-          <button type="button" className="icon-button" aria-label="Copy view link" title="Copy view link" onClick={async () => { try { await navigator.clipboard.writeText(`${location.origin}${location.pathname}${dropViewHash(view)}`); notify('View link copied. It uses the latest automatic update.', 'success'); } catch { notify('Could not copy the link. Copy this page’s address from your browser.', 'caution'); } }}><Link size={17} /></button><button type="button" className="icon-button" aria-label="Export CSV" title="Export all matching entries as CSV" disabled={!rows.length || view.query !== deferredQuery} onClick={exportCsv}><ArrowDownToLine size={17} /></button>
+          <button type="button" className="icon-button" aria-label="Copy view link" title="Copy view link" onClick={async () => { try { await navigator.clipboard.writeText(`${location.origin}${dropViewPath(view)}`); notify('View link copied. It uses the latest automatic update.', 'success'); } catch { notify('Could not copy the link. Copy this page’s address from your browser.', 'caution'); } }}><Link size={17} /></button><button type="button" className="icon-button" aria-label="Export CSV" title="Export all matching entries as CSV" disabled={!rows.length || view.query !== deferredQuery} onClick={exportCsv}><ArrowDownToLine size={17} /></button>
         </div>
       </div>
       <div className="drop-results" role="region" aria-label="Drop results" aria-busy={loading || view.query !== deferredQuery}>

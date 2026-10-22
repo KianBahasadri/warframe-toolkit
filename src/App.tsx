@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Moon, Search, SlidersHorizontal, Sun, Table2, UserRound } from 'lucide-react';
 import { InventoryTable } from './components/InventoryTable';
 import type { CollectionActions } from './components/CollectionTable';
@@ -25,8 +25,9 @@ import { mergeRelicObservations } from './lib/relicMatching';
 import weaponsIcon from './assets/warframe/weapons.png';
 import warframesIcon from './assets/warframe/warframes.png';
 import relicsIcon from './assets/warframe/relics.png';
-
-type Page = 'weapons' | 'warframes' | 'relics' | 'droptables' | 'crafting' | 'modder' | 'import';
+import { applyDocumentMeta } from './lib/documentMeta';
+import { pageFromPath, sameDocumentLink } from './lib/routes';
+import type { Page } from './lib/seo';
 const Relics = lazy(() => import('./components/Relics').then(module => ({ default: module.Relics })));
 const Modder = lazy(() => import('./components/Modder').then(module => ({ default: module.Modder })));
 const Crafting = lazy(() => import('./components/Crafting').then(module => ({ default: module.Crafting })));
@@ -34,18 +35,13 @@ const Crafting = lazy(() => import('./components/Crafting').then(module => ({ de
 const pageNames: Record<Page, string> = { weapons: 'Weapons', warframes: 'Warframes', relics: 'Relics', droptables: 'Drop Tables', crafting: 'Crafting', modder: 'Modding Calculator', import: 'Screenshot import' };
 const collectionTabs = [{ key: 'weapons', icon: weaponsIcon }, { key: 'warframes', icon: warframesIcon }, { key: 'relics', icon: relicsIcon }, { key: 'droptables', icon: '' }, { key: 'crafting', icon: '' }, { key: 'modder', icon: '' }] as const;
 
-function pageFromHash(): Page {
-  const value = location.hash.slice(1).split('?')[0];
-  return Object.keys(pageNames).includes(value) ? value as Page : 'weapons';
-}
-
 export default function App() {
   const account = useAccount();
   const inventory = account.profile.inventory;
   const commit = (next: Inventory, saveDelay?: number) => { const saved = account.commitInventory(next, saveDelay); if (saved) inventoryRef.current = next; return saved; };
   const [accountOpen, setAccountOpen] = useState<'login' | 'register' | null>(null);
   const inventoryRef = useRef(inventory); inventoryRef.current = inventory;
-  const [page, setPage] = useState<Page>(pageFromHash);
+  const [page, setPage] = useState<Page>(() => pageFromPath(location.pathname) ?? 'weapons');
   const [craftingPlan, setCraftingPlan] = useState('');
   const [importRelics, setImportRelics] = useState(false);
   const equipmentLabel = page === 'warframes' ? 'Warframe' : page === 'relics' ? 'relic' : 'weapon';
@@ -60,15 +56,15 @@ export default function App() {
   const collectionActions = useRef<CollectionActions>(null);
 
   useEffect(() => {
-    const hashChange = () => {
-      const destination = pageFromHash();
+    const sync = () => {
+      const destination = pageFromPath(location.pathname) ?? 'weapons';
       if (destination === 'crafting') setCraftingPlan('');
       setPage(destination);
     };
-    hashChange();
-    window.addEventListener('hashchange', hashChange);
-    return () => window.removeEventListener('hashchange', hashChange);
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
   }, []);
+  useLayoutEffect(() => { applyDocumentMeta(page); }, [page]);
   useEffect(() => { setEditing(null); setCraftingPlan(''); }, [account.user?.id]);
   useEffect(() => {
     for (const [key, change] of pendingNotes.current) if (change.userId !== account.user?.id) pendingNotes.current.delete(key);
@@ -86,11 +82,13 @@ export default function App() {
   useEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem('arsenal.theme', theme); } catch { /* Inventory saving reports its own failures. */ } }, [theme]);
   const navigate = (destination: Page) => {
     if (destination === 'crafting') setCraftingPlan('');
-    setPage(destination); location.hash = destination;
+    const url = `/${destination}`;
+    if (`${location.pathname}${location.search}${location.hash}` !== url) history.pushState(null, '', url);
+    setPage(destination);
   };
   const openCraftingPlan = (id: string) => {
-    // Set both together; a hashchange would otherwise return Crafting to its picker.
-    if (location.hash !== '#crafting') history.pushState(null, '', '#crafting');
+    // Set both together; a history event would otherwise return Crafting to its picker.
+    if (`${location.pathname}${location.search}${location.hash}` !== '/crafting') history.pushState(null, '', '/crafting');
     setCraftingPlan(id); setPage('crafting');
   };
   const openImport = () => { setImportRelics(page === 'relics'); navigate('import'); };
@@ -122,7 +120,7 @@ export default function App() {
 
   const relics = inventory.relics ?? [];
   const nav = <nav className="collection-nav" aria-label="Main navigation"><ul>
-    {collectionTabs.map(({ key, icon }, index) => key === 'crafting' ? <CraftingNav key={`crafting-${account.user?.id ?? 'guest'}`} plans={account.profile.craftingPlans} active={page === 'crafting'} selected={craftingPlan} onHome={() => navigate('crafting')} onPlan={openCraftingPlan} /> : <li key={key} className={key === 'droptables' ? 'nav-group-start' : undefined}><a href={`#${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { event.preventDefault(); navigate(key); }}><span className="nav-icon" aria-hidden="true" style={!icon ? { background: 'none' } : { maskImage: `url(${icon})` }}>{key === 'droptables' && <Table2 size={20} />}{key === 'modder' && <SlidersHorizontal size={20} />}</span><span>{pageNames[key]}</span></a></li>)}
+    {collectionTabs.map(({ key, icon }, index) => key === 'crafting' ? <CraftingNav key={`crafting-${account.user?.id ?? 'guest'}`} plans={account.profile.craftingPlans} active={page === 'crafting'} selected={craftingPlan} onHome={() => navigate('crafting')} onPlan={openCraftingPlan} /> : <li key={key} className={key === 'droptables' ? 'nav-group-start' : undefined}><a href={`/${key}`} aria-current={page === key ? 'page' : undefined} aria-keyshortcuts={`Alt+${index + 1}`} title={`${pageNames[key]} (Alt+${index + 1})`} onClick={event => { if (sameDocumentLink(event)) navigate(key); }}><span className="nav-icon" aria-hidden="true" style={!icon ? { background: 'none' } : { maskImage: `url(${icon})` }}>{key === 'droptables' && <Table2 size={20} />}{key === 'modder' && <SlidersHorizontal size={20} />}</span><span>{pageNames[key]}</span></a></li>)}
     </ul></nav>;
   const visibleItems = useMemo(() => equipmentRows(inventory.items, catalog, true).filter(item => page === 'warframes' ? item.slot === 'Warframe' : item.slot !== 'Warframe'), [inventory.items, page]);
   const isInventory = page === 'weapons' || page === 'warframes';

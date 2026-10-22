@@ -40,7 +40,7 @@ test.beforeEach(async ({ account }) => {
 
 test('WFM estimates have rich tooltips; the explorer shares exact data, keyboard inspection and CSV without changing inventory', async ({ page, account }) => {
   const requests = await mockMarket(page);
-  await page.goto('/#warframes');
+  await page.goto('/warframes');
   const before = await account.inventory();
   const price = page.getByRole('button', { name: /^WFM: Ash Prime:/ });
   await expect(price).toHaveText('14 platinumset');
@@ -96,7 +96,7 @@ test('WFM estimates have rich tooltips; the explorer shares exact data, keyboard
 
 test('relic refinements share requests but keep distinct prices and history; market selection is separate from inventory', async ({ page, account }) => {
   const requests = await mockMarket(page);
-  await page.goto('/#relics');
+  await page.goto('/relics');
   const before = await account.inventory();
   await expect(page.getByRole('button', { name: /^WFM: Lith A13 Intact:/ })).toHaveText('14 platinum');
   const radiant = page.getByRole('button', { name: /^WFM: Lith A13 Radiant:/ });
@@ -226,7 +226,7 @@ test('WFM sorting resolves offscreen prices and supports fractional filters with
 });
 
 test('reward prices open above relic details and restore focus without closing the underlying dialog', async ({ page }) => {
-  await mockMarket(page); await page.goto('/#relics');
+  await mockMarket(page); await page.goto('/relics');
   await page.getByRole('button', { name: 'Edit Lith A13 Intact', exact: true }).click();
   const details = page.getByRole('dialog');
   const price = details.getByRole('button', { name: /^WFM: Paris Prime Lower Limb:/ });
@@ -251,7 +251,7 @@ test.describe('touch price history', () => {
   test.use({ hasTouch: true });
   test('tabs follow a swipe, keep previews inert, and leave chart and table gestures alone', async ({ page, context }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await mockMarket(page); await page.goto('/#relics');
+    await mockMarket(page); await page.goto('/relics');
     await expect(page.locator('.inventory-table .equipment-label')).toHaveCount(2);
     const price = page.getByRole('button', { name: /^WFM: Lith A13 Radiant(?::|$)/ });
     await price.scrollIntoViewIfNeeded(); await expect(price).toHaveText('140 platinum'); await price.tap();

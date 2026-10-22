@@ -5,6 +5,7 @@ import { frames } from '../lib/modder';
 import { arsenalSlots } from '../lib/modderModel';
 import type { ArsenalBuild, ArsenalSlot } from '../lib/modderModel';
 import type { CatalogItem } from '../lib/model';
+import { go, sameDocumentLink } from '../lib/routes';
 import { Dialog } from './Dialog';
 import { GameIcon } from './ModderVisuals';
 import type { GameIconName } from './ModderVisuals';
@@ -64,6 +65,6 @@ export function ArsenalOverview({ build, slot, item, name, stats, actions, disab
         <div className="arsenal-overview-stats"><AbilityIcons item={item} onOpen={onAbilities} /><div className="modder-stat-panel">{stats}</div></div>
       </aside>
     </div>
-    <div className="modder-game-footer arsenal-overview-footer">{actions}<a className="modder-game-button" href="#weapons">Exit</a></div>
+    <div className="modder-game-footer arsenal-overview-footer">{actions}<a className="modder-game-button" href="/weapons" onClick={event => { if (sameDocumentLink(event)) go('/weapons'); }}>Exit</a></div>
   </div>;
 }

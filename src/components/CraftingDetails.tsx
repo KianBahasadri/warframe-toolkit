@@ -8,7 +8,8 @@ import { miningInfo, MINING_GUIDE_URL } from '../data/mining';
 import { craftingDuration, craftingSources } from '../lib/crafting';
 import type { CraftingItem, CraftingNode } from '../lib/crafting';
 import { useDropData } from '../lib/useDropData';
-import { defaultDropView, DROP_TABLES_URL, dropViewHash, formatChance } from '../lib/dropTables';
+import { defaultDropView, DROP_TABLES_URL, dropViewPath, formatChance } from '../lib/dropTables';
+import { go } from '../lib/routes';
 
 const number = (value: number) => value.toLocaleString();
 
@@ -30,7 +31,7 @@ export function CraftingDetails({ item, node, onRecipe, onClose }: { item: Craft
     const view = defaultDropView();
     view.filters.reward = { kind: 'values', values: [...new Set(sources.length ? sources.map(row => row.reward) : [item.name, ...(recipe ? [recipe.name] : [])])] };
     view.browse = { mode: 'item' };
-    onClose(); location.hash = dropViewHash(view);
+    onClose(); go(dropViewPath(view));
   };
   return <Dialog title={item.name} onClose={onClose} className="craft-detail">
     <div className="craft-detail-intro"><CraftingArtwork item={item} /><div>{description && <p className="small muted">{description}</p>}{item.location && <p className="craft-location"><MapPin size={16} /><span>{item.location}</span></p>}{node && <span className="badge">{number(node.quantity)} needed</span>}</div></div>

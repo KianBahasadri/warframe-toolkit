@@ -59,7 +59,7 @@ test('equipment and relic cells show dense hover details', async ({ page, accoun
   await expect(tooltip).not.toContainText('Critical chance');
   await page.mouse.move(0, 0);
 
-  await page.goto('/#warframes');
+  await page.goto('/warframes');
   await page.getByLabel('Search Warframes').fill('Rhino');
   const rhino = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Rhino', exact: true }) });
   await rhino.getByRole('button', { name: 'Edit Rhino', exact: true }).hover();
@@ -68,7 +68,7 @@ test('equipment and relic cells show dense hover details', async ({ page, accoun
   await expect(tooltip).toContainText('Iron Skin');
   await page.mouse.move(0, 0);
 
-  await page.goto('/#relics');
+  await page.goto('/relics');
   await page.getByLabel('Search relics').fill('Lith A1');
   const relic = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Lith A1 Intact', exact: true }) });
   await relic.getByRole('button', { name: 'Edit Lith A1 Intact', exact: true }).hover();

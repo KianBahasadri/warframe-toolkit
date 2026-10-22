@@ -48,7 +48,7 @@ async function review(page: Page, stacks: typeof synthetic) {
 }
 
 test('relic screenshot review merges overlaps, keeps edits and imports only selected quantities', async ({ page, account }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   const original = await account.inventory();
   original.relics = [{ ...createRelic(), name: 'Axi A21', quantity: 9, notes: 'Keep this plan' }, { ...createRelic(), name: 'Neo N1', quantity: 8, notes: 'Absent from capture' }];
   await account.setInventory(original); await page.reload();
@@ -70,7 +70,7 @@ test('relic screenshot review merges overlaps, keeps edits and imports only sele
   await expect(page.getByRole('button', { name: 'Import 5 stacks', exact: true })).toBeDisabled();
   await quantity.fill('7');
   await page.getByRole('button', { name: 'Import 5 stacks', exact: true }).click();
-  await expect(page).toHaveURL(/#relics$/);
+  await expect(page).toHaveURL(/\/relics$/);
   const saved = await account.inventory();
   expect(saved.items).toEqual(original.items);
   expect(saved.relics).toHaveLength(6);
@@ -84,7 +84,7 @@ test('relic screenshot review merges overlaps, keeps edits and imports only sele
 
 test('relic screenshot instructions, type switching and review fit narrow screens', async ({ page, account }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto('/#import');
+  await page.goto('/import');
   const before = await account.inventory();
   await page.getByRole('group', { name: 'Screenshot type' }).getByRole('button', { name: 'Relics', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Inventory', exact: true })).toHaveCount(0);
@@ -160,10 +160,10 @@ test.describe('guest relic screenshot imports', () => {
       if (request.url().includes('/api/account/') && request.method() !== 'GET') writes.push(request.url());
       if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) external.push(request.url());
     });
-    await page.goto('/#relics');
+    await page.goto('/relics');
     await expect(page.getByRole('button', { name: 'Import screenshots', exact: true })).toBeVisible();
     await page.keyboard.press('Alt+i');
-    await expect(page).toHaveURL(/#import$/);
+    await expect(page).toHaveURL(/\/import$/);
     const image = await screenshot(page);
     await page.getByRole('region', { name: 'Relics', exact: true }).getByRole('button', { name: /Drag and drop/ }).focus();
     await page.evaluate(base64 => {
@@ -172,7 +172,7 @@ test.describe('guest relic screenshot imports', () => {
     }, image.buffer.toString('base64'));
     await review(page, synthetic);
     await page.getByRole('button', { name: 'Import 6 stacks', exact: true }).click();
-    await expect(page).toHaveURL(/#relics$/);
+    await expect(page).toHaveURL(/\/relics$/);
     await page.getByLabel('Search relics', { exact: true }).fill('Axi A21');
     await expect(page.getByLabel('Axi A21 Intact quantity', { exact: true })).toHaveText('3');
     expect(writes).toEqual([]); expect(external).toEqual([]);
@@ -181,7 +181,7 @@ test.describe('guest relic screenshot imports', () => {
 });
 
 test('game screenshot reads every relic name, refinement and count before a preserving merge', async ({ page, account }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   const original = await account.inventory();
   original.relics = [{ ...createRelic(), name: 'Axi C12', quantity: 9, notes: 'Keep for squad' }, { ...createRelic(), name: 'Neo N1', quantity: 7, notes: 'Off screen' }];
   await account.setInventory(original); await page.reload();
@@ -220,7 +220,7 @@ test('game screenshot reads every relic name, refinement and count before a pres
 });
 
 test('a grid containing only singles reads quantities and refinements without badges, including white text', async ({ page }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   const stacks = synthetic.map(stack => ({ ...stack, quantity: 1 }));
   await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page, stacks, '#e4e4e4'));
@@ -235,7 +235,7 @@ for (const color of ['#e0c878', '#e4e4e4']) for (const quantities of [
   [20, 27, 70, 77, 111, 123],
   [202, 808, 907, 1000, 12345, 999999],
 ]) test(`quantity badges read every digit and longer counts: ${quantities.join(', ')} in ${color}`, async ({ page }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   const stacks = synthetic.map((stack, index) => ({ ...stack, quantity: quantities[index] }));
   await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page, stacks, color));
@@ -247,7 +247,7 @@ for (const color of ['#e0c878', '#e4e4e4']) for (const quantities of [
 for (const color of ['#e0c878', '#e4e4e4']) test(`similar catalog codes stay distinct in ${color} text`, async ({ page }) => {
   const names = ['Lith S18', 'Lith S19', 'Meso C8', 'Meso D8', 'Meso K5', 'Meso K9'];
   const stacks = synthetic.map((stack, index) => ({ ...stack, name: names[index] }));
-  await page.goto('/#relics');
+  await page.goto('/relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page, stacks, color));
   await review(page, stacks);
@@ -256,7 +256,7 @@ for (const color of ['#e0c878', '#e4e4e4']) test(`similar catalog codes stay dis
 });
 
 test('a second full game capture separates Radiant labels despite artwork in the OCR boxes', async ({ page }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   // Keep the full capture: cropping it changes whole-screen OCR boxes and
   // hides the regression that merged all six name/refinement pairs.
@@ -268,7 +268,7 @@ test('a second full game capture separates Radiant labels despite artwork in the
 });
 
 test('unreadable badges and invalid counts require quantity review', async ({ page }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   await page.getByLabel('Choose relics screenshots', { exact: true }).setInputFiles(await screenshot(page, synthetic, '#e0c878', ['z7', 'x?', 'x0', 'x1000000', 'x?', 'z7']));
   await expect(page.getByRole('button', { name: 'Cancel reading', exact: true })).toHaveCount(0, { timeout: 60_000 });
@@ -285,7 +285,7 @@ for (const [capture, filename, expected] of [
   ['third', 'tests/fixtures/relic-capture-third.png', thirdCapture],
   ['Lith and Meso', 'tests/fixtures/relic-meso-screen.png', mesoCapture],
 ] as const) for (const resized of [false, true]) test(`the ${capture} full game capture reads every stack without review warnings: ${resized ? '75% JPEG' : 'original'}`, async ({ page }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   const input = page.getByLabel('Choose relics screenshots', { exact: true });
   if (resized) {
@@ -306,7 +306,7 @@ for (const [capture, filename, expected] of [
 });
 
 for (const change of ['resized JPEG', 'cropped quantities', 'cropped refinements'] as const) test(`game screenshot handles ${change}`, async ({ page }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   await page.getByRole('button', { name: 'Import screenshots', exact: true }).click();
   const source = readFileSync('tests/fixtures/relic-grid.png').toString('base64');
   const data = await page.evaluate(async ({ source, change }) => {

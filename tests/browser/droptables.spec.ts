@@ -15,7 +15,7 @@ const data = parseDropTables(fixture.replace('</body>', extra + '</body>'), '202
 async function mockDrops(page: Page) { await page.route('**/api/droptables', route => route.fulfill({ json: data })); }
 async function browse(page: Page, label: string) { await page.getByRole('button', { name: `Browse by ${label}`, exact: true }).click(); }
 async function openDrops(page: Page, mode = 'item') {
-  await mockDrops(page); await page.goto('/#droptables');
+  await mockDrops(page); await page.goto('/droptables');
   await expect(page.getByRole('region', { name: 'Drop Tables', exact: true })).toHaveAttribute('aria-busy', 'false');
   await browse(page, mode);
 }
@@ -88,7 +88,7 @@ test('uses cached data, updates automatically, keeps the successful fetch time a
 });
 
 test('title info opens a keyboard-accessible guide with source dates and a timezone, including on narrow screens', async ({ page }) => {
-  await mockDrops(page); await page.goto('/#droptables');
+  await mockDrops(page); await page.goto('/droptables');
   await expect(page.getByRole('region', { name: 'Drop Tables', exact: true })).toHaveAttribute('aria-busy', 'false');
   const info = page.getByRole('button', { name: 'About Drop Tables', exact: true });
   await info.focus(); await page.keyboard.press('Enter');
@@ -260,7 +260,7 @@ test('all results are available without pagination, and exports, saved views and
   await page.getByRole('button', { name: 'Copy view link', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Notifications' })).toContainText('View link copied. It uses the latest automatic update.');
   const link = await page.evaluate(() => navigator.clipboard.readText());
-  expect(link).toContain('#droptables?view=');
+  expect(link).toContain('/droptables?view=');
   await page.goto(link); await expect(page.locator('.drop-result-summary')).toContainText('65 matching entries');
   await expect(page.locator('.drop-result-card')).toHaveCount(65);
   await expect(page.locator('.drop-result-card').first()).toContainText('Test Reward 65');
@@ -274,7 +274,7 @@ test('load failure, malformed saved views, narrow screens and inert source marku
   await page.clock.install();
   await page.route('**/api/droptables', route => route.fulfill({ status: 502, json: { error: 'Upstream timeout' } }));
   await page.addInitScript(() => localStorage.setItem('warframe-toolkit.drop-views.v1', '{broken'));
-  await page.goto('/#droptables');
+  await page.goto('/droptables');
   await expect(page.getByRole('alert')).toContainText('Upstream timeout');
   await expect(page.getByRole('region', { name: 'Drop Tables', exact: true })).toHaveAttribute('aria-busy', 'false');
   await browse(page, 'item');
@@ -311,7 +311,7 @@ test('first-run cache preparation recovers automatically without a fetch or retr
   await page.clock.install();
   let ready = false;
   await page.route('**/api/droptables', route => ready ? route.fulfill({ json: data }) : route.fulfill({ status: 503, json: { refreshing: true, error: 'Waiting for the first automatic update.' } }));
-  await page.goto('/#droptables');
+  await page.goto('/droptables');
   await page.getByRole('button', { name: 'About Drop Tables', exact: true }).click();
   await expect(page.getByRole('dialog').locator('.drop-info-facts')).toContainText('Last fetchedNot yet');
   await page.keyboard.press('Escape');
@@ -333,7 +333,7 @@ test('legacy shared and saved views still open their results, and navigation sho
   await expect(page.locator('.drop-group-card')).toHaveCount(65);
   await expect(page.getByRole('button', { name: 'Browse by item', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('heading', { name: 'Drop Tables', exact: true }).click();
-  await page.keyboard.press('Alt+1'); await expect(page).toHaveURL(/#weapons$/);
+  await page.keyboard.press('Alt+1'); await expect(page).toHaveURL(/\/weapons$/);
   await page.keyboard.press('Alt+4'); await expect(page.getByRole('region', { name: 'Drop Tables', exact: true })).toBeVisible();
   await expect(page.locator('.drop-group-card')).toHaveCount(65);
   await page.getByRole('button', { name: 'Saved views', exact: true }).click();
@@ -347,7 +347,7 @@ test('large lists append while scrolling, search all data, and keep the final re
   const rows = Array.from({ length: 700 }, (_, index) => ({ ...data.rows[0], id: `scroll-${index}`, reward: `Scroll Reward ${String(index).padStart(4, '0')}`, source: 'Scroll Source', chance: (index + 1) / 10 }));
   let requests = 0;
   await page.route('**/api/droptables', route => { requests++; return route.fulfill({ json: { ...data, rows } }); });
-  await page.goto('/#droptables'); await browse(page, 'item');
+  await page.goto('/droptables'); await browse(page, 'item');
   const groups = page.locator('.drop-group-card');
   await expect(page.locator('.drop-result-summary')).toContainText('700 matching entries');
   const initialCount = await groups.count();
@@ -394,7 +394,7 @@ test('card artwork loads locally, follows the selected subject and fails without
   page.on('request', request => { if (request.resourceType() === 'image' && !request.url().startsWith('http://127.0.0.1:5173/')) externalImages.push(request.url()); });
   await mockDrops(page);
   await page.route(`**${artwork.items['pressure point'].src}`, route => route.abort());
-  await page.goto('/#droptables');
+  await page.goto('/droptables');
   await expect(page.locator('.drop-mode-button img')).toHaveCount(6);
   await expect.poll(() => page.locator('.drop-mode-button img').evaluateAll(images => images.every(image => (image as HTMLImageElement).naturalWidth > 0))).toBe(true);
   await browse(page, 'item');

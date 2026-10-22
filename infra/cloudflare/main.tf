@@ -85,8 +85,9 @@ resource "cloudflare_workers_script" "app" {
   assets = {
     directory = "${local.root}/dist"
     config = {
-      not_found_handling = "single-page-application"
-      run_worker_first   = ["/api/*"]
+      html_handling       = "none"
+      not_found_handling = "none"
+      run_worker_first   = ["/api/*", "/", "/index.html", "/weapons", "/weapons/", "/warframes", "/warframes/", "/relics", "/relics/", "/droptables", "/droptables/", "/crafting", "/crafting/", "/modder", "/modder/", "/import", "/import/"]
       headers            = <<-HEADERS
         /*
           X-Content-Type-Options: nosniff

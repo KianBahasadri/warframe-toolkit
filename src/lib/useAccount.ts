@@ -81,7 +81,8 @@ export function useAccount() {
       if (hash !== '#sign-in' && !hash.startsWith('#sign-in?')) return false;
       // Fragments never reach the server. Remove credentials from this history entry,
       // even when sign-in fails; the user's saved bookmark remains reusable.
-      history.replaceState(history.state, '', `${location.pathname}${location.search}#weapons`);
+      history.replaceState(history.state, '', '/weapons');
+      window.dispatchEvent(new PopStateEvent('popstate'));
       authVersion.current++;
       try {
         const link = readAccessKeyLink(hash)!;

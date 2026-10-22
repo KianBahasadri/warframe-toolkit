@@ -8,7 +8,7 @@ const drops: DropDataset = { rows: [row('Rhino Neuroptics Blueprint', 'Jackal', 
 const region = (page: Page) => page.getByRole('region', { name: 'Crafting', exact: true });
 async function open(page: Page) {
   await page.route('**/api/droptables', route => route.fulfill({ json: drops }));
-  await page.goto('/#crafting');
+  await page.goto('/crafting');
   await expect(page.getByRole('button', { name: 'Craft Rhino', exact: true })).toBeEnabled();
 }
 async function select(page: Page, label: string, option: string) {
@@ -154,7 +154,7 @@ test('quantity scales every material immediately and inactive plans close indepe
 test('legacy completed root progress can be reopened without the removed checkbox', async ({ page, account }) => {
   const profile = (await account.session()).profile;
   await account.setProfile({ ...profile, craftingPlans: [{ id: 'legacy-complete', itemId: '/Lotus/Powersuits/Rhino/Rhino', quantity: 1, choices: {}, completed: ['root'] }] });
-  await page.goto('/#crafting'); await page.getByRole('tab', { name: 'Rhino', exact: true }).click();
+  await page.goto('/crafting'); await page.getByRole('tab', { name: 'Rhino', exact: true }).click();
   const slider = page.getByRole('slider', { name: 'Completed quantity for Rhino', exact: true });
   await expect(slider).toHaveValue('1'); await slider.focus(); await slider.press('Home');
   await expect(page.locator('.craft-branch[data-item="Rhino Neuroptics"]')).toBeVisible();
@@ -353,7 +353,7 @@ test('source details distinguish blueprints, exact variants, world locations and
   await expect(ferrite.getByRole('region', { name: 'Mining info' })).toHaveCount(0);
   await expect(ferrite).not.toContainText('Unrelated resource');
   await ferrite.getByRole('button', { name: 'Open Drop Tables' }).click();
-  await expect(page).toHaveURL(/#droptables\?view=/);
+  await expect(page).toHaveURL(/\/droptables\?view=/);
   await expect(page.locator('.drop-group-title')).toHaveText(['500X Ferrite']);
   await page.getByRole('link', { name: 'Crafting', exact: true }).click();
   await page.getByRole('tab', { name: 'Rhino', exact: true }).click();
@@ -419,7 +419,7 @@ test('failed account writes keep crafting edits until retry succeeds', async ({ 
 test('a removed recipe stays explicit until the user selects an available one', async ({ page, account }) => {
   const session = await account.session();
   await account.setProfile({ ...session.profile, craftingPlans: [{ id: 'old-plan', itemId: '/Lotus/Powersuits/Rhino/Rhino', quantity: 1, completed: [], choices: { root: '/removed-recipe' } }] });
-  await page.goto('/#crafting');
+  await page.goto('/crafting');
   await page.getByRole('tab', { name: 'Rhino', exact: true }).click();
   await expect(region(page)).toContainText('This recipe is no longer available');
   expect((await account.profile()).craftingPlans[0].choices.root).toBe('/removed-recipe');

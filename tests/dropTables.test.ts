@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parseDropTables } from '../src/lib/dropTableParser.ts';
-import { attemptsForChance, compileDropQuery, defaultDropView, dropRowsCsv, dropViewHash, filterDropRows, formatChance, isDropView, moveDropSort, readDropView, setDropSort, sortDropRows, successChance } from '../src/lib/dropTables.ts';
+import { attemptsForChance, compileDropQuery, defaultDropView, dropRowsCsv, dropViewHash, dropViewPath, filterDropRows, formatChance, isDropView, moveDropSort, readDropView, setDropSort, sortDropRows, successChance } from '../src/lib/dropTables.ts';
 import { fetchLiveDropTables } from '../server/dropTables.ts';
 
 const html = readFileSync(new URL('./fixtures/drop-tables.html', import.meta.url), 'utf8');
@@ -74,6 +74,8 @@ test('sorting honors independent priorities, stable ties and unknown values last
 test('view links validate settings and roundtrip filters, hidden sorts and column order without storing drops', () => {
   const view = defaultDropView(); view.query = 'reward:"nova prime"'; view.columns = ['reward', 'chance']; view.sorting = [{ key: 'source', direction: -1 }]; view.filters.refinement = { kind: 'values', values: ['Radiant', 'Intact'] }; view.pageSize = 100;
   assert.deepEqual(readDropView(dropViewHash(view)), view);
+  assert.deepEqual(readDropView(dropViewPath(view)), view);
+  assert.match(dropViewPath(view), /^\/droptables\?view=/);
   assert.deepEqual(readDropView('#droptables?view=%7Bbroken'), defaultDropView());
   const unsafe = readDropView('#droptables?view=' + encodeURIComponent(JSON.stringify({ columns: ['oops', 'chance', 'chance'], sorting: [{ key: 'reward', direction: 7 }], pageSize: 100000, filters: { chance: { kind: 'range', min: 'NaN', max: '' } } })));
   assert.deepEqual(unsafe.columns, ['reward', 'chance']); assert.equal(unsafe.pageSize, undefined); assert.deepEqual(unsafe.filters, {}); assert.deepEqual(unsafe.sorting, []);

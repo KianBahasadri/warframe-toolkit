@@ -10,19 +10,19 @@ const labels = ['Rhino × 2 · Plan 1', 'Forma', 'Pyrotic Alloy × 25', 'Rhino �
 test('hovering Crafting opens saved plans without stealing focus and selects plans across pages', async ({ page, account }) => {
   const profile = (await account.session()).profile;
   await account.setProfile({ ...profile, craftingPlans: plans });
-  await page.goto('/#weapons');
+  await page.goto('/weapons');
   await expect(page.getByRole('status', { name: 'Save status', exact: true })).toHaveText('Saved');
   const trigger = page.getByRole('link', { name: 'Crafting', exact: true });
   const menu = page.getByRole('menu', { name: 'Open crafting plans' });
   const search = page.getByLabel('Search weapons', { exact: true });
   await search.focus(); await trigger.hover();
   await expect(menu.getByRole('menuitem')).toHaveText(labels);
-  await expect(search).toBeFocused(); await expect(page).toHaveURL(/#weapons$/);
+  await expect(search).toBeFocused(); await expect(page).toHaveURL(/\/weapons$/);
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   await menu.getByRole('menuitem', { name: labels[0], exact: true }).hover();
   await expect(menu).toBeVisible();
   await menu.getByRole('menuitem', { name: labels[0], exact: true }).click();
-  await expect(menu).toHaveCount(0); await expect(page).toHaveURL(/#crafting$/);
+  await expect(menu).toHaveCount(0); await expect(page).toHaveURL(/\/crafting$/);
   await expect(page.getByRole('tabpanel', { name: labels[0], exact: true })).toBeVisible();
   await expect(page.getByRole('slider', { name: 'Completed quantity for Rhino', exact: true })).toHaveValue('1');
   await trigger.hover();
@@ -34,12 +34,12 @@ test('hovering Crafting opens saved plans without stealing focus and selects pla
   await expect(menu).toHaveCount(0);
   await expect(page.getByRole('tab')).toHaveText(labels);
   expect((await account.profile()).craftingPlans).toEqual(plans);
-  await page.goBack(); await expect(page).toHaveURL(/#weapons$/);
+  await page.goBack(); await expect(page).toHaveURL(/\/weapons$/);
 });
 
 test('plan dropdown supports keyboard traversal, escape, tab, pointer exit, and outside dismissal', async ({ page, account }) => {
   await account.setProfile({ ...(await account.session()).profile, craftingPlans: plans });
-  await page.goto('/#crafting');
+  await page.goto('/crafting');
   await expect(page.getByRole('tab')).toHaveCount(plans.length);
   const trigger = page.getByRole('link', { name: 'Crafting', exact: true });
   const menu = page.getByRole('menu', { name: 'Open crafting plans' });
@@ -71,7 +71,7 @@ test('long plan menus scroll within the viewport and retain keyboard focus in bo
   const many = Array.from({ length: 50 }, (_, index) => plan(`plan-${index}`, 'Rhino', index + 1));
   many[49].itemId = '/removed-item';
   await account.setProfile({ ...(await account.session()).profile, craftingPlans: many });
-  await page.goto('/#weapons');
+  await page.goto('/weapons');
   await expect(page.getByRole('status', { name: 'Save status', exact: true })).toHaveText('Saved');
   const trigger = page.getByRole('link', { name: 'Crafting', exact: true });
   const menu = page.getByRole('menu', { name: 'Open crafting plans' });
@@ -93,7 +93,7 @@ test('long plan menus scroll within the viewport and retain keyboard focus in bo
 });
 
 test('the plan list updates after creation and removal and clears after sign-out', async ({ page, account }) => {
-  await page.goto('/#crafting');
+  await page.goto('/crafting');
   const trigger = page.getByRole('link', { name: 'Crafting', exact: true });
   const menu = page.getByRole('menu', { name: 'Open crafting plans' });
   await trigger.hover(); await expect(menu).toHaveText('No open plans.');

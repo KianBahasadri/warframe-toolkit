@@ -1,5 +1,6 @@
 import type { AccountGateway } from './accounts.ts';
 import type { DropTables } from './drop-tables.ts';
+import { routeDocument } from './html.ts';
 export { AccountGateway } from './accounts.ts';
 export { DropTables } from './drop-tables.ts';
 
@@ -21,7 +22,7 @@ export default {
     if (path.startsWith('/api/wfm/')) return env.DROPS.getByName('wfm').fetch(request);
     if (path === '/api/health' && request.method === 'GET') return Response.json({ status: 'ok', release: env.RELEASE }, { headers: { 'Cache-Control': 'no-store' } });
     if (path.startsWith('/api/')) return Response.json({ error: 'Endpoint not found.' }, { status: 404 });
-    return env.ASSETS.fetch(request);
+    return await routeDocument(request, env) ?? env.ASSETS.fetch(request);
   },
   async scheduled(_event: ScheduledController, env: Env) {
     await env.DROPS.getByName('official-pc').refresh();

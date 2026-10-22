@@ -153,7 +153,7 @@ test.describe('guest accounts', () => {
       await pause;
       await route.fulfill({ response });
     });
-    await page.goto('/#droptables');
+    await page.goto('/droptables');
     await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Create account', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Saved views', exact: true }).click();
@@ -357,7 +357,7 @@ test.describe('generated keys and personal bookmarks', () => {
       await page.goto(link);
       await expect(page.getByRole('button', { name: 'Account: LinkedTenno#123', exact: true })).toBeVisible();
       expect((await account.inventory()).items[0]).toMatchObject({ name: 'Boltor', owned: true });
-      expect(page.url()).toMatch(/#weapons$/);
+      expect(page.url()).toMatch(/\/weapons$/);
       expect(await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage))).not.toContain(accessKey);
     }
     expect(logins).toHaveLength(2);
@@ -370,7 +370,7 @@ test.describe('generated keys and personal bookmarks', () => {
     await page.goto('/#sign-in?username=Tenno&key=incomplete');
     await expect(page.getByRole('alert')).toContainText('incomplete or invalid');
     await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
-    expect(page.url()).toMatch(/#weapons$/);
+    expect(page.url()).toMatch(/\/weapons$/);
     const key = `wft_${'x'.repeat(43)}`;
     await page.goto(accessKeyLink(page.url(), 'UnknownTenno', key));
     await expect(page.getByRole('alert')).toHaveText('Username or access key is incorrect.');

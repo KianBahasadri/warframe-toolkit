@@ -2,7 +2,7 @@ import { test, expect } from './accountFixture';
 import type { Page } from '@playwright/test';
 
 async function open(page: Page) {
-  await page.goto('/#modder');
+  await page.goto('/modder');
   await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Upgrade', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mod 1: empty', exact: true })).toBeEnabled();
@@ -26,7 +26,7 @@ const result = (page: Page, label: string) => page.locator(`[data-result="${labe
 
 test('Arsenal opens first, shows real artwork and abilities, and preserves upgrades across equipment navigation', async ({ page, account }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto('/#modder');
+  await page.goto('/modder');
   await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
   await expect(page.getByRole('group', { name: 'Eight mod slots' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Edit warframe', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -286,7 +286,7 @@ test.describe('guest workshop', () => {
   test.use({ signedIn: false });
   test('weapon attributes show elemental icons, source details and full-size firearm Exilus beneath a framed arcane', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 1000 });
-    await page.goto('/#modder');
+    await page.goto('/modder');
     await page.getByRole('button', { name: 'Edit secondary', exact: true }).click();
     await page.getByRole('button', { name: 'Swap', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Search equipment' }).fill('Atomos');
@@ -324,7 +324,7 @@ test.describe('guest workshop', () => {
   });
   test('Arsenal and Upgrade keep calculations beside equipment and the editing workspace', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
-    await page.goto('/#modder');
+    await page.goto('/modder');
     await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     const calculations = page.getByRole('complementary', { name: 'Calculated results' });
@@ -393,7 +393,7 @@ test.describe('guest workshop', () => {
   });
   test('mobile editing keeps live results available and stores no builds or access keys', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 });
-    await page.goto('/#modder');
+    await page.goto('/modder');
     await expect(page.getByRole('heading', { name: 'Arsenal', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByRole('button', { name: 'Results', exact: true }).click();

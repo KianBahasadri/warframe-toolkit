@@ -34,7 +34,7 @@ async function waitForScreenshotReview(page: Page) {
 }
 
 async function expectImportFinished(page: Page) {
-  await expect(page).toHaveURL(/#weapons$/);
+  await expect(page).toHaveURL(/\/weapons$/);
   await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Import screenshots', exact: true })).toHaveCount(0);
 }
@@ -647,7 +647,7 @@ test('relic refinements and quantity edits persist without changing an older equ
 });
 
 test('relic CSV exports records and deletions persist without changing equipment', async ({ page, account }) => {
-  await page.goto('/#relics'); await waitForSave(page);
+  await page.goto('/relics'); await waitForSave(page);
   await expect(page.getByText('No relics added.', { exact: true })).toBeVisible();
   const originalItems = (await account.inventory()).items;
   await page.getByRole('button', { name: 'Add relic', exact: true }).click();
@@ -697,29 +697,29 @@ test('old backups links open weapons without changing saved data and CSV still e
 test('Alt number shortcuts follow the top tabs and stay inactive while editing', async ({ page }) => {
   const drops = parseDropTables(await readFile(new URL('../fixtures/drop-tables.html', import.meta.url), 'utf8'));
   await page.route('**/api/droptables', route => route.fulfill({ json: drops }));
-  await page.goto('/#import'); await waitForSave(page);
+  await page.goto('/import'); await waitForSave(page);
   const navigation = page.getByRole('navigation', { name: 'Main navigation' });
   const tabs = ['Weapons', 'Warframes', 'Relics', 'Drop Tables', 'Crafting', 'Modding Calculator'];
   const hashes = ['weapons', 'warframes', 'relics', 'droptables', 'crafting', 'modder'];
   await expect(navigation.getByRole('link')).toHaveText(tabs);
   for (const [index, name] of tabs.entries()) {
     await page.keyboard.press(`Alt+${index + 1}`);
-    await expect(page).toHaveURL(new RegExp(`#${hashes[index]}(?:\\?|$)`));
+    await expect(page).toHaveURL(new RegExp(`/${hashes[index]}(?:\\?|$)`));
     await expect(navigation.getByRole('link', { name, exact: true })).toHaveAttribute('aria-current', 'page');
   }
   await page.keyboard.press('Alt+1');
   await expect(page.getByRole('region', { name: 'Weapons', exact: true })).toBeVisible();
   await page.getByLabel('Search weapons').focus();
   await page.keyboard.press('Alt+2');
-  await expect(page).toHaveURL(/#weapons$/);
+  await expect(page).toHaveURL(/\/weapons$/);
   await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).focus();
   await page.keyboard.press('Alt+3');
   await expect(page.getByRole('dialog', { name: 'Add weapon' })).toBeVisible();
-  await expect(page).toHaveURL(/#weapons$/);
+  await expect(page).toHaveURL(/\/weapons$/);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Alt+i');
-  await expect(page).toHaveURL(/#import$/);
+  await expect(page).toHaveURL(/\/import$/);
   await page.getByRole('button', { name: 'Open search and commands' }).click();
   await page.getByRole('option', { name: 'Jump to…', exact: true }).click();
   for (const [index, name] of tabs.entries()) {
@@ -738,7 +738,7 @@ test('Alt number shortcuts follow the top tabs and stay inactive while editing',
 });
 
 test('screenshot instructions show the local example and fit desktop and mobile', async ({ page, account }) => {
-  await page.goto('/#import'); await waitForSave(page);
+  await page.goto('/import'); await waitForSave(page);
   const inventory = page.getByRole('region', { name: 'Inventory', exact: true });
   const codex = page.getByRole('region', { name: 'Codex', exact: true });
   await expect(inventory).toBeVisible();
@@ -791,7 +791,7 @@ test('screenshot instructions show the local example and fit desktop and mobile'
 });
 
 test('pointer highlights the paste destination and a batch hides the other source', async ({ page, context, browserName }) => {
-  await page.goto('/#import'); await waitForSave(page);
+  await page.goto('/import'); await waitForSave(page);
   const screenshot = await equipmentScreenshot(page, 'paste.png', ['BOLTOR [30]']);
   const base64 = screenshot.buffer.toString('base64');
   if (browserName === 'chromium') {
@@ -879,7 +879,7 @@ test('pointer highlights the paste destination and a batch hides the other sourc
 test('real Codex OCR reads exact variants and mastery, preserving ownership, ranks, and review edits', async ({ page, account }) => {
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
-  await page.goto('/#import'); await waitForSave(page);
+  await page.goto('/import'); await waitForSave(page);
   await expect(page.getByRole('region', { name: 'Codex', exact: true })).toBeVisible();
   const original = await account.inventory();
   Object.assign(original.items.find(item => item.name === 'Boltor')!, { owned: true, mastered: false, rank: 7, notes: 'Keep this Forma plan', dontKeep: true, override: 'Keep' });
@@ -919,7 +919,7 @@ test('real Codex OCR reads exact variants and mastery, preserving ownership, ran
 });
 
 test('resized Codex images keep badges tied to cards and reject missing badges and green blocks', async ({ page }) => {
-  await page.goto('/#import'); await waitForSave(page);
+  await page.goto('/import'); await waitForSave(page);
   const changed = await page.evaluate(async () => {
     const bitmap = await createImageBitmap(await (await fetch('/images/import/codex-weapons.png')).blob());
     const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
@@ -945,7 +945,7 @@ test('resized Codex images keep badges tied to cards and reject missing badges a
 for (const fixture of inventoryScreenshots) test(`real Inventory OCR reads every name and rank: ${fixture.file}`, async ({ page, account }) => {
   const externalRequests: string[] = [];
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:5173')) externalRequests.push(request.url()); });
-  await page.goto('/#import'); await waitForSave(page);
+  await page.goto('/import'); await waitForSave(page);
   await expect(page.getByRole('region', { name: 'Import screenshots', exact: true })).toBeVisible();
   const saved = JSON.stringify(await account.inventory());
   await page.getByLabel('Choose inventory screenshots').setInputFiles(fixture.file);
@@ -1033,7 +1033,7 @@ test('real screenshot batches merge duplicates and preserve planning, prior mast
 });
 
 test('background reading keeps the list editable while paste and drop add screenshots', async ({ page, account }) => {
-  await page.goto('/#import'); await waitForSave(page);
+  await page.goto('/import'); await waitForSave(page);
   const first = await equipmentScreenshot(page, 'first.png', ['BOLTOR [30]', 'BRATON PRIME [30]', 'VASTO [0]']);
   const later = await equipmentScreenshot(page, 'later.png', ['BOLTOR [30]', 'BRATON PRIME [30]', 'VASTO [30]', 'PARIS [30]']);
   const savedBefore = JSON.stringify(await account.inventory());
@@ -1157,7 +1157,7 @@ test('background reading keeps the list editable while paste and drop add screen
 });
 
 test('canceling or failing an added screenshot keeps earlier matches and allows another upload', async ({ page }) => {
-  await page.goto('/#import'); await waitForSave(page);
+  await page.goto('/import'); await waitForSave(page);
   const first = await equipmentScreenshot(page, 'first.png', ['BOLTOR [30]']);
   const next = await equipmentScreenshot(page, 'next.png', ['VASTO [0]']);
   await page.getByLabel('Choose codex screenshots').setInputFiles(first);
@@ -1188,7 +1188,7 @@ test('canceling or failing an added screenshot keeps earlier matches and allows 
 });
 
 test('canceling OCR releases the importer and paste uses the focused source', async ({ page }) => {
-  await page.goto('/#import'); await waitForSave(page);
+  await page.goto('/import'); await waitForSave(page);
   const dataUrl = await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = 1400; canvas.height = 700; const context = canvas.getContext('2d')!; context.fillStyle = '#ffffff'; context.fillRect(0, 0, 1400, 700); context.fillStyle = '#000000'; context.font = '42px Arial'; context.fillText('BRATON PRIME', 100, 150); return canvas.toDataURL('image/png'); });
   await page.getByLabel('Choose inventory screenshots').setInputFiles({ name: 'cancel-test.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
   await page.getByRole('button', { name: 'Cancel reading' }).click();

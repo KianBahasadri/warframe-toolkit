@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { test, expect } from './accountFixture';
 
 test('official relic catalog browses rewards, sources and pages without saving inventory', async ({ page, account }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   const before = await account.inventory();
   await page.getByRole('button', { name: 'Browse all relics', exact: true }).click();
   const names = page.locator('.inventory-table .equipment-label');
@@ -41,7 +41,7 @@ test('official relic catalog browses rewards, sources and pages without saving i
 });
 
 test('catalog quantity and note edits save only exact stacks and CSV exports only saved relics', async ({ page, account }) => {
-  await page.goto('/#relics');
+  await page.goto('/relics');
   const before = await account.inventory();
   await page.getByRole('button', { name: 'Browse all relics', exact: true }).click();
   await page.getByLabel('Search relics', { exact: true }).fill('Lith A1');
@@ -75,7 +75,7 @@ test.describe('guest relic catalog', () => {
   test('cached relic details work offline and Eterna stays unrefined in temporary edits', async ({ page, context }) => {
     const writes: string[] = [];
     page.on('request', request => { if (request.url().includes('/api/account/') && request.method() !== 'GET') writes.push(request.url()); });
-    await page.goto('/#relics');
+    await page.goto('/relics');
     await page.getByLabel('Search relics', { exact: true }).fill('Requiem Eterna');
     await page.getByRole('button', { name: 'Edit Requiem Eterna Unrefined', exact: true }).click();
     await expect(page.getByRole('dialog').locator('img')).toHaveJSProperty('complete', true);
