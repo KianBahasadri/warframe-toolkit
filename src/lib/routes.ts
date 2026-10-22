@@ -15,9 +15,10 @@ export function locationTarget(pathname: string, search: string, hash: string): 
   const legacyName = (split === -1 ? body : body.slice(0, split)).replace(/\/+$/, '');
   const legacyQuery = split === -1 ? '' : body.slice(split);
   if (isPage(legacyName)) return legacyName === 'droptables' ? `/droptables${legacyQuery}` : `/${legacyName}`;
-  if (normalized === '/' || normalized === '/index.html') return '/weapons';
+  const shared = new URLSearchParams(search).has('share');
+  if (normalized === '/' || normalized === '/index.html') return `/weapons${shared ? search : ''}`;
   const page = pageFromPath(normalized);
-  if (page) return `${normalized}${page === 'droptables' ? search : ''}`;
+  if (page) return `${normalized}${page === 'droptables' || (shared && ['weapons', 'warframes', 'relics'].includes(page)) ? search : ''}`;
   const segment = normalized.replace(/^\//, '');
   if (segment && !segment.includes('.') && !segment.includes('/')) return '/weapons';
   return `${pathname}${search}${hash}`;

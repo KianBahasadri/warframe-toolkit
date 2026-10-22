@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { cloudflareRuntime } from './runtime.ts';
-import { emptyProfile, isAccessKey } from '../../src/lib/account.ts';
+import { emptyProfile, isAccessKey, isShareToken } from '../../src/lib/account.ts';
 import { createEquipment } from '../../src/lib/model.ts';
 import { newArsenal } from '../../src/lib/modderModel.ts';
 
@@ -84,6 +84,17 @@ test('D1 accounts preserve authentication, profile isolation, revisions, key rot
     const stored = await api.db.prepare('SELECT * FROM accounts WHERE id = ?').bind(a.user.id).first() as any;
     assert.equal(stored.access_key_hash, createHash('sha256').update(key).digest('hex'));
     assert.equal(JSON.stringify(stored).includes(key), false);
+    const share = await api.request('share', { accountId: a.user.id }, cookie);
+    assert.equal(share.status, 200);
+    const { shareToken } = await share.json() as any;
+    assert.ok(isShareToken(shareToken));
+    assert.deepEqual(await (await api.request(`share/${shareToken}`)).json(), { username: 'MyTenno#123', inventory: profile.inventory });
+    const replacedShare = await api.request('share', { accountId: a.user.id, replace: true }, cookie);
+    assert.equal(replacedShare.status, 200);
+    const { shareToken: nextShareToken } = await replacedShare.json() as any;
+    assert.ok(isShareToken(nextShareToken)); assert.notEqual(nextShareToken, shareToken);
+    assert.equal((await api.request(`share/${shareToken}`)).status, 404);
+    assert.deepEqual(await (await api.request(`share/${nextShareToken}`)).json(), { username: 'MyTenno#123', inventory: profile.inventory });
     const logout = await api.request('logout', { accountId: a.user.id }, cookie);
     assert.equal(logout.status, 200);
     assert.deepEqual(await (await api.request('session', undefined, cookie)).json(), { user: null });

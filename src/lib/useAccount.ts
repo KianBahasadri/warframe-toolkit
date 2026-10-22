@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { accountUsername, emptyProfile, isAccessKey, readAccessKeyLink, validateDropViews, validateProfile } from './account';
+import { accountUsername, emptyProfile, isAccessKey, isShareToken, readAccessKeyLink, validateDropViews, validateProfile } from './account';
 import type { AccountProfile, AccountSession, AccountUser, SavedDropView } from './account';
 import type { Inventory } from './model';
 import type { CraftingPlan } from './crafting';
 import type { ArsenalBuild } from './modderModel';
-import { parseBackup, STORAGE_KEY } from './storage';
+import { parseBackup, STORAGE_KEY, validateInventory } from './storage';
 
 export const LEGACY_VIEWS_KEY = 'warframe-toolkit.drop-views.v1';
 type State = { user: AccountUser | null; profile: AccountProfile; revision: number; checking: boolean; dirty: boolean; saving: boolean; error: string; viewsError: string; unreadable: boolean };
@@ -119,6 +119,13 @@ export function useAccount() {
     if (!isAccessKey(response.accessKey)) throw new Error('Could not read your new access key. Try replacing it again.');
     return response.accessKey;
   };
+  const shareInventory = useCallback(async (replace = false): Promise<string> => {
+    clearTimeout(timer.current); await save();
+    if (current.current.dirty) throw new Error('Your changes have not been saved. Try saving again before sharing.');
+    const response = await request('share', { accountId: current.current.user?.id, ...(replace ? { replace: true } : {}) });
+    if (!isShareToken(response.shareToken)) throw new Error('Could not read your share link. Please try again.');
+    return response.shareToken;
+  }, [save]);
   const signOut = async () => {
     clearTimeout(timer.current); await save();
     if (current.current.dirty) throw new Error('Your changes have not been saved. Try saving again before signing out.');
@@ -135,11 +142,16 @@ export function useAccount() {
       update({ ...result, dirty: false, error: '', unreadable: false, viewsError: '' });
     } catch (error) { update({ error: message(error) }); }
   };
-  return { ...state, authenticate, replaceAccessKey, signOut, retrySave: save, reloadSaved,
+  return { ...state, authenticate, replaceAccessKey, shareInventory, signOut, retrySave: save, reloadSaved,
     commitInventory: (inventory: Inventory, saveDelay?: number) => commit({ ...current.current.profile, inventory }, saveDelay),
     commitViews: (dropViews: SavedDropView[]) => current.current.user ? commit({ ...current.current.profile, dropViews }) : false,
     commitCrafting: (craftingPlans: CraftingPlan[]) => commit({ ...current.current.profile, craftingPlans }),
     commitArsenals: (arsenals: ArsenalBuild[]) => commit({ ...current.current.profile, arsenals }, 400),
     canIncludeCurrent: !state.unreadable && !state.viewsError && Boolean(state.profile.inventory.items.length || state.profile.inventory.relics.length || state.profile.inventory.imports.length || state.profile.dropViews.length || state.profile.craftingPlans.length || state.profile.arsenals.length),
   };
+}
+
+export async function fetchSharedInventory(shareToken: string): Promise<{ username: string; inventory: Inventory }> {
+  const result = await request(`share/${encodeURIComponent(shareToken)}`);
+  return { username: accountUsername(result.username).username, inventory: validateInventory(result.inventory) };
 }

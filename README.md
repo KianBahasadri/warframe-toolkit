@@ -22,7 +22,7 @@ npm run preview      # Production build at http://127.0.0.1:4173
 
 ## Data
 
-- Guests can browse and edit temporarily. Sign in to save equipment, relics, views, crafting plans, and Modding Calculator arsenals. Accounts use a Warframe username and generated access key; keep the key or personal bookmark. No email recovery.
+- Guests can browse and edit temporarily. Sign in to save equipment, relics, views, crafting plans, and Modding Calculator arsenals. Accounts use a Warframe username and generated access key; keep the key or personal bookmark. No email recovery. Hovering your signed-in username opens account options, or click it for the dialog; Share inventory provides a read-only live inventory link that can be replaced to disable the previous link.
 - Local accounts live in `.data/accounts.sqlite`; stop the server before backing it up. `ACCOUNTS_DATABASE` overrides the path. Public hosting needs HTTPS and `ACCOUNTS_ORIGIN` set to the exact origin. Static hosting supports browsing and temporary edits only.
 - Legacy browser saves remain available for explicit migration. Accounts never merge automatically. Ownership, mastery, and current rank are separate; all 14 spreadsheet fields are preserved.
 - Tables automatically fit the displayed contents and stay centered when narrower than their available space; wider tables scroll within their region. Long names, crafting targets, and notes wrap within bounded widths. Relic screenshot review shows the selected refinement's artwork, refinement radio buttons, and a compact name dropdown that filters as you type; only catalog choices can be committed.

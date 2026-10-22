@@ -420,3 +420,75 @@ test('opening another account bookmark in an active tab cannot discard unsaved e
   expect(logins).toBe(0); expect(page.url()).not.toContain(accessKey);
   expect((await account.session()).user.username).toBe('TestTenno');
 });
+
+test('hovering the username opens account options, clicking opens the modal, and replacing a shared inventory link revokes the old link', async ({ page, account }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { (window as Window & { copiedText?: string }).copiedText = text; } } }));
+  await page.goto('/'); await account.profile();
+  const trigger = page.getByRole('button', { name: 'Account: TestTenno', exact: true });
+  const menu = page.getByRole('menu', { name: 'Account options', exact: true });
+
+  await trigger.hover();
+  await expect(menu.getByRole('menuitem')).toHaveText(['Share inventory', 'Replace access key', 'Sign out']);
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+  await trigger.click();
+  await expect(menu).toHaveCount(0);
+  const dialog = page.getByRole('dialog', { name: 'Account', exact: true });
+  await expect(dialog.getByRole('button', { name: 'Share inventory', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Replace access key', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  await trigger.hover();
+  await menu.getByRole('menuitem', { name: 'Share inventory', exact: true }).click();
+  const shareDialog = page.getByRole('dialog', { name: 'Share inventory', exact: true });
+  await expect(shareDialog).toBeVisible();
+  const shareInput = shareDialog.getByLabel('Shareable link', { exact: true });
+  await expect(shareInput).toHaveValue(/\/weapons\?share=wfs_[A-Za-z0-9_-]{43}$/);
+  const firstShareLink = await shareInput.inputValue();
+  await shareDialog.getByRole('button', { name: 'Copy link', exact: true }).click();
+  expect(await page.evaluate(() => (window as Window & { copiedText?: string }).copiedText)).toBe(firstShareLink);
+  await shareDialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(shareDialog).toHaveCount(0);
+
+  await trigger.hover();
+  await menu.getByRole('menuitem', { name: 'Sign out', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+
+  await page.goto(firstShareLink);
+  await expect(page.getByRole('status').filter({ hasText: 'Viewing TestTenno’s live inventory.' })).toBeVisible();
+  await expect(page.getByLabel('Owned: Boltor', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Owned: Boltor', { exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add weapon', exact: true })).toHaveCount(0);
+
+  const liveInventory = (await account.session()).profile?.inventory ?? initialInventory();
+  await signIn(page, 'TestTenno', account.accessKey);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'View my inventory', exact: true }).click();
+  await expect(page).toHaveURL(/\/weapons$/);
+  await page.getByLabel('Mastered: Boltor', { exact: true }).uncheck();
+  await account.profile();
+
+  await page.goto(firstShareLink);
+  await expect(page.getByLabel('Mastered: Boltor', { exact: true })).not.toBeChecked();
+  expect(liveInventory).toBeTruthy();
+
+  await trigger.click();
+  await page.getByRole('dialog', { name: 'Account', exact: true }).getByRole('button', { name: 'Share inventory', exact: true }).click();
+  await expect(shareInput).toHaveValue(firstShareLink);
+  await shareDialog.getByRole('button', { name: 'Generate new link', exact: true }).click();
+  await expect(shareInput).not.toHaveValue(firstShareLink);
+  const secondShareLink = await shareInput.inputValue();
+  expect(secondShareLink).toMatch(/\/weapons\?share=wfs_[A-Za-z0-9_-]{43}$/);
+  await shareDialog.getByRole('button', { name: 'Done', exact: true }).click();
+
+  await page.goto(firstShareLink);
+  await expect(page.getByRole('alert')).toContainText('invalid or has been replaced');
+  await expect(page.getByLabel('Owned: Boltor', { exact: true })).toHaveCount(0);
+
+  await page.goto(secondShareLink);
+  await expect(page.getByRole('status').filter({ hasText: 'Viewing TestTenno’s live inventory.' })).toBeVisible();
+  await expect(page.getByLabel('Owned: Boltor', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Mastered: Boltor', { exact: true })).not.toBeChecked();
+});

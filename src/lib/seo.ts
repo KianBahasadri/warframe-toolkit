@@ -46,7 +46,7 @@ export function isPage(value: string): value is Page {
 export const workerDocumentPaths = ['/', '/index.html', ...pages.flatMap(page => [`/${page}`, `/${page}/`])];
 
 export function documentRedirect(pathname: string, search = ''): string | null {
-  if (pathname === '/' || pathname === '/index.html') return '/weapons';
+  if (pathname === '/' || pathname === '/index.html') return `/weapons${new URLSearchParams(search).has('share') ? search : ''}`;
   const trimmed = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   if (trimmed !== pathname && isPage(trimmed.slice(1))) return `${trimmed}${search}`;
   return null;

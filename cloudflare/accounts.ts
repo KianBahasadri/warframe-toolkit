@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { accountUsername, emptyProfile, isAccessKey, validateProfile } from '../src/lib/account.ts';
+import { accountUsername, emptyProfile, isAccessKey, isShareToken, validateProfile } from '../src/lib/account.ts';
 import { preserveCraftingProgress } from '../src/lib/crafting.ts';
 import type { AccountProfile, AccountSession } from '../src/lib/account.ts';
 import type { Env } from './index.ts';
@@ -9,7 +9,7 @@ const cookieName = 'warframe_toolkit_session';
 const lifetime = 30 * 24 * 60 * 60 * 1000;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const randomToken = () => randomBytes(32).toString('base64url');
-type Account = { id: string; username: string; access_key_hash: string; profile_id: string; profile_hash: string; profile_chunks: number; revision: number };
+type Account = { id: string; username: string; access_key_hash: string; profile_id: string; profile_hash: string; profile_chunks: number; revision: number; share_token: string | null };
 type ProfileRow = Account & { chunk_index: number | null; contents: string | null };
 class ApiError extends Error {
   status: number;
@@ -101,6 +101,14 @@ export class AccountGateway extends DurableObject<Env> {
   private async handle(request: Request) {
     const path = new URL(request.url).pathname, db = this.env.DB;
     if (path === '/api/account/session' && request.method === 'GET') return json((await this.session(request))?.snapshot ?? { user: null });
+    if (path.startsWith('/api/account/share/') && request.method === 'GET') {
+      let shareToken = '';
+      try { shareToken = decodeURIComponent(path.slice('/api/account/share/'.length)); } catch { /* Invalid URI encoding falls through to 404. */ }
+      if (!isShareToken(shareToken)) throw new ApiError(404, 'This shared inventory link is invalid or has been replaced.');
+      const shared = await this.read('a.share_token = ?', [shareToken]);
+      if (!shared) throw new ApiError(404, 'This shared inventory link is invalid or has been replaced.');
+      return json({ username: shared.snapshot.user.username, inventory: shared.snapshot.profile.inventory });
+    }
     if (!['POST', 'PUT'].includes(request.method)) throw new ApiError(405, 'Method not allowed.');
     const value = await this.body(request, ['/api/account/profile', '/api/account/register'].includes(path) ? 10 * 1024 * 1024 : 4096);
     if (['/api/account/register', '/api/account/login'].includes(path) && request.method === 'POST') {
@@ -158,6 +166,15 @@ export class AccountGateway extends DurableObject<Env> {
       ]);
       if (!results[0].meta.changes) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
       return json({ accessKey });
+    }
+    if (path === '/api/account/share' && request.method === 'POST') {
+      if (value.replace !== undefined && typeof value.replace !== 'boolean') throw new ApiError(400, 'Could not read the request.');
+      if (!value.replace && isShareToken(account.share_token)) return json({ shareToken: account.share_token });
+      let shareToken = `wfs_${randomToken()}`;
+      while (shareToken === account.share_token) shareToken = `wfs_${randomToken()}`;
+      const result = await db.prepare(`UPDATE accounts SET share_token = ? WHERE id = ? AND ${validSession}`).bind(shareToken, account.id, digest(token(request)), Date.now()).run();
+      if (!result.meta.changes) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
+      return json({ shareToken });
     }
     if (path === '/api/account/profile' && request.method === 'PUT') {
       if (!Number.isSafeInteger(value.revision) || Number(value.revision) < 0) throw new ApiError(400, 'Invalid save revision.');

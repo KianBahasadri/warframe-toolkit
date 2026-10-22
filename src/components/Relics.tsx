@@ -88,7 +88,7 @@ function RelicNameInput({ value, onChange, autoFocus }: { value: string; onChang
   </div>;
 }
 
-function RelicForm({ item, existing, onSave, onDelete, onClose }: { item?: Relic; existing: Relic[]; onSave: (item: Relic) => boolean; onDelete: (id: string) => boolean; onClose: () => void }) {
+function RelicForm({ item, existing, onSave, onDelete, onClose, readOnly = false }: { item?: Relic; existing: Relic[]; onSave: (item: Relic) => boolean; onDelete: (id: string) => boolean; onClose: () => void; readOnly?: boolean }) {
   const [draft, setDraft] = useState<Relic>(() => item ? { ...item } : createRelic());
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -96,16 +96,17 @@ function RelicForm({ item, existing, onSave, onDelete, onClose }: { item?: Relic
   const tracked = existing.some(saved => saved.id === draft.id);
   const [view, setView] = useState<'details' | 'inventory'>(item && entry ? 'details' : 'inventory');
   const availableRefinements = refinements.filter(value => value !== 'Unrefined' || draft.refinement === 'Unrefined');
-  return <Dialog title={item ? `Edit ${item.name}` : 'Add relic'} onClose={onClose} className="equipment-dialog">
+  return <Dialog title={item ? (readOnly ? item.name : `Edit ${item.name}`) : 'Add relic'} onClose={onClose} className="equipment-dialog">
     {entry && <div className="weapon-overview"><img src={entry.image} alt="" width="152" height="116" /><div className="weapon-tags"><span className="badge">{entry.name}</span><span className="badge">{entry.refinement}</span></div></div>}
-    {entry && <div className="equipment-tabs" role="tablist" aria-label="Relic details" onKeyDown={event => {
+    {entry && !readOnly && <div className="equipment-tabs" role="tablist" aria-label="Relic details" onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
       const next = event.key === 'Home' ? 'details' : event.key === 'End' ? 'inventory' : view === 'details' ? 'inventory' : 'details';
       setView(next); document.getElementById(`relic-${next}-tab`)?.focus();
     }}>{(['details', 'inventory'] as const).map(tab => <button key={tab} type="button" role="tab" id={`relic-${tab}-tab`} tabIndex={view === tab ? 0 : -1} aria-selected={view === tab} aria-controls={`relic-${tab}-panel`} onClick={() => setView(tab)}>{tab === 'details' ? 'Relic details' : 'My inventory'}</button>)}</div>}
-    {entry && view === 'details' && <div role="tabpanel" id="relic-details-panel" aria-labelledby="relic-details-tab"><RelicDetails item={entry} /><div className="dialog-footer"><button type="button" className="button secondary" onClick={onClose}>Close details</button><button type="button" className="button primary" onClick={() => setView('inventory')}>Edit inventory</button></div></div>}
-    {view === 'inventory' && <form role={entry ? 'tabpanel' : undefined} id="relic-inventory-panel" aria-labelledby={entry ? 'relic-inventory-tab' : undefined} onSubmit={event => {
+    {entry && (view === 'details' || readOnly) && <div role={readOnly ? undefined : 'tabpanel'} id="relic-details-panel" aria-labelledby={readOnly ? undefined : 'relic-details-tab'}><RelicDetails item={entry} /><div className="dialog-footer"><button type="button" className="button secondary" onClick={onClose}>Close details</button>{!readOnly && <button type="button" className="button primary" onClick={() => setView('inventory')}>Edit inventory</button>}</div></div>}
+    {!entry && readOnly && <div className="dialog-footer"><button type="button" className="button secondary" onClick={onClose}>Close details</button></div>}
+    {view === 'inventory' && !readOnly && <form role={entry ? 'tabpanel' : undefined} id="relic-inventory-panel" aria-labelledby={entry ? 'relic-inventory-tab' : undefined} onSubmit={event => {
       event.preventDefault();
       const parsed = parseRelicName(draft.name);
       if (!parsed) { setError('Enter an era and relic code, such as Lith A1 or Requiem I.'); return; }
@@ -159,25 +160,25 @@ const relicDefinition: CollectionDefinition<RelicRow> = {
     : { title: 'No matching relics.', resetLabel: 'Clear filters' },
 };
 
-export function Relics({ relics, trackedOnlyDefault, onSave, onDelete, onQuantityChange, onNotesChange, onExport, onImport, actionsRef }: {
+export function Relics({ relics, trackedOnlyDefault, readOnly = false, onSave, onDelete, onQuantityChange, onNotesChange, onExport, onImport, actionsRef }: {
   relics: Relic[]; onSave: (item: Relic) => boolean; onDelete: (id: string) => boolean;
-  trackedOnlyDefault: boolean; onNotesChange: (item: RelicRow, notes: string) => void;
+  trackedOnlyDefault: boolean; readOnly?: boolean; onNotesChange: (item: RelicRow, notes: string) => void;
   onQuantityChange: (item: RelicRow, change: number) => void; onExport: () => void; onImport: () => void; actionsRef?: Ref<CollectionActions>;
 }) {
   const [editing, setEditing] = useState<Relic | 'new' | null>(null);
   const rows = useMemo(() => relicRows(relics, relicCatalog), [relics]);
   const definition = { ...relicDefinition, filters: relicDefinition.filters.map(field => field.key === 'trackedOnly' ? { ...field, defaultValue: trackedOnlyDefault } : field) };
   return <>
-    <CollectionTable definition={definition} items={rows} onEdit={row => setEditing(editableRelic(row))} onAdd={() => setEditing('new')} onExport={onExport} actionsRef={actionsRef}
-      extraActions={<button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
+    <CollectionTable definition={definition} items={rows} onEdit={row => setEditing(editableRelic(row))} onAdd={readOnly ? undefined : () => setEditing('new')} onExport={onExport} actionsRef={actionsRef}
+      extraActions={readOnly ? undefined : <button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
       renderCell={(relic, column) => column.key === 'name' ? <>{relic.catalogItem && <img className="equipment-image" src={relic.catalogItem.image} alt="" width="88" height="56" loading="lazy" />}<span className="equipment-label">{relic.name}</span></>
         : column.key === 'vaulted' ? relic.vaulted === null ? <span className="table-missing" aria-label={`Vaulted: ${relic.name}: Unknown`}>—</span> : <span className="catalog-fact" aria-label={`Vaulted: ${relic.name}: ${relic.vaulted ? 'Yes' : 'No'}`}>{relic.vaulted ? 'Yes' : 'No'}</span>
         : column.key === 'refinement' ? <HoverTip content={relicHover(relic)}>{relic.refinement}</HoverTip>
         : column.key === 'wfm' ? <MarketPrice subject={{ name: relic.name, kind: 'relic', refinement: relic.refinement }} />
-        : column.key === 'quantity' ? <div className="quantity-control"><button type="button" className="icon-button" aria-label={`Decrease ${relic.name} ${relic.refinement} quantity`} title="Decrease quantity" disabled={relic.quantity === 0} onClick={() => onQuantityChange(relic, -1)}><Minus size={14} /></button><span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span><button type="button" className="icon-button" aria-label={`Increase ${relic.name} ${relic.refinement} quantity`} title="Increase quantity" disabled={relic.quantity === MAX_RELIC_QUANTITY} onClick={() => onQuantityChange(relic, 1)}><Plus size={14} /></button></div>
-        : column.key === 'notes' ? <TableNotes name={`${relic.name} ${relic.refinement}`} value={relic.notes} onChange={notes => onNotesChange(relic, notes)} />
+        : column.key === 'quantity' ? (readOnly ? <span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span> : <div className="quantity-control"><button type="button" className="icon-button" aria-label={`Decrease ${relic.name} ${relic.refinement} quantity`} title="Decrease quantity" disabled={relic.quantity === 0} onClick={() => onQuantityChange(relic, -1)}><Minus size={14} /></button><span className="relic-quantity" aria-label={`${relic.name} ${relic.refinement} quantity`}>{relic.quantity}</span><button type="button" className="icon-button" aria-label={`Increase ${relic.name} ${relic.refinement} quantity`} title="Increase quantity" disabled={relic.quantity === MAX_RELIC_QUANTITY} onClick={() => onQuantityChange(relic, 1)}><Plus size={14} /></button></div>)
+        : column.key === 'notes' ? (readOnly ? (relic.notes || <span className="table-missing">—</span>) : <TableNotes name={`${relic.name} ${relic.refinement}`} value={relic.notes} onChange={notes => onNotesChange(relic, notes)} />)
         : relicTableModel.value(relic, column.key) || <span className="table-missing">—</span>}
     />
-    {editing && <RelicForm item={editing === 'new' ? undefined : editing} existing={relics} onSave={onSave} onDelete={onDelete} onClose={() => setEditing(null)} />}
+    {editing && <RelicForm item={editing === 'new' ? undefined : editing} existing={relics} readOnly={readOnly} onSave={onSave} onDelete={onDelete} onClose={() => setEditing(null)} />}
   </>;
 }

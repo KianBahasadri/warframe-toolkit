@@ -46,9 +46,14 @@ test('legacy fragments become paths and sign-in fragments stay intact', () => {
   assert.equal(locationTarget('/', '?old=1', '#sign-in?username=Tenno&key=wft_abc'), '/weapons?old=1#sign-in?username=Tenno&key=wft_abc');
   assert.equal(locationTarget('/relics', '', '#sign-in?username=Tenno&key=wft_abc'), '/relics#sign-in?username=Tenno&key=wft_abc');
   assert.equal(locationTarget('/droptables', '?view=1', ''), '/droptables?view=1');
+  assert.equal(locationTarget('/', '?share=wfs_abc', ''), '/weapons?share=wfs_abc');
+  assert.equal(locationTarget('/weapons', '?share=wfs_abc', ''), '/weapons?share=wfs_abc');
+  assert.equal(locationTarget('/warframes/', '?share=wfs_abc', ''), '/warframes?share=wfs_abc');
+  assert.equal(locationTarget('/relics', '?share=wfs_abc', ''), '/relics?share=wfs_abc');
   assert.equal(locationTarget('/weapons/', '', ''), '/weapons');
   assert.equal(locationTarget('/favicon.svg', '', ''), '/favicon.svg');
   assert.equal(documentRedirect('/', ''), '/weapons');
+  assert.equal(documentRedirect('/', '?share=wfs_abc'), '/weapons?share=wfs_abc');
   assert.equal(documentRedirect('/relics/', '?x=1'), '/relics?x=1');
   assert.equal(documentRedirect('/relics', ''), null);
 });

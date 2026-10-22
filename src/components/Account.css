@@ -15,6 +15,11 @@
 .account-key-actions .button { font-size: 12px; padding: 9px 12px; }
 .account-bookmark { font-size: 12px; color: var(--ink); text-underline-offset: 3px; }
 .account-username { font-size: 18px; overflow-wrap: anywhere; }
+.account-option-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.account-menu [role=menuitem] svg { flex-shrink: 0; color: var(--muted); }
+.account-menu [role=menuitem]:hover svg, .account-menu [role=menuitem]:focus-visible svg { color: var(--ink-strong); }
+.shared-inventory-callout { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.shared-inventory-callout .account-error-actions { margin-top: 0; }
 .account-error-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .account-error-actions:empty { display: none; }
 @media (max-width: 700px) { .account-button { max-width: 180px; } }

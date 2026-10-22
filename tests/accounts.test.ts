@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createAccountsApi } from '../server/accounts.ts';
-import { accessKeyLink, emptyProfile, isAccessKey, readAccessKeyLink } from '../src/lib/account.ts';
+import { accessKeyLink, emptyProfile, isAccessKey, isShareToken, readAccessKeyLink, readShareInventoryLink, shareInventoryLink } from '../src/lib/account.ts';
 import { createEquipment } from '../src/lib/model.ts';
 import { newArsenal } from '../src/lib/modderModel.ts';
 
@@ -219,6 +219,58 @@ test('personal sign-in links carry credentials only in the fragment and reject m
   assert.deepEqual(readAccessKeyLink(url.hash), { username, accessKey });
   assert.equal(readAccessKeyLink('#droptables?view=old'), null);
   for (const hash of ['#sign-in', '#sign-in?username=Tenno', '#sign-in?username=Tenno&key=short', `${url.hash}&key=${accessKey}`, `${url.hash}&username=Other`]) assert.throws(() => readAccessKeyLink(hash), /incomplete or invalid/);
+});
+
+test('shareable inventory links expose only live inventory and replacing a link disables the previous one', async () => {
+  const shareToken = `wfs_${'s'.repeat(43)}`;
+  const shareUrl = new URL(shareInventoryLink('https://toolkit.example/warframes?old=1#hash', shareToken));
+  assert.equal(shareUrl.pathname, '/weapons');
+  assert.equal(readShareInventoryLink(shareUrl.search), shareToken);
+  assert.equal(readShareInventoryLink('?view=1'), null);
+  for (const bad of ['?share=', '?share=short', `?share=wft_${'x'.repeat(43)}`, `${shareUrl.search}&share=${shareToken}`]) assert.throws(() => readShareInventoryLink(bad), /invalid or has been replaced/);
+
+  const api = await serve();
+  try {
+    const profile = emptyProfile();
+    profile.inventory.items.push(createEquipment({ name: 'Boltor Prime', slot: 'Primary', variant: 'Prime' }, { owned: true, rank: 30, notes: 'Shared build' }));
+    profile.craftingPlans.push({ id: 'rhino-plan', itemId: '/Lotus/Powersuits/Rhino/Rhino', quantity: 1, completed: [], choices: {} });
+    profile.arsenals = [newArsenal()];
+    const registered = await api.request('register', { username: 'ShareTenno', profile });
+    const cookie = cookieOf(registered), { accessKey, ...account } = await registered.json();
+    const other = await api.request('register', { username: 'OtherTenno' });
+    const otherCookie = cookieOf(other);
+
+    assert.equal((await api.request('share', { accountId: account.user.id })).status, 401);
+    assert.equal((await api.request('share', { accountId: account.user.id }, otherCookie)).status, 409);
+    assert.equal((await api.request('share', { accountId: account.user.id }, cookie, { origin: 'https://elsewhere.example' })).status, 403);
+
+    const created = await api.request('share', { accountId: account.user.id }, cookie);
+    assert.equal(created.status, 200);
+    const { shareToken: firstToken } = await created.json();
+    assert.equal(isShareToken(firstToken), true);
+    assert.notEqual(firstToken, accessKey);
+
+    const repeated = await api.request('share', { accountId: account.user.id }, cookie);
+    assert.deepEqual(await repeated.json(), { shareToken: firstToken });
+
+    const shared = await api.request(`share/${firstToken}`);
+    assert.equal(shared.status, 200);
+    assert.deepEqual(await shared.json(), { username: 'ShareTenno', inventory: profile.inventory });
+
+    const updatedProfile = structuredClone(profile);
+    updatedProfile.inventory.items.push(createEquipment({ name: 'Anku', slot: 'Melee', variant: 'Base' }, { owned: true, mastered: true, rank: 30 }));
+    assert.equal((await api.request('profile', { accountId: account.user.id, revision: 0, profile: updatedProfile }, cookie, { method: 'PUT' })).status, 200);
+    assert.deepEqual(await (await api.request(`share/${firstToken}`)).json(), { username: 'ShareTenno', inventory: updatedProfile.inventory });
+
+    const replaced = await api.request('share', { accountId: account.user.id, replace: true }, cookie);
+    assert.equal(replaced.status, 200);
+    const { shareToken: secondToken } = await replaced.json();
+    assert.equal(isShareToken(secondToken), true);
+    assert.notEqual(secondToken, firstToken);
+    assert.equal((await api.request(`share/${firstToken}`)).status, 404);
+    assert.equal((await api.request(`share/${accessKey}`)).status, 404);
+    assert.deepEqual(await (await api.request(`share/${secondToken}`)).json(), { username: 'ShareTenno', inventory: updatedProfile.inventory });
+  } finally { await api.close(); }
 });
 
 

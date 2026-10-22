@@ -12,12 +12,28 @@ export interface SavedDropView { name: string; view: DropView }
 export interface AccountProfile { inventory: Inventory; dropViews: SavedDropView[]; craftingPlans: CraftingPlan[]; arsenals: ArsenalBuild[] }
 export interface AccountSession { user: AccountUser; profile: AccountProfile; revision: number }
 export const isAccessKey = (value: unknown): value is string => typeof value === 'string' && /^wft_[A-Za-z0-9_-]{43}$/.test(value);
+export const isShareToken = (value: unknown): value is string => typeof value === 'string' && /^wfs_[A-Za-z0-9_-]{43}$/.test(value);
 
 export function accessKeyLink(base: string, username: string, accessKey: string): string {
   const url = new URL(base);
   url.search = '';
   url.hash = `sign-in?${new URLSearchParams({ username, key: accessKey })}`;
   return url.href;
+}
+
+export function shareInventoryLink(base: string, shareToken: string): string {
+  const url = new URL('/weapons', base);
+  url.search = new URLSearchParams({ share: shareToken }).toString();
+  url.hash = '';
+  return url.href;
+}
+
+export function readShareInventoryLink(search: string): string | null {
+  const params = new URLSearchParams(search);
+  if (!params.has('share')) return null;
+  const shareToken = params.get('share');
+  if (!isShareToken(shareToken) || params.getAll('share').length !== 1) throw new Error('This shared inventory link is invalid or has been replaced.');
+  return shareToken;
 }
 
 export function readAccessKeyLink(hash: string): { username: string; accessKey: string } | null {

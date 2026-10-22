@@ -36,11 +36,11 @@ function equipmentFilters(items: EquipmentRow[], weapons: boolean, ownedOnlyDefa
   ];
 }
 
-export function InventoryTable({ items, onEdit, onToggle, onNotesChange, onAdd, onExport, onImport, actionsRef, weapons = false, ownedOnlyDefault = weapons }: {
+export function InventoryTable({ items, onEdit, onToggle, onNotesChange, onAdd, onExport, onImport, actionsRef, weapons = false, ownedOnlyDefault = weapons, readOnly = false }: {
   items: EquipmentRow[]; onEdit: (item: EquipmentRow) => void; onToggle: (item: EquipmentRow, field: BooleanField) => void;
   onNotesChange: (item: EquipmentRow, notes: string) => void;
   onAdd: () => void; onExport: () => void; onImport: () => void; actionsRef?: Ref<CollectionActions>;
-  weapons?: boolean; ownedOnlyDefault?: boolean;
+  weapons?: boolean; ownedOnlyDefault?: boolean; readOnly?: boolean;
 }) {
   const noun = weapons ? 'weapons' : 'Warframes';
   const definition: CollectionDefinition<EquipmentRow> = {
@@ -59,22 +59,22 @@ export function InventoryTable({ items, onEdit, onToggle, onNotesChange, onAdd, 
       ? { title: `No owned ${noun} yet`, description: `Mark ${noun} as owned or import an inventory screenshot.`, resetLabel: `Browse all ${noun}`, resetValues: { ownedOnly: false } }
       : { title: rows.length ? `No matching ${noun}` : `No ${noun} added`, description: rows.length ? `Change your filters to see more ${noun}.` : `Add ${weapons ? 'a weapon' : 'a Warframe'} or import an inventory screenshot.` },
   };
-  return <CollectionTable definition={definition} items={items} onEdit={onEdit} onAdd={onAdd} onExport={onExport} actionsRef={actionsRef}
-    extraActions={<button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
+  return <CollectionTable definition={definition} items={items} onEdit={onEdit} onAdd={readOnly ? undefined : onAdd} onExport={onExport} actionsRef={actionsRef}
+    extraActions={readOnly ? undefined : <button type="button" className="button primary" onClick={onImport}><ScanLine size={16} />Import screenshots</button>}
     renderCell={(item, column, visibleColumns) => column.key === 'name'
       ? <>{item.catalogItem?.image ? <img className="equipment-image" src={item.catalogItem.image} width="88" height="56" alt="" loading="lazy" /> : <span className="equipment-initial" aria-hidden="true">{item.name.replace('MK1-', '').slice(0, 2).toUpperCase()}</span>}<span className="equipment-identity"><span className="equipment-label">{item.name}</span>{weapons ? !visibleColumns.includes('slot') && <span className="equipment-meta">{item.slot}</span> : <span className="equipment-meta">{item.catalogItem?.weaponType === 'Necramech' ? 'Necramech' : !visibleColumns.includes('variant') ? item.variant : null}</span>}</span></>
       : column.key === 'wfm' ? <MarketPrice subject={{ name: item.name, kind: 'equipment', gameRef: item.catalogItem?.id }} />
       : column.key === 'incarnon' && item.catalogItem ? <HoverTip content={incarnonHover(item)}><span className="catalog-fact" aria-label={`Incarnon: ${item.name}: ${item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}`}>{item.incarnon ? item.catalogItem.incarnon?.type === 'genesis' ? 'Genesis compatible' : 'Native' : 'No'}</span></HoverTip>
       : column.key === 'questWeapon' && item.catalogItem ? <HoverTip content={questHover(item)}><span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item.questWeapon ? 'Yes' : 'No'}`}>{item.questWeapon ? 'Yes' : 'No'}</span></HoverTip>
       : column.key === 'craftingIngredient' && item.catalogItem ? <HoverTip content={item.craftingIngredient ? craftingHover(item) : null}><span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item.craftingIngredient ? 'Yes' : 'No'}`}>{item.craftingIngredient ? 'Yes' : 'No'}</span></HoverTip>
-      : column.kind === 'boolean' ? item.catalogItem && catalogFields.some(key => key === column.key) ? <span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item[column.key as keyof Equipment] ? 'Yes' : 'No'}`}>{item[column.key as keyof Equipment] ? 'Yes' : 'No'}</span> : <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} onChange={() => onToggle(item, column.key as BooleanField)} /></label>
+      : column.kind === 'boolean' ? item.catalogItem && catalogFields.some(key => key === column.key) ? <span className="catalog-fact" aria-label={`${column.title}: ${item.name}: ${item[column.key as keyof Equipment] ? 'Yes' : 'No'}`}>{item[column.key as keyof Equipment] ? 'Yes' : 'No'}</span> : <label className="table-checkbox"><input type="checkbox" aria-label={`${column.title}: ${item.name}`} checked={Boolean(item[column.key as keyof Equipment])} disabled={readOnly} onChange={() => { if (!readOnly) onToggle(item, column.key as BooleanField); }} /></label>
       : column.key === 'keep' ? <Tooltip className="recommended-action" content={recommendationFor(item).reason}>{recommendationFor(item).action}</Tooltip>
       : column.key === 'helminth' ? <span className={['Unknown', 'Not applicable'].includes(helminthStatus(item)) ? 'table-secondary' : ''}>{helminthStatus(item)}</span>
       : column.key === 'rank' ? <HoverTip content={rankHover(item)}>{item.rank === null ? <span className="table-missing" aria-label="Rank unknown">—</span> : item.rank}</HoverTip>
       : column.key === 'craftingTarget' ? <HoverTip className="crafting-cell" content={craftingHover(item)}>{item.craftingTarget || <span className="table-missing">—</span>}</HoverTip>
       : column.key === 'variant' ? <HoverTip content={variantHover(item)}>{item.variant}</HoverTip>
       : column.key === 'slot' ? <HoverTip content={slotHover(item)}>{item.slot}</HoverTip>
-      : column.key === 'notes' ? <TableNotes name={item.name} value={item.notes} onChange={notes => onNotesChange(item, notes)} />
+      : column.key === 'notes' ? (readOnly ? (item.notes || <span className="table-missing">—</span>) : <TableNotes name={item.name} value={item.notes} onChange={notes => onNotesChange(item, notes)} />)
       : <span className={column.key === 'upgraded' && item.upgraded === 'Unknown' ? 'table-secondary' : ''}>{String(item[column.key as keyof Equipment] ?? '—')}</span>}
   />;
 }

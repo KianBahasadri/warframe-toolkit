@@ -3,19 +3,20 @@ import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { accountUsername, emptyProfile, isAccessKey, validateProfile } from '../src/lib/account.ts';
+import { accountUsername, emptyProfile, isAccessKey, isShareToken, validateProfile } from '../src/lib/account.ts';
 import { preserveCraftingProgress } from '../src/lib/crafting.ts';
 import type { AccountProfile, AccountSession } from '../src/lib/account.ts';
 
 const cookieName = 'warframe_toolkit_session';
 const lifetime = 30 * 24 * 60 * 60 * 1000;
-type AccountRow = { id: string; username: string; access_key_hash: string | null; profile: string; revision: number };
+type AccountRow = { id: string; username: string; access_key_hash: string | null; profile: string; revision: number; share_token?: string | null };
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const newAccessKey = () => `wft_${randomBytes(32).toString('base64url')}`;
+const newShareToken = () => `wfs_${randomBytes(32).toString('base64url')}`;
 
 export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlite'), origin, now = Date.now }: { databasePath?: string; origin?: string; now?: () => number } = {}) {
   let db: DatabaseSync | undefined, storageError = false;
@@ -25,19 +26,21 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
     db = new DatabaseSync(databasePath);
     if (databasePath !== ':memory:') chmodSync(databasePath, 0o600);
     db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, access_key_hash TEXT NOT NULL, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, access_key_hash TEXT NOT NULL, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0, share_token TEXT);
       CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS sessions_account ON sessions(account_id);`);
     const columns = new Set(db.prepare('PRAGMA table_info(accounts)').all().map(column => column.name));
     if (!columns.has('access_key_hash')) throw new Error('Account storage requires access keys.');
     const retired = ['salt', 'password_hash'].filter(column => columns.has(column));
-    if (retired.length) {
+    if (retired.length || !columns.has('share_token')) {
       db.exec('BEGIN IMMEDIATE');
       try {
         for (const column of retired) db.exec(`ALTER TABLE accounts DROP COLUMN ${column}`);
+        if (!columns.has('share_token')) db.exec('ALTER TABLE accounts ADD COLUMN share_token TEXT');
         db.exec('COMMIT');
       } catch (error) { db.exec('ROLLBACK'); throw error; }
     }
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_share_token ON accounts(share_token) WHERE share_token IS NOT NULL');
   } catch { storageError = true; }
 
   function json(res: ServerResponse, status: number, value: unknown) {
@@ -100,6 +103,15 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
   async function handle(req: IncomingMessage, res: ServerResponse, path: string) {
     if (storageError || !db) throw new ApiError(503, 'Account storage is unavailable. Existing data has been kept.');
     if (path === '/api/account/session' && req.method === 'GET') { const account = session(req); json(res, 200, account ? snapshot(account) : { user: null }); return; }
+    if (path.startsWith('/api/account/share/') && req.method === 'GET') {
+      let shareToken = '';
+      try { shareToken = decodeURIComponent(path.slice('/api/account/share/'.length)); } catch { /* Invalid URI encoding falls through to 404. */ }
+      if (!isShareToken(shareToken)) throw new ApiError(404, 'This shared inventory link is invalid or has been replaced.');
+      const account = db.prepare('SELECT * FROM accounts WHERE share_token = ?').get(shareToken) as AccountRow | undefined;
+      if (!account) throw new ApiError(404, 'This shared inventory link is invalid or has been replaced.');
+      const saved = snapshot(account);
+      json(res, 200, { username: saved.user.username, inventory: saved.profile.inventory }); return;
+    }
     if (!['POST', 'PUT'].includes(req.method || '')) throw new ApiError(405, 'Method not allowed.');
     const value = await body(req, path === '/api/account/profile' || path === '/api/account/register' ? 10 * 1024 * 1024 : 4096);
     if ((path === '/api/account/register' || path === '/api/account/login') && req.method === 'POST') {
@@ -133,6 +145,15 @@ export function createAccountsApi({ databasePath = resolve('.data/accounts.sqlit
     if (path === '/api/account/access-key' && req.method === 'POST') {
       throttle(req, account.username.toLowerCase());
       json(res, 200, { accessKey: replaceAccessKey(account, token(req)) }); return;
+    }
+    if (path === '/api/account/share' && req.method === 'POST') {
+      if (value.replace !== undefined && typeof value.replace !== 'boolean') throw new ApiError(400, 'Could not read the request.');
+      snapshot(account);
+      if (!value.replace && isShareToken(account.share_token)) { json(res, 200, { shareToken: account.share_token }); return; }
+      let shareToken = newShareToken();
+      while (shareToken === account.share_token) shareToken = newShareToken();
+      db.prepare('UPDATE accounts SET share_token = ? WHERE id = ?').run(shareToken, account.id);
+      json(res, 200, { shareToken }); return;
     }
     if (path === '/api/account/profile' && req.method === 'PUT') {
       const current = snapshot(account);

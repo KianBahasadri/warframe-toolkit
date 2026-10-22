@@ -35,7 +35,7 @@ export interface CollectionDefinition<Row> {
 // A definition supplies domain data; this module owns the shared browsing and table behavior.
 export function CollectionTable<Row extends { id: string }>({ definition, items, onEdit, onAdd, onExport, actionsRef, extraActions, renderCell }: {
   definition: CollectionDefinition<Row>; items: Row[];
-  onEdit: (item: Row) => void; onAdd: () => void; onExport: () => void; actionsRef?: Ref<CollectionActions>;
+  onEdit: (item: Row) => void; onAdd?: () => void; onExport: () => void; actionsRef?: Ref<CollectionActions>;
   extraActions?: ReactNode; renderCell: (item: Row, column: TableColumn, visibleColumns: string[]) => ReactNode;
 }) {
   const defaults = Object.fromEntries(definition.filters.map(field => [field.key, field.defaultValue ?? (field.kind === 'checkbox' ? false : '')]));
@@ -59,7 +59,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
   const filterButton = useRef<HTMLButtonElement>(null);
   const tableScroll = useRef<HTMLDivElement>(null);
   const filtersId = useId();
-  useImperativeHandle(actionsRef, () => ({ add: onAdd }), [onAdd]);
+  useImperativeHandle(actionsRef, () => ({ add: () => onAdd?.() }), [onAdd]);
   const columns = visibleColumns.map(key => definition.columns.find(column => column.key === key)!);
   const primary = definition.columns.find(column => column.required) ?? definition.columns[0];
   useLayoutEffect(() => {
@@ -140,7 +140,7 @@ export function CollectionTable<Row extends { id: string }>({ definition, items,
       <span className="filter-result" role="status">{definition.summary?.(filtered.length, items, filters) ?? `${filtered.length} of ${items.length}`}</span>
       {pricing && <span className="small muted" role="status">{pricing}</span>}
       <div className="inventory-actions">
-        <button type="button" className="button secondary" onClick={onAdd}><Plus size={16} />Add {definition.itemLabel}</button>
+        {onAdd && <button type="button" className="button secondary" onClick={onAdd}><Plus size={16} />Add {definition.itemLabel}</button>}
         {extraActions}
         <button type="button" className="button quiet" onClick={onExport}><ArrowDownToLine size={15} />Export CSV</button>
       </div>
