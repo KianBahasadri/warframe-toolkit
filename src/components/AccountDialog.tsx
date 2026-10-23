@@ -3,7 +3,7 @@ import { ArrowLeft, Check, Copy, Languages, LogOut, RefreshCw, Share2, UserRound
 import { Dialog } from './Dialog';
 import { shareInventoryLink } from '../lib/account';
 import type { AccountUser } from '../lib/account';
-import { ClerkAuthForm, useClerkAuth } from '../lib/clerk';
+import { useClerkAuth } from '../lib/clerk';
 import { LANGUAGES, t, useLanguage } from '../lib/i18n';
 
 export type AccountDialogMode = 'account' | 'login' | 'register' | 'share';
@@ -129,39 +129,25 @@ export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }
 
 type Props = {
   user: AccountUser | null;
-  initialMode: AccountDialogMode;
+  initialMode: 'account' | 'share';
   initialError?: string;
   dirty: boolean;
-  checking: boolean;
-  accountError: string;
   onShareInventory: (replace?: boolean) => Promise<string>;
   onSignOut: () => Promise<void>;
   onClose: () => void;
 };
 
-export function AccountDialog({ user, initialMode, initialError, dirty, checking, accountError, onShareInventory, onSignOut, onClose }: Props) {
+export function AccountDialog({ user, initialMode, initialError, dirty, onShareInventory, onSignOut, onClose }: Props) {
   const languageLabel = useId();
   const [language, setLanguage] = useLanguage();
   const clerk = useClerkAuth();
-  const [mode, setMode] = useState<AccountDialogMode>(() => user ? (initialMode === 'login' || initialMode === 'register' ? 'account' : initialMode) : (initialMode === 'register' ? 'register' : 'login'));
+  const [mode, setMode] = useState(initialMode);
   const [shareToken, setShareToken] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState(initialError ?? ''), [copied, setCopied] = useState('');
   const shareInput = useRef<HTMLInputElement>(null);
-  const authStartVersion = useRef(clerk.sessionVersion);
-  const wasAuthenticated = useRef(Boolean(user && !dirty && !accountError));
-  const needsUser = mode === 'account' || mode === 'share';
-
   useEffect(() => {
-    if (needsUser && !user) onClose();
-  }, [needsUser, user, onClose]);
-
-  useEffect(() => {
-    if (mode !== 'login' && mode !== 'register') return;
-    const nowAuthenticated = Boolean(user && !checking && !dirty && !accountError);
-    if ((!wasAuthenticated.current && nowAuthenticated) || (clerk.sessionVersion > authStartVersion.current && nowAuthenticated)) {
-      onClose();
-    }
-  }, [mode, user, checking, dirty, accountError, clerk.sessionVersion, onClose]);
+    if (!user) onClose();
+  }, [user, onClose]);
 
   useEffect(() => {
     if (mode === 'share' && shareToken) shareInput.current?.focus();
@@ -186,9 +172,9 @@ export function AccountDialog({ user, initialMode, initialError, dirty, checking
     catch { setError(t('Could not copy. Select and copy the text instead.')); }
   };
   // Clerk can clear the user before its asynchronous sign-out finishes.
-  if (needsUser && !user) return null;
+  if (!user) return null;
   const shareLink = shareToken ? shareInventoryLink(location.href, shareToken) : '';
-  const title = t(mode === 'share' ? 'Share inventory' : mode === 'account' ? 'Account' : mode === 'register' ? 'Create account' : 'Sign in');
+  const title = t(mode === 'share' ? 'Share inventory' : 'Account');
   const feedback = <>{error && <p className="error-text" role="alert">{error}</p>}{copied && <p className="muted small" role="status">{copied}</p>}</>;
   return <Dialog title={title} onClose={close} className="account-dialog">
     {mode === 'share' ? <div className="account-form">
@@ -211,8 +197,8 @@ export function AccountDialog({ user, initialMode, initialError, dirty, checking
         <button type="button" className="button quiet" disabled={busy} onClick={() => { setMode('account'); setError(''); setCopied(''); }}>{t('Back')}</button>
         <button type="button" className="button primary" disabled={busy} onClick={close}>{t('Done')}</button>
       </div>
-    </div> : mode === 'account' ? <>
-      <p className="account-username">{user!.username}</p>
+    </div> : <>
+      <p className="account-username">{user.username}</p>
       <p className="muted small">{t(dirty ? 'You have unsaved changes.' : 'Your inventory, views, crafting plans, and arsenals belong to this account.')}</p>
       <div className="account-option-list">
         <button type="button" className="button secondary" disabled={busy} onClick={() => { setMode('share'); setError(''); setCopied(''); }}><Share2 size={15} />{t('Share inventory')}</button>
@@ -231,11 +217,7 @@ export function AccountDialog({ user, initialMode, initialError, dirty, checking
         </div>
       </div>
       {feedback}
-      <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { authStartVersion.current = clerk.sessionVersion; wasAuthenticated.current = false; setMode('login'); setError(''); }}>{t('Sign in again')}</button><button type="button" className="button secondary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await onSignOut(); onClose(); } catch (error) { setError((error as Error).message); } finally { setBusy(false); } }}>{busy ? t('Signing out…') : t('Sign out')}</button></div>
-    </> : <div className="account-form">
-      <ClerkAuthForm mode={mode} />
-      {feedback}
-      <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{t(mode === 'login' ? 'Create account' : 'Sign in instead')}</button></div>
-    </div>}
+      <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { onClose(); clerk.openSignIn(); }}>{t('Sign in again')}</button><button type="button" className="button secondary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await onSignOut(); onClose(); } catch (error) { setError((error as Error).message); } finally { setBusy(false); } }}>{busy ? t('Signing out…') : t('Sign out')}</button></div>
+    </>}
   </Dialog>;
 }

@@ -1,8 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
+import { ClerkProvider, useAuth, useClerk, useUser } from '@clerk/react';
 import { clerkDisplayName } from './account';
-import { t } from './i18n';
 
 export interface ClerkAuthState {
   configured: boolean;
@@ -13,6 +12,8 @@ export interface ClerkAuthState {
   sessionVersion: number;
   getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
+  openSignIn: () => void;
+  openSignUp: () => void;
   openUserProfile: () => void;
 }
 
@@ -25,6 +26,8 @@ const unconfiguredState: ClerkAuthState = {
   sessionVersion: 0,
   getToken: async () => null,
   signOut: async () => {},
+  openSignIn: () => {},
+  openSignUp: () => {},
   openUserProfile: () => {},
 };
 
@@ -113,6 +116,8 @@ function ClerkStateBridge({ children }: { children: ReactNode }) {
       if (direct?.signOut && !clerk.loaded) await direct.signOut();
       else await clerk.signOut();
     },
+    openSignIn: () => { clerk.openSignIn(); },
+    openSignUp: () => { clerk.openSignUp(); },
     openUserProfile: () => { clerk.openUserProfile(); },
   }), [loaded, signedIn, activeUserId, username, sessionVersion, getToken, signOut, clerk]);
 
@@ -135,16 +140,4 @@ export function AppClerkProvider({ children }: { children: ReactNode }) {
 
 export function useClerkAuth(): ClerkAuthState {
   return useContext(ClerkAuthContext);
-}
-
-export function ClerkAuthForm({ mode }: { mode: 'login' | 'register' }) {
-  const { configured } = useClerkAuth();
-  if (!configured) {
-    return <p className="muted small" role="status">{t('Clerk is not configured. Set VITE_CLERK_PUBLISHABLE_KEY to enable sign-in.')}</p>;
-  }
-  return (
-    <div className="clerk-auth-container">
-      {mode === 'register' ? <SignUp routing="hash" /> : <SignIn routing="hash" />}
-    </div>
-  );
 }

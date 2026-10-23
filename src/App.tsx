@@ -14,6 +14,7 @@ import type { AccountDialogMode } from './components/AccountDialog';
 import { CraftingNav } from './components/CraftingNav';
 import { readShareInventoryLink } from './lib/account';
 import { fetchSharedInventory, useAccount } from './lib/useAccount';
+import { useClerkAuth } from './lib/clerk';
 import { useToasts } from './components/Toasts';
 import './components/Account.css';
 import { catalog } from './data/catalog';
@@ -46,9 +47,15 @@ function currentShareParam(): { token: string | null; error: string } {
 export default function App() {
   useLanguage();
   const account = useAccount();
+  const clerk = useClerkAuth();
   const inventory = account.profile.inventory;
   const commit = (next: Inventory, saveDelay?: number) => { const saved = account.commitInventory(next, saveDelay); if (saved) inventoryRef.current = next; return saved; };
-  const [accountOpen, setAccountOpen] = useState<{ mode: AccountDialogMode; error?: string } | null>(null);
+  const [accountOpen, setAccountOpen] = useState<{ mode: 'account' | 'share'; error?: string } | null>(null);
+  const openAccount = (mode: AccountDialogMode, error?: string) => {
+    if (mode === 'login') clerk.openSignIn();
+    else if (mode === 'register') clerk.openSignUp();
+    else setAccountOpen({ mode, error });
+  };
   const inventoryRef = useRef(inventory); inventoryRef.current = inventory;
   const [page, setPage] = useState<Page>(() => pageFromPath(location.pathname) ?? 'weapons');
   const [shareParam, setShareParam] = useState(currentShareParam);
@@ -182,7 +189,7 @@ export default function App() {
   const tableOwnerKey = viewingShared ? `share:${shareParam.token}` : (account.user?.id ?? 'guest');
   const themeLabel = t(`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`);
   return <div className="app-shell">
-    <div className="content-shell"><header className="topbar">{nav}<div className="topbar-right"><div className="page-utilities"><button type="button" className="search-launcher" aria-label={t('Open search and commands')} aria-keyshortcuts="Control+k Meta+k Control+Space" onClick={() => setPalette(true)}><Search size={15} /></button><button type="button" className="icon-button theme-toggle" aria-label={themeLabel} title={themeLabel} onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button><AccountActions user={account.user} checking={account.checking} dialogOpen={Boolean(accountOpen)} onOpen={(mode, error) => setAccountOpen({ mode, error })} onSignOut={account.signOut} /></div></div></header>
+    <div className="content-shell"><header className="topbar">{nav}<div className="topbar-right"><div className="page-utilities"><button type="button" className="search-launcher" aria-label={t('Open search and commands')} aria-keyshortcuts="Control+k Meta+k Control+Space" onClick={() => setPalette(true)}><Search size={15} /></button><button type="button" className="icon-button theme-toggle" aria-label={themeLabel} title={themeLabel} onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button><AccountActions user={account.user} checking={account.checking} dialogOpen={Boolean(accountOpen)} onOpen={openAccount} onSignOut={account.signOut} /></div></div></header>
       <main id="main-content" className={page === 'import' ? 'import-page' : undefined}>
         {account.user && <div className="sr-only" role="status" aria-label="Save status">{account.error && account.dirty ? 'Unsaved changes' : account.saving || account.dirty ? 'Saving…' : 'Saved'}</div>}
         {account.error && <div className="callout danger" role="alert">{account.error}<div className="account-error-actions">{account.user && <><button type="button" className="button secondary" disabled={account.saving} onClick={() => void account.retrySave()}>{t('Try saving again')}</button><button type="button" className="button secondary" onClick={() => downloadFile('grakata-unsaved-profile.json', JSON.stringify(account.profile, null, 2), 'application/json')}>{t('Download changes')}</button><button type="button" className="button quiet" disabled={account.saving} onClick={() => void account.reloadSaved()}>{t('Discard changes and reload saved data')}</button></>}</div></div>}
@@ -225,14 +232,14 @@ export default function App() {
           navigate('weapons');
           return true;
         }} />}
-        {page === 'droptables' && <DropTables actionsRef={dropActions} savedViews={account.profile.dropViews} savedViewsError="" canSave={Boolean(account.user)} onSaveViews={account.commitViews} onSignIn={() => setAccountOpen({ mode: 'login' })} />}
-        {page === 'modder' && <Suspense fallback={<p role="status" className="small muted">Loading Modding Calculator…</p>}><Modder key={account.user?.id ?? 'guest'} builds={account.profile.arsenals} onSave={account.commitArsenals} canSave={Boolean(account.user)} disabled={account.checking} onSignIn={() => setAccountOpen({ mode: 'login' })} /></Suspense>}
-        {page === 'crafting' && <Suspense fallback={<p role="status" className="small muted">Loading crafting…</p>}><Crafting key={account.user?.id ?? 'guest'} plans={account.profile.craftingPlans} selected={craftingPlan} onSelect={setCraftingPlan} onSave={account.commitCrafting} canSave={Boolean(account.user)} disabled={account.checking} onSignIn={() => setAccountOpen({ mode: 'login' })} /></Suspense>}
+        {page === 'droptables' && <DropTables actionsRef={dropActions} savedViews={account.profile.dropViews} savedViewsError="" canSave={Boolean(account.user)} onSaveViews={account.commitViews} onSignIn={() => openAccount('login')} />}
+        {page === 'modder' && <Suspense fallback={<p role="status" className="small muted">Loading Modding Calculator…</p>}><Modder key={account.user?.id ?? 'guest'} builds={account.profile.arsenals} onSave={account.commitArsenals} canSave={Boolean(account.user)} disabled={account.checking} onSignIn={() => openAccount('login')} /></Suspense>}
+        {page === 'crafting' && <Suspense fallback={<p role="status" className="small muted">Loading crafting…</p>}><Crafting key={account.user?.id ?? 'guest'} plans={account.profile.craftingPlans} selected={craftingPlan} onSelect={setCraftingPlan} onSave={account.commitCrafting} canSave={Boolean(account.user)} disabled={account.checking} onSignIn={() => openAccount('login')} /></Suspense>}
       </main>
     </div>
     {editing && <EquipmentForm weapons={page === 'weapons'} item={editing === 'new' ? undefined : editing} existing={activeInventory.items} readOnly={viewingShared} onClose={() => setEditing(null)} onSave={item => { const current = inventoryRef.current; const exists = current.items.some(entry => entry.id === item.id); if (commit({ ...current, items: exists ? current.items.map(entry => entry.id === item.id ? item : entry) : [...current.items, item] })) { setEditing(null); notify(`${item.name} ${exists ? 'updated' : 'added'}.`); return true; } return false; }} onDelete={id => { if (commit({ ...inventoryRef.current, items: inventoryRef.current.items.filter(item => item.id !== id) })) { setEditing(null); notify(`${page === 'weapons' ? 'Weapon' : 'Warframe'} entry removed.`); return true; } return false; }} />}
     {palette && <Commands commands={commands} destinations={destinations} onClose={() => setPalette(false)} />}
-    {accountOpen && <AccountDialog initialMode={accountOpen.mode} initialError={accountOpen.error} user={account.user} dirty={account.dirty} checking={account.checking} accountError={account.error} onShareInventory={account.shareInventory} onSignOut={account.signOut} onClose={() => setAccountOpen(null)} />}
+    {accountOpen && <AccountDialog initialMode={accountOpen.mode} initialError={accountOpen.error} user={account.user} dirty={account.dirty} onShareInventory={account.shareInventory} onSignOut={account.signOut} onClose={() => setAccountOpen(null)} />}
     {shortcuts && <Dialog title={t('Keyboard shortcuts')} onClose={() => setShortcuts(false)}><dl className="shortcut-list"><div><dt>{t('Search and commands')}</dt><dd><kbd>Ctrl</kbd> + <kbd>K</kbd> / <kbd>⌘</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>Space</kbd></dd></div>{[...commands, ...destinations].map(command => <div key={command.label}><dt>{command.label}</dt><dd>{command.keys.map(key => <kbd key={key}>{key}</kbd>)}</dd></div>)}<div><dt>{t('Column actions')}</dt><dd><kbd>Shift</kbd> + <kbd>F10</kbd></dd></div><div><dt>{t('Inspect price history')}</dt><dd><kbd>←</kbd><kbd>→</kbd><kbd>Home</kbd><kbd>End</kbd></dd></div><div><dt>{t('Pin price sample')}</dt><dd><kbd>Enter</kbd><kbd>Space</kbd></dd></div><div><dt>{t('Zoom / pan price history')}</dt><dd><kbd>+</kbd><kbd>−</kbd> / <kbd>Shift</kbd> + <kbd>←</kbd><kbd>→</kbd></dd></div><div><dt>Move between {page === 'droptables' ? 'reward' : equipmentLabel} rows</dt><dd><kbd>↑</kbd><kbd>↓</kbd></dd></div><div><dt>Open selected {page === 'droptables' ? 'reward' : equipmentLabel}</dt><dd><kbd>Enter</kbd><kbd>Space</kbd></dd></div></dl></Dialog>}
   </div>;
 }

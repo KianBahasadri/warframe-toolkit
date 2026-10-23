@@ -86,6 +86,8 @@ export const test = base.extend<{ account: TestAccount; signedIn: boolean }>({
       const listeners = new Set<(resources: unknown) => void>();
       type Identity = { id: string; username: string; token: string } | null;
       let currentIdentity: Identity = null;
+      let authModal: HTMLDialogElement | undefined;
+      let authTrigger: HTMLElement | null = null;
       const STORAGE_KEY = '__clerk_test_identity';
       const INIT_KEY = '__clerk_test_initialized';
 
@@ -134,12 +136,37 @@ export const test = base.extend<{ account: TestAccount; signedIn: boolean }>({
           setIdentity(null, true);
         },
         openUserProfile() {},
-        mountSignIn(node: HTMLElement) { renderForm(node, 'Sign in'); },
-        unmountSignIn(node: HTMLElement) { node.replaceChildren(); },
-        mountSignUp(node: HTMLElement) { renderForm(node, 'Create account'); },
-        unmountSignUp(node: HTMLElement) { node.replaceChildren(); },
+        openSignIn() { openAuthModal('Sign in'); },
+        openSignUp() { openAuthModal('Create account'); },
         __internal_updateProps() {},
       };
+
+      function closeAuthModal() {
+        authModal?.close();
+        authModal?.remove();
+        authModal = undefined;
+        if (authTrigger?.isConnected) authTrigger.focus();
+      }
+
+      function openAuthModal(submitLabel: string) {
+        if (!authModal) {
+          authTrigger = document.activeElement as HTMLElement;
+          authModal = document.createElement('dialog');
+          authModal.dataset.clerkModal = '';
+          authModal.style.padding = '20px 16px';
+          authModal.addEventListener('cancel', event => { event.preventDefault(); closeAuthModal(); });
+          document.body.appendChild(authModal);
+          authModal.showModal();
+        }
+        authModal.setAttribute('aria-label', submitLabel);
+        renderForm(authModal, submitLabel);
+        const switchMode = document.createElement('button');
+        switchMode.type = 'button';
+        switchMode.className = 'button quiet';
+        switchMode.textContent = submitLabel === 'Sign in' ? 'Create account' : 'Sign in instead';
+        switchMode.addEventListener('click', () => openAuthModal(submitLabel === 'Sign in' ? 'Create account' : 'Sign in'));
+        authModal.appendChild(switchMode);
+      }
 
       function setIdentity(identity: Identity, emit: boolean) {
         currentIdentity = identity;
@@ -218,6 +245,7 @@ export const test = base.extend<{ account: TestAccount; signedIn: boolean }>({
             }
             writeStored(data);
             setIdentity(data, true);
+            closeAuthModal();
           } finally {
             submit.disabled = false;
           }

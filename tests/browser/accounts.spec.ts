@@ -129,11 +129,15 @@ test.describe('guest accounts', () => {
       expect(createBounds.x + createBounds.width).toBeLessThanOrEqual(320);
       await create.focus(); await page.keyboard.press('Enter');
       await expect(page.getByRole('dialog')).toHaveAccessibleName('Create account');
+      await expect(page.locator('[data-clerk-modal]')).toHaveCount(1);
+      await expect(page.locator('.account-dialog')).toHaveCount(0);
       await expect(page.getByLabel('Username', { exact: true })).toBeFocused();
       await page.keyboard.press('Escape');
       await expect(create).toBeFocused();
       await trigger.focus(); await page.keyboard.press('Enter');
       const dialog = page.getByRole('dialog');
+      await expect(page.locator('[data-clerk-modal]')).toHaveCount(1);
+      await expect(page.locator('.account-dialog')).toHaveCount(0);
       await expect(dialog.getByLabel('Username', { exact: true })).toBeFocused();
       await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
       const bounds = await dialog.boundingBox();
@@ -202,6 +206,7 @@ test('signing in again after a session ends preserves unsaved changes', async ({
   await expect(page.getByRole('alert')).toContainText('Sign in to save your changes.');
   await page.getByRole('button', { name: 'Account: TestTenno', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in again', exact: true }).click();
+  await expect(page.locator('.account-dialog')).toHaveCount(0);
   await signIn(page, 'TestTenno', false);
   expect((await account.inventory()).items.find(item => item.name === 'Boltor')!.mastered).toBe(false);
 });

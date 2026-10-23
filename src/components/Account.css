@@ -11,9 +11,6 @@
 .account-form .dialog-footer { margin-top: 8px; }
 .account-form .check-row { font-size: 12px; line-height: 1.6; }
 .account-form .account-secret { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
-.clerk-auth-container .cl-rootBox, .clerk-auth-container .cl-cardBox { width: 100%; min-width: 0; max-width: 100%; }
-.clerk-auth-container .cl-card { padding: 20px 16px; min-width: 0; }
-.clerk-auth-container .cl-footer { padding-inline: 16px; }
 .account-key-actions { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .account-key-actions .button { font-size: 12px; padding: 9px 12px; }
 .account-bookmark { font-size: 12px; color: var(--ink); text-underline-offset: 3px; }
