@@ -79,6 +79,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event.repository.private == false
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+      CLERK_JWT_KEY: ${{ vars.CLERK_JWT_KEY }}
     permissions:
       contents: read
       id-token: write
@@ -104,6 +107,8 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
         run: node scripts/check-azure-auth.mjs
       - run: npm ci
+      - name: Verify Clerk production configuration
+        run: node scripts/check-clerk.mjs
       - run: npm run build:cloudflare
       - name: Deploy through Terraform and verify production
         env:

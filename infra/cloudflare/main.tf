@@ -19,6 +19,10 @@ variable "release" { type = string }
 variable "clerk_jwt_key" {
   type    = string
   default = ""
+  validation {
+    condition     = startswith(trimspace(var.clerk_jwt_key), "-----BEGIN PUBLIC KEY-----")
+    error_message = "Set CLERK_JWT_KEY to the production Clerk PEM public key."
+  }
 }
 
 locals {

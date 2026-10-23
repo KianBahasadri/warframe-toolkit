@@ -108,7 +108,9 @@ export function useAccount() {
         const result = checkedSession(response);
         if (!before.user) guest.current = { ...before, checking: false };
         if (before.user?.id === result.user.id && before.dirty) {
-          update({ user: result.user, revision: result.revision, error: '', checking: false });
+          // The draft still belongs to the revision it was edited against.
+          // Reauthentication must not bypass conflicts with another device.
+          update({ user: result.user, error: '', checking: false });
           await save();
         } else {
           update({ ...result, checking: false, dirty: false, saving: false, error: '' });

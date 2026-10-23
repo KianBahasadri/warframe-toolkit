@@ -206,6 +206,27 @@ test('signing in again after a session ends preserves unsaved changes', async ({
   expect((await account.inventory()).items.find(item => item.name === 'Boltor')!.mastered).toBe(false);
 });
 
+test('signing in again cannot overwrite changes saved on another device', async ({ page, account }) => {
+  await page.goto('/');
+  const remote = await account.inventory();
+  remote.items.find(item => item.name === 'Boltor')!.notes = 'Saved on another device';
+  await account.setInventory(remote);
+  await account.signOut();
+  await page.getByLabel('Mastered: Boltor', { exact: true }).uncheck();
+  await expect(status(page)).toHaveText('Unsaved changes');
+  await expect(page.getByRole('alert')).toContainText('Sign in to save your changes.');
+  await page.getByRole('button', { name: 'Account: TestTenno', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign in again', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Sign in', exact: true });
+  await dialog.getByLabel('Username', { exact: true }).fill('TestTenno');
+  await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'another tab or device' }).first()).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(status(page)).toHaveText('Unsaved changes');
+  await expect(page.getByLabel('Mastered: Boltor', { exact: true })).not.toBeChecked();
+  expect((await account.session()).profile.inventory).toEqual(remote);
+});
+
 test('edits made while loading a saved version remain in the current draft', async ({ page, account }) => {
   await page.goto('/');
   const remote = await account.inventory();

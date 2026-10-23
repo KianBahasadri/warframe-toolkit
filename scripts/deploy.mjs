@@ -1,14 +1,16 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, rm } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { setTimeout } from 'node:timers/promises';
 import { loadCredentials } from './cloudflare-api.mjs';
 import { r2Credentials } from './r2-credentials.mjs';
 import { assertProductionState, assertSafePlan } from './deployment-checks.mjs';
 import { checkMarket } from './check-market.mjs';
+import { checkClerk } from './check-clerk.mjs';
 
 process.umask(0o077);
 loadCredentials();
+await checkClerk({ buildDirectory: 'dist' });
 const credentials = await r2Credentials();
 Object.assign(process.env, credentials);
 // Derived credentials are not registered GitHub secrets. Mask them before any
@@ -30,7 +32,12 @@ const metadata = await readFile('infra/cloudflare/.terraform/terraform.tfstate',
 });
 const backend = JSON.parse(metadata).backend;
 if (backend?.type !== 's3' || backend.config?.use_lockfile !== true) throw new Error('Automatic deployment requires shared state with locking. Local or unlocked state is not allowed.');
-assertProductionState(JSON.parse(terraform(['state', 'pull'], true)));
+const state = terraform(['state', 'pull'], true);
+assertProductionState(JSON.parse(state));
+const backups = '.data/terraform-backups';
+await mkdir(backups, { recursive: true, mode: 0o700 });
+await chmod(backups, 0o700);
+await writeFile(`${backups}/production-${Date.now()}.json`, state, { mode: 0o600, flag: 'wx' });
 terraform(['validate']);
 const plan = 'production.tfplan';
 try {
