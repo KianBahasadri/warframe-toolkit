@@ -94,6 +94,7 @@ test('long plan menus scroll within the viewport and retain keyboard focus in bo
 
 test('the plan list updates after creation and removal and clears after sign-out', async ({ page, account }) => {
   await page.goto('/crafting');
+  await account.profile();
   const trigger = page.getByRole('link', { name: 'Crafting', exact: true });
   const menu = page.getByRole('menu', { name: 'Open crafting plans' });
   await trigger.hover(); await expect(menu).toHaveText('No open plans.');
