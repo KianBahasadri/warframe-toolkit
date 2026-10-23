@@ -38,13 +38,11 @@ test('each tool has a distinct indexable document without a query string', () =>
   assert.match(robotsTxt(), /Sitemap: https:\/\/grakata\.com\/sitemap\.xml/);
 });
 
-test('legacy fragments become paths and sign-in fragments stay intact', () => {
+test('legacy fragments become paths', () => {
   assert.equal(locationTarget('/', '', '#relics'), '/relics');
   assert.equal(locationTarget('/weapons', '', '#droptables?view=%7B%7D'), '/droptables?view=%7B%7D');
   assert.equal(locationTarget('/', '', '#backups'), '/weapons');
   assert.equal(locationTarget('/weapons', '', '#backups'), '/weapons');
-  assert.equal(locationTarget('/', '?old=1', '#sign-in?username=Tenno&key=wft_abc'), '/weapons?old=1#sign-in?username=Tenno&key=wft_abc');
-  assert.equal(locationTarget('/relics', '', '#sign-in?username=Tenno&key=wft_abc'), '/relics#sign-in?username=Tenno&key=wft_abc');
   assert.equal(locationTarget('/droptables', '?view=1', ''), '/droptables?view=1');
   assert.equal(locationTarget('/', '?share=wfs_abc', ''), '/weapons?share=wfs_abc');
   assert.equal(locationTarget('/weapons', '?share=wfs_abc', ''), '/weapons?share=wfs_abc');

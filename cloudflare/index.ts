@@ -11,6 +11,8 @@ export interface Env {
   ASSETS: Fetcher;
   ACCOUNTS_ORIGIN: string;
   RELEASE: string;
+  CLERK_JWT_KEY?: string;
+  CLERK_SECRET_KEY?: string;
   WFM_RELAY_URL?: string;
   WFM_RELAY_KEY?: string;
 }

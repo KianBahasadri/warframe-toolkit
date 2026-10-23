@@ -1,83 +1,91 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { createHash } from 'node:crypto';
+import { generateKeyPairSync } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createAccountsApi } from '../server/accounts.ts';
-import { accessKeyLink, emptyProfile, isAccessKey, isShareToken, readAccessKeyLink, readShareInventoryLink, shareInventoryLink } from '../src/lib/account.ts';
+import { emptyProfile, isShareToken, readShareInventoryLink, shareInventoryLink } from '../src/lib/account.ts';
 import { createEquipment } from '../src/lib/model.ts';
 import { newArsenal } from '../src/lib/modderModel.ts';
+import { mintClerkToken, testClerkKeys } from './fixtures/clerk.ts';
 
-const digest = (value: string) => createHash('sha256').update(value).digest('hex');
-async function serve(path = ':memory:', now?: () => number) {
-  const api = createAccountsApi({ databasePath: path, now });
+async function serve(path = ':memory:') {
+  const api = createAccountsApi({ databasePath: path, jwtKey: testClerkKeys.publicKey });
   const server = createServer((req, res) => api.middleware(req, res, () => { res.writeHead(404); res.end(); }));
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   return {
-    async request(path: string, data?: unknown, cookie = '', options: { method?: string; origin?: string } = {}) {
-      return fetch(`${base}/api/account/${path}`, { method: options.method ?? (data === undefined ? 'GET' : 'POST'), headers: { Origin: options.origin ?? base, 'X-Toolkit-Request': '1', 'Content-Type': 'application/json', Cookie: cookie }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
+    base,
+    tokenFor(sub: string, username?: string, expOffsetSeconds?: number) {
+      return mintClerkToken({ sub, username, azp: base, expOffsetSeconds });
+    },
+    async request(path: string, data?: unknown, token = '', options: { method?: string; origin?: string; username?: string } = {}) {
+      return fetch(`${base}/api/account/${path}`, {
+        method: options.method ?? (data === undefined ? 'GET' : 'POST'),
+        headers: {
+          Origin: options.origin ?? base,
+          'X-Toolkit-Request': '1',
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.username ? { 'X-Clerk-Username': encodeURIComponent(options.username) } : {}),
+        },
+        ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+      });
     },
     async close() { await new Promise<void>(resolve => server.close(() => resolve())); api.close(); },
   };
 }
-const cookieOf = (response: Response) => response.headers.get('set-cookie')!.split(';')[0];
 
-test('arsenal saves survive older clients and malformed replacements are rejected', async () => {
+test('arsenal saves round-trip and malformed replacements are rejected', async () => {
   const api = await serve();
   try {
+    const token = api.tokenFor('user_modder', 'ModderTenno');
     const profile = emptyProfile(); profile.arsenals = [newArsenal()];
-    const registered = await api.request('register', { username: 'ModderTenno', profile });
-    const account = await registered.json(), cookie = cookieOf(registered);
-    const { arsenals, ...legacy } = profile;
-    const save = { accountId: account.user.id, revision: 0, profile: legacy };
-    assert.equal((await api.request('profile', save, cookie, { method: 'PUT' })).status, 200);
-    assert.deepEqual((await (await api.request('session', undefined, cookie)).json()).profile.arsenals, arsenals);
-    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...legacy, arsenals: null } }, cookie, { method: 'PUT' })).status, 400);
-    assert.deepEqual((await (await api.request('session', undefined, cookie)).json()).profile.arsenals, arsenals);
-    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...legacy, arsenals: [] } }, cookie, { method: 'PUT' })).status, 200);
-    assert.deepEqual((await (await api.request('session', undefined, cookie)).json()).profile.arsenals, []);
+    const account = await (await api.request('session', undefined, token)).json();
+    const save = { accountId: account.user.id, revision: 0, profile };
+    assert.equal((await api.request('profile', save, token, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, token)).json()).profile.arsenals, profile.arsenals);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, arsenals: null } }, token, { method: 'PUT' })).status, 400);
+    assert.deepEqual((await (await api.request('session', undefined, token)).json()).profile.arsenals, profile.arsenals);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, arsenals: [] } }, token, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, token)).json()).profile.arsenals, []);
   } finally { await api.close(); }
 });
 
-test('accounts use normalized usernames and generated access keys, with private expiring sessions and no email', async () => {
+test('Clerk session tokens auto-provision accounts, update display usernames, and reject invalid or forged JWTs', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'warframe-auth-'));
   const path = join(directory, 'accounts.sqlite');
   const api = await serve(path);
   try {
-    const registered = await api.request('register', { username: '  MyTenno#123  ' });
-    assert.equal(registered.status, 201);
-    const { accessKey, ...account } = await registered.json();
-    assert.equal(isAccessKey(accessKey), true);
-    assert.equal(registered.headers.get('cache-control'), 'no-store');
-    assert.equal(account.user.username, 'MyTenno#123'); assert.deepEqual(account.profile, emptyProfile());
-    assert.deepEqual(Object.keys(account.user).sort(), ['id', 'username']);
-    assert.match(registered.headers.get('set-cookie')!, /HttpOnly; SameSite=Lax; Max-Age=2592000/);
-    const cookie = cookieOf(registered);
-    assert.deepEqual(await (await api.request('session', undefined, cookie)).json(), account);
-    const duplicate = await api.request('register', { username: 'mytenno#123' });
-    assert.equal(duplicate.status, 409);
-    assert.equal((await api.request('login', { username: 'MyTenno#123', accessKey: 'wrong key' })).status, 401);
-    assert.equal((await api.request('login', { username: 'UnknownTenno', accessKey })).status, 401);
-    const login = await api.request('login', { username: 'MYTENNO#123', accessKey: ` ${accessKey} ` }, cookie);
-    assert.equal(login.status, 200); assert.notEqual(cookieOf(login), cookie);
-    assert.deepEqual(await (await api.request('session', undefined, cookie)).json(), { user: null });
+    assert.deepEqual(await (await api.request('session')).json(), { user: null });
+    const token = api.tokenFor('user_tenno_123', '  MyTenno#123  ');
+    const session = await api.request('session', undefined, token);
+    assert.equal(session.status, 200);
+    assert.equal(session.headers.get('cache-control'), 'no-store');
+    const account = await session.json();
+    assert.deepEqual(account, { user: { id: 'user_tenno_123', username: 'MyTenno#123' }, profile: emptyProfile(), revision: 0 });
+
+    const renamed = await api.request('session', undefined, api.tokenFor('user_tenno_123'), { username: 'RenamedTenno' });
+    assert.equal((await renamed.json()).user.username, 'RenamedTenno');
+
+    const wrongKey = generateKeyPairSync('rsa', { modulusLength: 2048, publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
+    const forgedToken = mintClerkToken({ sub: 'user_tenno_123', azp: api.base, privateKey: wrongKey.privateKey });
+    assert.equal((await api.request('session', undefined, forgedToken)).status, 401);
+
+    const wrongAzpToken = mintClerkToken({ sub: 'user_tenno_123', azp: 'https://evil.example' });
+    assert.equal((await api.request('session', undefined, wrongAzpToken)).status, 401);
+
+    const expiredToken = api.tokenFor('user_tenno_123', 'MyTenno#123', -60);
+    assert.equal((await api.request('session', undefined, expiredToken)).status, 401);
+
     const db = new DatabaseSync(path);
-    const stored = db.prepare('SELECT access_key_hash FROM accounts').get()!;
-    assert.equal(stored.access_key_hash, digest(accessKey));
-    assert.equal(db.prepare('PRAGMA table_info(accounts)').all().some(row => ['salt', 'password_hash'].includes(String(row.name))), false);
-    assert.equal(JSON.stringify(db.prepare('SELECT * FROM accounts').all()).includes(accessKey), false);
-    assert.equal((await api.request('login', { username: 'MyTenno#123', accessKey: digest(accessKey) })).status, 401);
-    assert.equal((await login.json()).accessKey, undefined);
-    assert.equal(db.prepare('PRAGMA table_info(accounts)').all().some(row => row.name === 'email'), false);
-    assert.equal(JSON.stringify(db.prepare('SELECT * FROM sessions').all()).includes(cookieOf(login).split('=')[1]), false);
+    const cols = db.prepare('PRAGMA table_info(accounts)').all().map(row => String(row.name));
+    assert.deepEqual(cols, ['id', 'username', 'profile', 'revision', 'share_token']);
+    assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").get(), undefined);
     db.close();
-    const logout = await api.request('logout', { accountId: account.user.id }, cookieOf(login));
-    assert.equal(logout.status, 200); assert.match(logout.headers.get('set-cookie')!, /Max-Age=0/);
-    assert.deepEqual(await (await api.request('session', undefined, cookieOf(login))).json(), { user: null });
   } finally { await api.close(); await rm(directory, { recursive: true }); }
 });
 
@@ -85,54 +93,48 @@ test('guests cannot save; account ownership and revision checks prevent crossed 
   const api = await serve();
   try {
     assert.equal((await api.request('profile', { profile: emptyProfile(), revision: 0 }, '', { method: 'PUT' })).status, 401);
-    const a = await api.request('register', { username: 'TennoA' }), aCookie = cookieOf(a), aData = await a.json();
-    const b = await api.request('register', { username: 'TennoB' }), bCookie = cookieOf(b), bData = await b.json();
+    const aToken = api.tokenFor('user_a', 'TennoA'), aData = await (await api.request('session', undefined, aToken)).json();
+    const bToken = api.tokenFor('user_b', 'TennoB'), bData = await (await api.request('session', undefined, bToken)).json();
     const profile = emptyProfile();
     profile.inventory.items.push(createEquipment({ name: 'Boltor Prime', slot: 'Primary', variant: 'Prime' }, { owned: true, mastered: false, rank: 7, notes: 'Keep for crafting', override: 'Keep' }));
     profile.craftingPlans.push({ id: 'rhino-plan', itemId: '/Lotus/Powersuits/Rhino/Rhino', quantity: 1, completed: ['root/part'], choices: { 'root/part': 'gather' } });
     const save = { accountId: aData.user.id, revision: 0, profile };
-    assert.equal((await api.request('profile', save, bCookie, { method: 'PUT' })).status, 409);
-    assert.equal((await api.request('profile', save, aCookie, { method: 'PUT' })).status, 200);
-    assert.deepEqual((await (await api.request('session', undefined, aCookie)).json()).profile, profile);
-    assert.deepEqual((await (await api.request('session', undefined, bCookie)).json()).profile, bData.profile);
-    assert.equal((await api.request('profile', { ...save, profile: emptyProfile() }, aCookie, { method: 'PUT' })).status, 409);
-    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { inventory: {}, dropViews: [] } }, aCookie, { method: 'PUT' })).status, 400);
-    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: null } }, aCookie, { method: 'PUT' })).status, 400);
-    assert.deepEqual((await (await api.request('session', undefined, aCookie)).json()).profile, profile);
-    const { craftingPlans, ...legacy } = profile;
-    assert.equal((await api.request('profile', { ...save, revision: 1, profile: legacy }, aCookie, { method: 'PUT' })).status, 200);
-    assert.deepEqual((await (await api.request('session', undefined, aCookie)).json()).profile.craftingPlans, craftingPlans);
-    assert.equal((await api.request('profile', { ...save, revision: 2, profile: { ...profile, craftingPlans: [] } }, aCookie, { method: 'PUT' })).status, 200);
-    assert.deepEqual((await (await api.request('session', undefined, aCookie)).json()).profile.craftingPlans, []);
+    assert.equal((await api.request('profile', save, bToken, { method: 'PUT' })).status, 409);
+    assert.equal((await api.request('profile', save, aToken, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, aToken)).json()).profile, profile);
+    assert.deepEqual((await (await api.request('session', undefined, bToken)).json()).profile, bData.profile);
+    assert.equal((await api.request('profile', { ...save, profile: emptyProfile() }, aToken, { method: 'PUT' })).status, 409);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { inventory: {}, dropViews: [] } }, aToken, { method: 'PUT' })).status, 400);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: null } }, aToken, { method: 'PUT' })).status, 400);
+    assert.deepEqual((await (await api.request('session', undefined, aToken)).json()).profile, profile);
+    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: [] } }, aToken, { method: 'PUT' })).status, 200);
+    assert.deepEqual((await (await api.request('session', undefined, aToken)).json()).profile.craftingPlans, []);
   } finally { await api.close(); }
 });
 
-test('generated credentials, input bounds, origin checks, method restrictions and throttling apply before writes', async () => {
+test('origin checks and method restrictions apply before writes', async () => {
   const api = await serve();
   try {
-    assert.equal((await api.request('register', { username: 'TestTenno', accessKey: 'chosen-key' })).status, 400);
-    assert.equal((await api.request('register', { username: 'TestTenno' }, '', { origin: 'https://elsewhere.example' })).status, 403);
-    assert.equal((await api.request('logout')).status, 405);
-    for (let index = 0; index < 12; index++) assert.equal((await api.request('login', { username: 'RateLimitTenno', accessKey: 'x'.repeat(129) })).status, 400);
-    const limited = await api.request('login', { username: 'RateLimitTenno', accessKey: 'wrong-key' });
-    assert.equal(limited.status, 429); assert.ok(limited.headers.get('retry-after'));
+    const token = api.tokenFor('user_origin', 'TestTenno');
+    assert.equal((await api.request('profile', { accountId: 'user_origin', revision: 0, profile: emptyProfile() }, token, { method: 'PUT', origin: 'https://elsewhere.example' })).status, 403);
+    assert.equal((await api.request('session', { extra: true }, token, { method: 'POST' })).status, 405);
+    assert.equal((await api.request('unknown', undefined, token, { method: 'GET' })).status, 404);
   } finally { await api.close(); }
 });
 
-test('accounts and sessions survive a server restart, while expired sessions cannot save', async () => {
+test('accounts survive a server restart, while expired Clerk tokens cannot save', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'warframe-auth-'));
-  const path = join(directory, 'accounts.sqlite'); let now = Date.now();
-  let api = await serve(path, () => now);
+  const path = join(directory, 'accounts.sqlite');
+  let api = await serve(path);
   try {
-    const response = await api.request('register', { username: 'PersistentTenno' });
-    const cookie = cookieOf(response), { accessKey, ...data } = await response.json();
-    await api.close(); api = await serve(path, () => now);
-    assert.deepEqual(await (await api.request('session', undefined, cookie)).json(), data);
-    now += 31 * 24 * 60 * 60 * 1000;
-    assert.deepEqual(await (await api.request('session', undefined, cookie)).json(), { user: null });
-    assert.equal((await api.request('profile', { accountId: data.user.id, profile: emptyProfile(), revision: 0 }, cookie, { method: 'PUT' })).status, 401);
-    const logout = await api.request('logout', { accountId: data.user.id }, cookie);
-    assert.equal(logout.status, 200); assert.match(logout.headers.get('set-cookie')!, /Max-Age=0/);
+    const token = api.tokenFor('user_persist', 'PersistentTenno');
+    const data = await (await api.request('session', undefined, token)).json();
+    await api.close(); api = await serve(path);
+    const freshToken = api.tokenFor('user_persist', 'PersistentTenno');
+    assert.deepEqual(await (await api.request('session', undefined, freshToken)).json(), data);
+    const expiredToken = api.tokenFor('user_persist', 'PersistentTenno', -60);
+    assert.equal((await api.request('session', undefined, expiredToken)).status, 401);
+    assert.equal((await api.request('profile', { accountId: data.user.id, profile: emptyProfile(), revision: 0 }, expiredToken, { method: 'PUT' })).status, 401);
   } finally { await api.close(); await rm(directory, { recursive: true }); }
 });
 
@@ -146,79 +148,34 @@ test('unreadable account files and profiles are preserved instead of being reset
     assert.equal(await readFile(path, 'utf8'), 'existing unreadable account data');
     await api.close();
     const goodPath = join(directory, 'good.sqlite'); api = await serve(goodPath);
-    const response = await api.request('register', { username: 'PreservedTenno' });
-    const cookie = cookieOf(response), { accessKey, ...data } = await response.json();
+    const token = api.tokenFor('user_preserved', 'PreservedTenno');
+    const data = await (await api.request('session', undefined, token)).json();
     const db = new DatabaseSync(goodPath); db.prepare('UPDATE accounts SET profile = ?').run('{broken');
-    assert.equal((await api.request('session', undefined, cookie)).status, 503);
-    assert.equal((await api.request('profile', { accountId: data.user.id, profile: emptyProfile(), revision: 0 }, cookie, { method: 'PUT' })).status, 503);
-    assert.equal((await api.request('access-key', { accountId: data.user.id }, cookie)).status, 503);
-    assert.equal(db.prepare('SELECT access_key_hash FROM accounts').get()!.access_key_hash, digest(accessKey));
+    assert.equal((await api.request('session', undefined, token)).status, 503);
+    assert.equal((await api.request('profile', { accountId: data.user.id, profile: emptyProfile(), revision: 0 }, token, { method: 'PUT' })).status, 503);
     assert.equal(db.prepare('SELECT profile FROM accounts').get()!.profile, '{broken'); db.close();
   } finally { await api.close(); await rm(directory, { recursive: true }); }
 });
 
-test('replacing an access key preserves saves and revokes the old key and other sessions', async () => {
-  const api = await serve();
-  try {
-    const profile = emptyProfile();
-    profile.inventory.items.push(createEquipment({ name: 'Boltor', slot: 'Primary', variant: 'Base' }, { owned: true, rank: 7, notes: 'Keep this save' }));
-    const first = await api.request('register', { username: 'KeyTenno', profile });
-    const cookie = cookieOf(first), { accessKey, ...account } = await first.json();
-    const other = await api.request('login', { username: 'KeyTenno', accessKey });
-    const otherCookie = cookieOf(other);
-    assert.equal((await api.request('access-key', { accountId: account.user.id })).status, 401);
-    assert.equal((await api.request('access-key', { accountId: 'another-account' }, cookie)).status, 409);
-    assert.equal((await api.request('access-key', { accountId: account.user.id }, cookie, { origin: 'https://elsewhere.example' })).status, 403);
-    const replaced = await api.request('access-key', { accountId: account.user.id }, cookie);
-    assert.equal(replaced.status, 200);
-    const { accessKey: newKey } = await replaced.json();
-    assert.equal(isAccessKey(newKey), true); assert.notEqual(newKey, accessKey);
-    assert.deepEqual(await (await api.request('session', undefined, cookie)).json(), account);
-    assert.deepEqual(await (await api.request('session', undefined, otherCookie)).json(), { user: null });
-    assert.equal((await api.request('login', { username: 'KeyTenno', accessKey })).status, 401);
-    assert.equal((await api.request('login', { username: 'KeyTenno', accessKey: newKey })).status, 200);
-    const second = await (await api.request('register', { username: 'DifferentTenno' })).json();
-    assert.notEqual(second.accessKey, newKey);
-    assert.equal((await api.request('login', { username: 'DifferentTenno', accessKey: newKey })).status, 401);
-  } finally { await api.close(); }
-});
-
-test('removing retired credential columns preserves access keys, profiles, revisions and sessions', async () => {
+test('legacy access-key tables are dropped and replaced with the Clerk schema', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'warframe-schema-'));
   const path = join(directory, 'accounts.sqlite');
-  const accessKey = `wft_${'x'.repeat(43)}`, sessionToken = 's'.repeat(43);
-  const profile = emptyProfile();
-  profile.inventory.items.push(createEquipment({ name: 'Boltor Prime', slot: 'Primary', variant: 'Prime' }, { owned: true, rank: 7, notes: 'Preserve existing account' }));
   const db = new DatabaseSync(path);
-  db.exec(`CREATE TABLE accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, salt TEXT NOT NULL, password_hash TEXT NOT NULL, access_key_hash TEXT, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);
+  db.exec(`CREATE TABLE accounts (id TEXT PRIMARY KEY, username TEXT NOT NULL, username_key TEXT NOT NULL UNIQUE, access_key_hash TEXT NOT NULL, profile TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL)`);
-  db.prepare('INSERT INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('existing-id', 'ExistingTenno', 'existingtenno', 'retired salt', 'retired hash', digest(accessKey), JSON.stringify(profile), 9);
-  db.prepare('INSERT INTO sessions VALUES (?, ?, ?)').run(digest(sessionToken), 'existing-id', Date.now() + 60_000);
+  db.prepare('INSERT INTO accounts VALUES (?, ?, ?, ?, ?, ?)').run('legacy-id', 'LegacyTenno', 'legacytenno', 'hash', JSON.stringify(emptyProfile()), 3);
   db.close();
   const api = await serve(path);
   try {
-    const expected = { user: { id: 'existing-id', username: 'ExistingTenno' }, profile, revision: 9 };
-    assert.deepEqual(await (await api.request('session', undefined, `warframe_toolkit_session=${sessionToken}`)).json(), expected);
-    const login = await api.request('login', { username: 'ExistingTenno', accessKey });
-    assert.equal(login.status, 200); assert.deepEqual(await login.json(), expected);
-    assert.equal((await api.request('login', { username: 'ExistingTenno', accessKey: 'a previous toolkit password' })).status, 401);
-    assert.equal((await api.request('register', { username: 'NewTenno' })).status, 201);
+    const token = api.tokenFor('user_new_clerk', 'NewTenno');
+    const session = await api.request('session', undefined, token);
+    assert.equal(session.status, 200);
     const read = new DatabaseSync(path);
-    assert.equal(read.prepare('PRAGMA table_info(accounts)').all().some(row => ['salt', 'password_hash'].includes(String(row.name))), false);
-    assert.equal(read.prepare('SELECT access_key_hash FROM accounts WHERE id = ?').get('existing-id')!.access_key_hash, digest(accessKey));
-    assert.equal(read.prepare('PRAGMA foreign_key_check').all().length, 0);
+    assert.equal(read.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").get(), undefined);
+    assert.equal(read.prepare('SELECT * FROM accounts WHERE id = ?').get('legacy-id'), undefined);
+    assert.equal((read.prepare('SELECT * FROM accounts WHERE id = ?').get('user_new_clerk') as { username: string }).username, 'NewTenno');
     read.close();
   } finally { await api.close(); await rm(directory, { recursive: true }); }
-});
-
-test('personal sign-in links carry credentials only in the fragment and reject malformed links', () => {
-  const accessKey = `wft_${'x'.repeat(43)}`, username = 'Tennö#123';
-  const url = new URL(accessKeyLink('https://toolkit.example/app/?old=1#droptables?view=old', username, accessKey));
-  assert.equal(url.origin, 'https://toolkit.example'); assert.equal(url.pathname, '/app/'); assert.equal(url.search, '');
-  assert.equal(`${url.origin}${url.pathname}${url.search}`.includes(accessKey), false);
-  assert.deepEqual(readAccessKeyLink(url.hash), { username, accessKey });
-  assert.equal(readAccessKeyLink('#droptables?view=old'), null);
-  for (const hash of ['#sign-in', '#sign-in?username=Tenno', '#sign-in?username=Tenno&key=short', `${url.hash}&key=${accessKey}`, `${url.hash}&username=Other`]) assert.throws(() => readAccessKeyLink(hash), /incomplete or invalid/);
 });
 
 test('shareable inventory links expose only live inventory and replacing a link disables the previous one', async () => {
@@ -235,22 +192,22 @@ test('shareable inventory links expose only live inventory and replacing a link 
     profile.inventory.items.push(createEquipment({ name: 'Boltor Prime', slot: 'Primary', variant: 'Prime' }, { owned: true, rank: 30, notes: 'Shared build' }));
     profile.craftingPlans.push({ id: 'rhino-plan', itemId: '/Lotus/Powersuits/Rhino/Rhino', quantity: 1, completed: [], choices: {} });
     profile.arsenals = [newArsenal()];
-    const registered = await api.request('register', { username: 'ShareTenno', profile });
-    const cookie = cookieOf(registered), { accessKey, ...account } = await registered.json();
-    const other = await api.request('register', { username: 'OtherTenno' });
-    const otherCookie = cookieOf(other);
+    const token = api.tokenFor('user_share', 'ShareTenno');
+    const account = await (await api.request('session', undefined, token)).json();
+    assert.equal((await api.request('profile', { accountId: account.user.id, revision: 0, profile }, token, { method: 'PUT' })).status, 200);
+    const otherToken = api.tokenFor('user_other', 'OtherTenno');
+    await api.request('session', undefined, otherToken);
 
     assert.equal((await api.request('share', { accountId: account.user.id })).status, 401);
-    assert.equal((await api.request('share', { accountId: account.user.id }, otherCookie)).status, 409);
-    assert.equal((await api.request('share', { accountId: account.user.id }, cookie, { origin: 'https://elsewhere.example' })).status, 403);
+    assert.equal((await api.request('share', { accountId: account.user.id }, otherToken)).status, 409);
+    assert.equal((await api.request('share', { accountId: account.user.id }, token, { origin: 'https://elsewhere.example' })).status, 403);
 
-    const created = await api.request('share', { accountId: account.user.id }, cookie);
+    const created = await api.request('share', { accountId: account.user.id }, token);
     assert.equal(created.status, 200);
     const { shareToken: firstToken } = await created.json();
     assert.equal(isShareToken(firstToken), true);
-    assert.notEqual(firstToken, accessKey);
 
-    const repeated = await api.request('share', { accountId: account.user.id }, cookie);
+    const repeated = await api.request('share', { accountId: account.user.id }, token);
     assert.deepEqual(await repeated.json(), { shareToken: firstToken });
 
     const shared = await api.request(`share/${firstToken}`);
@@ -259,36 +216,35 @@ test('shareable inventory links expose only live inventory and replacing a link 
 
     const updatedProfile = structuredClone(profile);
     updatedProfile.inventory.items.push(createEquipment({ name: 'Anku', slot: 'Melee', variant: 'Base' }, { owned: true, mastered: true, rank: 30 }));
-    assert.equal((await api.request('profile', { accountId: account.user.id, revision: 0, profile: updatedProfile }, cookie, { method: 'PUT' })).status, 200);
+    assert.equal((await api.request('profile', { accountId: account.user.id, revision: 1, profile: updatedProfile }, token, { method: 'PUT' })).status, 200);
     assert.deepEqual(await (await api.request(`share/${firstToken}`)).json(), { username: 'ShareTenno', inventory: updatedProfile.inventory });
 
-    const replaced = await api.request('share', { accountId: account.user.id, replace: true }, cookie);
+    const replaced = await api.request('share', { accountId: account.user.id, replace: true }, token);
     assert.equal(replaced.status, 200);
     const { shareToken: secondToken } = await replaced.json();
     assert.equal(isShareToken(secondToken), true);
     assert.notEqual(secondToken, firstToken);
     assert.equal((await api.request(`share/${firstToken}`)).status, 404);
-    assert.equal((await api.request(`share/${accessKey}`)).status, 404);
     assert.deepEqual(await (await api.request(`share/${secondToken}`)).json(), { username: 'ShareTenno', inventory: updatedProfile.inventory });
   } finally { await api.close(); }
 });
 
-
-test('partial crafting quantities survive saves and older clients without accepting malformed replacements', async () => {
+test('partial crafting quantities survive saves without accepting malformed replacements', async () => {
   const api = await serve();
   try {
+    const token = api.tokenFor('user_partial', 'PartialTenno');
+    const account = await (await api.request('session', undefined, token)).json();
     const profile = emptyProfile();
     profile.craftingPlans = [{ id: 'partial-plan', itemId: '/Rhino', quantity: 1, completed: [], choices: {}, progress: { 'root/part': 50 } }];
-    const registered = await api.request('register', { username: 'PartialTenno', profile });
-    const account = await registered.json(), cookie = cookieOf(registered);
+    assert.equal((await api.request('profile', { accountId: account.user.id, revision: 0, profile }, token, { method: 'PUT' })).status, 200);
     const { progress, ...legacyPlan } = profile.craftingPlans[0];
-    const save = { accountId: account.user.id, revision: 0, profile: { ...profile, craftingPlans: [legacyPlan] } };
-    assert.equal((await api.request('profile', save, cookie, { method: 'PUT' })).status, 200);
-    const read = async () => (await (await api.request('session', undefined, cookie)).json()).profile.craftingPlans[0].progress;
+    const save = { accountId: account.user.id, revision: 1, profile: { ...profile, craftingPlans: [legacyPlan] } };
+    assert.equal((await api.request('profile', save, token, { method: 'PUT' })).status, 200);
+    const read = async () => (await (await api.request('session', undefined, token)).json()).profile.craftingPlans[0].progress;
     assert.deepEqual(await read(), progress);
-    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: [{ ...legacyPlan, progress: null }] } }, cookie, { method: 'PUT' })).status, 400);
+    assert.equal((await api.request('profile', { ...save, revision: 2, profile: { ...profile, craftingPlans: [{ ...legacyPlan, progress: null }] } }, token, { method: 'PUT' })).status, 400);
     assert.deepEqual(await read(), progress);
-    assert.equal((await api.request('profile', { ...save, revision: 1, profile: { ...profile, craftingPlans: [{ ...legacyPlan, progress: {} }] } }, cookie, { method: 'PUT' })).status, 200);
+    assert.equal((await api.request('profile', { ...save, revision: 2, profile: { ...profile, craftingPlans: [{ ...legacyPlan, progress: {} }] } }, token, { method: 'PUT' })).status, 200);
     assert.deepEqual(await read(), {});
   } finally { await api.close(); }
 });

@@ -1,26 +1,22 @@
 import { DurableObject } from 'cloudflare:workers';
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { accountUsername, emptyProfile, isAccessKey, isShareToken, validateProfile } from '../src/lib/account.ts';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { emptyProfile, isShareToken, validateProfile } from '../src/lib/account.ts';
 import { preserveCraftingProgress } from '../src/lib/crafting.ts';
 import type { AccountProfile, AccountSession } from '../src/lib/account.ts';
+import { ClerkAuthError, extractClerkToken, verifyClerkToken } from '../server/clerkAuth.ts';
+import type { VerifiedClerkIdentity } from '../server/clerkAuth.ts';
 import type { Env } from './index.ts';
 
-const cookieName = 'warframe_toolkit_session';
-const lifetime = 30 * 24 * 60 * 60 * 1000;
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const randomToken = () => randomBytes(32).toString('base64url');
-type Account = { id: string; username: string; access_key_hash: string; profile_id: string; profile_hash: string; profile_chunks: number; revision: number; share_token: string | null };
+type Account = { id: string; username: string; profile_id: string; profile_hash: string; profile_chunks: number; revision: number; share_token: string | null };
 type ProfileRow = Account & { chunk_index: number | null; contents: string | null };
 class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
-function json(value: unknown, status = 200, cookie?: string) {
-  return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...(cookie ? { 'Set-Cookie': cookie } : {}), ...(status === 429 ? { 'Retry-After': '900' } : {}) } });
-}
-function token(request: Request) {
-  const value = request.headers.get('Cookie')?.split(';').map(part => part.trim()).find(part => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
-  return value && /^[A-Za-z0-9_-]{43}$/.test(value) ? value : '';
+function json(value: unknown, status = 200) {
+  return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 }
 function profile(value: unknown): AccountProfile {
   try { return validateProfile(value); } catch (error) { throw new ApiError(400, (error as Error).message); }
@@ -35,27 +31,29 @@ function encodeProfile(value: AccountProfile) {
   return { id: randomUUID(), hash: digest(text), chunks };
 }
 
-/** D1 owns all account data. This coordinator supplies persistent throttling and
+/** D1 owns all account data. This coordinator supplies serialized provisioning and
  * enough CPU time for the same large saves supported by the local server. */
 export class AccountGateway extends DurableObject<Env> {
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
-    ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS attempts (key TEXT PRIMARY KEY, count INTEGER NOT NULL, until INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS attempts_expiry ON attempts(until)');
-  }
-  private cookie(value: string) {
-    return `${cookieName}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${value ? lifetime / 1000 : 0}${this.env.ACCOUNTS_ORIGIN.startsWith('https://') ? '; Secure' : ''}`;
-  }
-  private throttle(request: Request, username: string) {
-    this.ctx.storage.transactionSync(() => {
-      const sql = this.ctx.storage.sql, now = Date.now();
-      sql.exec('DELETE FROM attempts WHERE until <= ?', now);
-      const keys = [[`ip:${request.headers.get('CF-Connecting-IP') || 'unknown'}`, 60], [`user:${username}`, 12]] as const;
-      for (const [key, max] of keys) {
-        const row = sql.exec<{ count: number }>('SELECT count FROM attempts WHERE key = ?', key).toArray()[0];
-        if (row && row.count >= max) throw new ApiError(429, 'Too many sign-in attempts. Try again in 15 minutes.');
-      }
-      for (const [key] of keys) sql.exec('INSERT INTO attempts VALUES (?, 1, ?) ON CONFLICT(key) DO UPDATE SET count = count + 1', key, now + 900000);
-    });
+  private async authenticate(request: Request, required: boolean): Promise<VerifiedClerkIdentity | null> {
+    const token = extractClerkToken(request.headers.get('Authorization'), request.headers.get('Cookie'));
+    if (!token) {
+      if (required) throw new ApiError(401, 'Sign in to save your changes.');
+      return null;
+    }
+    try {
+      return await verifyClerkToken(
+        token,
+        {
+          jwtKey: this.env.CLERK_JWT_KEY,
+          secretKey: this.env.CLERK_SECRET_KEY,
+          authorizedParties: [this.env.ACCOUNTS_ORIGIN],
+        },
+        request.headers.get('X-Clerk-Username'),
+      );
+    } catch (error) {
+      if (error instanceof ClerkAuthError) throw new ApiError(error.status, error.message);
+      throw new ApiError(401, 'Sign in to save your changes.');
+    }
   }
   private async read(where: string, args: (string | number)[]): Promise<{ account: Account; snapshot: AccountSession } | undefined> {
     // One joined query reads the revision and every chunk from one SQL snapshot.
@@ -70,12 +68,28 @@ export class AccountGateway extends DurableObject<Env> {
       return { account, snapshot: { user: { id: account.id, username: account.username }, profile: saved, revision: account.revision } };
     } catch { throw new ApiError(503, 'Your saved account data could not be read. It has been kept unchanged.'); }
   }
-  private async session(request: Request) {
-    const value = token(request);
-    return value ? this.read('a.id IN (SELECT account_id FROM sessions WHERE token_hash = ? AND expires_at > ?)', [digest(value), Date.now()]) : undefined;
-  }
   private chunks(accountId: string, encoded: ReturnType<typeof encodeProfile>) {
     return encoded.chunks.map((chunk, index) => this.env.DB.prepare('INSERT INTO account_profile_chunks (account_id, profile_id, chunk_index, contents) SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM accounts WHERE id = ? AND profile_id = ?)').bind(accountId, encoded.id, index, chunk, accountId, encoded.id));
+  }
+  private async ensureAccount(identity: VerifiedClerkIdentity): Promise<{ account: Account; snapshot: AccountSession }> {
+    const db = this.env.DB;
+    let existing = await this.read('a.id = ?', [identity.id]);
+    if (!existing) {
+      const initial = emptyProfile(), encoded = encodeProfile(initial);
+      await db.batch([
+        db.prepare('INSERT OR IGNORE INTO accounts (id, username, profile_id, profile_hash, profile_chunks, revision) VALUES (?, ?, ?, ?, ?, 0)').bind(identity.id, identity.username, encoded.id, encoded.hash, encoded.chunks.length),
+        ...this.chunks(identity.id, encoded),
+      ]);
+      existing = await this.read('a.id = ?', [identity.id]);
+    } else if (identity.hasExplicitUsername && existing.account.username !== identity.username) {
+      await db.prepare('UPDATE accounts SET username = ? WHERE id = ?').bind(identity.username, identity.id).run();
+      existing = {
+        account: { ...existing.account, username: identity.username },
+        snapshot: { ...existing.snapshot, user: { ...existing.snapshot.user, username: identity.username } },
+      };
+    }
+    if (!existing) throw new ApiError(503, 'Account storage is unavailable. Existing data has been kept.');
+    return existing;
   }
   private async body(request: Request, max: number): Promise<Record<string, unknown>> {
     if (request.headers.get('Origin') !== this.env.ACCOUNTS_ORIGIN || request.headers.get('X-Toolkit-Request') !== '1' || request.headers.get('Sec-Fetch-Site') === 'cross-site') throw new ApiError(403, 'Open this app directly to make changes.');
@@ -100,8 +114,14 @@ export class AccountGateway extends DurableObject<Env> {
   }
   private async handle(request: Request) {
     const path = new URL(request.url).pathname, db = this.env.DB;
-    if (path === '/api/account/session' && request.method === 'GET') return json((await this.session(request))?.snapshot ?? { user: null });
-    if (path.startsWith('/api/account/share/') && request.method === 'GET') {
+    if (path === '/api/account/session') {
+      if (request.method !== 'GET') throw new ApiError(405, 'Method not allowed.');
+      const identity = await this.authenticate(request, false);
+      if (!identity) return json({ user: null });
+      return json((await this.ensureAccount(identity)).snapshot);
+    }
+    if (path.startsWith('/api/account/share/')) {
+      if (request.method !== 'GET') throw new ApiError(405, 'Method not allowed.');
       let shareToken = '';
       try { shareToken = decodeURIComponent(path.slice('/api/account/share/'.length)); } catch { /* Invalid URI encoding falls through to 404. */ }
       if (!isShareToken(shareToken)) throw new ApiError(404, 'This shared inventory link is invalid or has been replaced.');
@@ -109,82 +129,29 @@ export class AccountGateway extends DurableObject<Env> {
       if (!shared) throw new ApiError(404, 'This shared inventory link is invalid or has been replaced.');
       return json({ username: shared.snapshot.user.username, inventory: shared.snapshot.profile.inventory });
     }
-    if (!['POST', 'PUT'].includes(request.method)) throw new ApiError(405, 'Method not allowed.');
-    const value = await this.body(request, ['/api/account/profile', '/api/account/register'].includes(path) ? 10 * 1024 * 1024 : 4096);
-    if (['/api/account/register', '/api/account/login'].includes(path) && request.method === 'POST') {
-      let name: ReturnType<typeof accountUsername>;
-      try { name = accountUsername(value.username); } catch (error) { throw new ApiError(400, (error as Error).message); }
-      this.throttle(request, name.key);
-      const sessionToken = randomToken(), expires = Date.now() + lifetime;
-      if (path.endsWith('/register')) {
-        if (value.accessKey !== undefined || value.password !== undefined) throw new ApiError(400, 'Access keys are generated when you create an account.');
-        const saved = value.profile === undefined ? emptyProfile() : profile(value.profile);
-        const encoded = encodeProfile(saved), accessKey = `wft_${randomToken()}`, id = randomUUID();
-        const results = await db.batch([
-          db.prepare('INSERT OR IGNORE INTO accounts (id, username, username_key, access_key_hash, profile_id, profile_hash, profile_chunks) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, name.username, name.key, digest(accessKey), encoded.id, encoded.hash, encoded.chunks.length),
-          ...this.chunks(id, encoded),
-          db.prepare('INSERT INTO sessions SELECT ?, id, ? FROM accounts WHERE id = ?').bind(digest(sessionToken), expires, id),
-          db.prepare('DELETE FROM sessions WHERE expires_at <= ? OR (token_hash = ? AND EXISTS (SELECT 1 FROM accounts WHERE id = ?))').bind(Date.now(), digest(token(request)), id),
-        ]);
-        if (!results[0].meta.changes) throw new ApiError(409, 'That username is already registered. Sign in instead.');
-        return json({ user: { id, username: name.username }, profile: saved, revision: 0, accessKey }, 201, this.cookie(sessionToken));
-      }
-      const credential = value.accessKey;
-      if (typeof credential !== 'string' || !credential.length || credential.length > 128) throw new ApiError(400, 'Enter your saved access key.');
-      // Verify the key before reading private profile data (including corruption errors).
-      const account = await db.prepare('SELECT id, access_key_hash FROM accounts WHERE username_key = ?').bind(name.key).first<Pick<Account, 'id' | 'access_key_hash'>>();
-      const expected = account && /^[a-f0-9]{64}$/.test(account.access_key_hash) ? Buffer.from(account.access_key_hash, 'hex') : Buffer.alloc(32);
-      if (!timingSafeEqual(Buffer.from(digest(credential.trim()), 'hex'), expected) || !account || !isAccessKey(credential.trim())) throw new ApiError(401, 'Username or access key is incorrect.');
-      const saved = await this.read('a.id = ? AND a.access_key_hash = ?', [account.id, account.access_key_hash]);
-      if (!saved) throw new ApiError(401, 'Username or access key is incorrect.');
-      const results = await db.batch([
-        db.prepare('INSERT INTO sessions SELECT ?, id, ? FROM accounts WHERE id = ? AND access_key_hash = ?').bind(digest(sessionToken), expires, account.id, account.access_key_hash),
-        db.prepare('DELETE FROM sessions WHERE expires_at <= ? OR (token_hash = ? AND EXISTS (SELECT 1 FROM accounts WHERE id = ? AND access_key_hash = ?))').bind(Date.now(), digest(token(request)), account.id, account.access_key_hash),
-      ]);
-      if (!results[0].meta.changes) throw new ApiError(401, 'Username or access key is incorrect.');
-      this.ctx.storage.sql.exec('DELETE FROM attempts WHERE key = ?', `user:${name.key}`);
-      return json(saved.snapshot, 200, this.cookie(sessionToken));
-    }
-    if (path === '/api/account/logout' && request.method === 'POST') {
-      // Ending a session must remain possible even if its saved profile is damaged.
-      const active = await db.prepare('SELECT account_id FROM sessions WHERE token_hash = ? AND expires_at > ?').bind(digest(token(request)), Date.now()).first<{ account_id: string }>();
-      if (active && value.accountId !== active.account_id) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
-      await db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(digest(token(request))).run();
-      return json({ user: null }, 200, this.cookie(''));
-    }
-    const current = await this.session(request);
-    if (current && value.accountId !== current.account.id) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
-    if (!current) throw new ApiError(401, 'Sign in to save your changes.');
+    if (path !== '/api/account/share' && path !== '/api/account/profile') throw new ApiError(404, 'Account endpoint not found.');
+    if ((path === '/api/account/share' && request.method !== 'POST') || (path === '/api/account/profile' && request.method !== 'PUT')) throw new ApiError(405, 'Method not allowed.');
+    const value = await this.body(request, path === '/api/account/profile' ? 10 * 1024 * 1024 : 4096);
+    const identity = (await this.authenticate(request, true))!;
+    if (value.accountId !== identity.id) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
+    const current = await this.ensureAccount(identity);
     const { account } = current;
-    const validSession = 'EXISTS (SELECT 1 FROM sessions WHERE token_hash = ? AND account_id = accounts.id AND expires_at > ?)';
-    if (path === '/api/account/access-key' && request.method === 'POST') {
-      this.throttle(request, account.username.toLowerCase());
-      const accessKey = `wft_${randomToken()}`, hash = digest(accessKey);
-      const results = await db.batch([
-        db.prepare(`UPDATE accounts SET access_key_hash = ? WHERE id = ? AND access_key_hash = ? AND ${validSession}`).bind(hash, account.id, account.access_key_hash, digest(token(request)), Date.now()),
-        db.prepare('DELETE FROM sessions WHERE account_id = ? AND token_hash != ? AND EXISTS (SELECT 1 FROM accounts WHERE id = ? AND access_key_hash = ?)').bind(account.id, digest(token(request)), account.id, hash),
-      ]);
-      if (!results[0].meta.changes) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
-      return json({ accessKey });
-    }
     if (path === '/api/account/share' && request.method === 'POST') {
       if (value.replace !== undefined && typeof value.replace !== 'boolean') throw new ApiError(400, 'Could not read the request.');
       if (!value.replace && isShareToken(account.share_token)) return json({ shareToken: account.share_token });
       let shareToken = `wfs_${randomToken()}`;
       while (shareToken === account.share_token) shareToken = `wfs_${randomToken()}`;
-      const result = await db.prepare(`UPDATE accounts SET share_token = ? WHERE id = ? AND ${validSession}`).bind(shareToken, account.id, digest(token(request)), Date.now()).run();
+      const result = await db.prepare('UPDATE accounts SET share_token = ? WHERE id = ?').bind(shareToken, account.id).run();
       if (!result.meta.changes) throw new ApiError(409, 'The signed-in account changed. Sign in again before saving.');
       return json({ shareToken });
     }
     if (path === '/api/account/profile' && request.method === 'PUT') {
       if (!Number.isSafeInteger(value.revision) || Number(value.revision) < 0) throw new ApiError(400, 'Invalid save revision.');
       const next = profile(value.profile);
-      if (!Object.hasOwn(value.profile as object, 'craftingPlans')) next.craftingPlans = current.snapshot.profile.craftingPlans;
-      else next.craftingPlans = preserveCraftingProgress(next.craftingPlans, current.snapshot.profile.craftingPlans);
-      if (!Object.hasOwn(value.profile as object, 'arsenals')) next.arsenals = current.snapshot.profile.arsenals;
+      next.craftingPlans = preserveCraftingProgress(next.craftingPlans, current.snapshot.profile.craftingPlans);
       const encoded = encodeProfile(next);
       const results = await db.batch([
-        db.prepare(`UPDATE accounts SET profile_id = ?, profile_hash = ?, profile_chunks = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND profile_id = ? AND ${validSession}`).bind(encoded.id, encoded.hash, encoded.chunks.length, account.id, Number(value.revision), account.profile_id, digest(token(request)), Date.now()),
+        db.prepare('UPDATE accounts SET profile_id = ?, profile_hash = ?, profile_chunks = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND profile_id = ?').bind(encoded.id, encoded.hash, encoded.chunks.length, account.id, Number(value.revision), account.profile_id),
         ...this.chunks(account.id, encoded),
         db.prepare('DELETE FROM account_profile_chunks WHERE account_id = ? AND profile_id != ? AND EXISTS (SELECT 1 FROM accounts WHERE id = ? AND profile_id = ?)').bind(account.id, encoded.id, account.id, encoded.id),
       ]);

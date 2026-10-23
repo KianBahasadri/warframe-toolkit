@@ -1,12 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Download, KeyRound, Languages, Link, LogOut, RefreshCw, Share2, UserRound } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Languages, LogOut, RefreshCw, Share2, UserRound } from 'lucide-react';
 import { Dialog } from './Dialog';
-import { accessKeyLink, shareInventoryLink } from '../lib/account';
+import { shareInventoryLink } from '../lib/account';
 import type { AccountUser } from '../lib/account';
+import { ClerkAuthForm, useClerkAuth } from '../lib/clerk';
 import { LANGUAGES, t, useLanguage } from '../lib/i18n';
-import { downloadFile } from '../lib/storage';
 
-export type AccountDialogMode = 'account' | 'login' | 'register' | 'share' | 'replace';
+export type AccountDialogMode = 'account' | 'login' | 'register' | 'share';
 
 export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }: {
   user: AccountUser | null;
@@ -120,7 +120,6 @@ export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }
         {LANGUAGES.map(option => <button key={option.code} type="button" role="menuitemradio" aria-checked={language === option.code} tabIndex={-1} onClick={() => setLanguage(option.code)}><span>{option.label}</span><Check size={14} aria-hidden="true" className={language === option.code ? undefined : 'select-check-hidden'} /></button>)}
       </> : <>
         <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); onOpen('share'); }}><Share2 size={15} /><span>{t('Share inventory')}</span></button>
-        <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); onOpen('replace'); }}><KeyRound size={15} /><span>{t('Replace access key')}</span></button>
         <button type="button" role="menuitem" data-account-action="language" tabIndex={-1} onClick={() => { pendingFocus.current = 'checked'; setView('language'); }}><Languages size={15} /><span>{t('Change language')}</span></button>
         <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); void onSignOut().catch(error => onOpen('account', (error as Error).message)); }}><LogOut size={15} /><span>{t('Sign out')}</span></button>
       </>}
@@ -132,28 +131,34 @@ type Props = {
   user: AccountUser | null;
   initialMode: AccountDialogMode;
   initialError?: string;
-  canIncludeCurrent: boolean;
   dirty: boolean;
-  onAuthenticate: (mode: 'login' | 'register', username: string, accessKey: string, includeCurrent: boolean) => Promise<string | undefined>;
-  onReplaceAccessKey: () => Promise<string>;
+  checking: boolean;
+  accountError: string;
   onShareInventory: (replace?: boolean) => Promise<string>;
   onSignOut: () => Promise<void>;
   onClose: () => void;
 };
 
-export function AccountDialog({ user, initialMode, initialError, canIncludeCurrent, dirty, onAuthenticate, onReplaceAccessKey, onShareInventory, onSignOut, onClose }: Props) {
+export function AccountDialog({ user, initialMode, initialError, dirty, checking, accountError, onShareInventory, onSignOut, onClose }: Props) {
   const languageLabel = useId();
   const [language, setLanguage] = useLanguage();
-  const [mode, setMode] = useState<'account' | 'login' | 'register' | 'key' | 'replace' | 'share'>(() => user ? (initialMode === 'login' || initialMode === 'register' ? 'account' : initialMode) : (initialMode === 'register' ? 'register' : 'login'));
-  const [username, setUsername] = useState(user?.username ?? ''), [credential, setCredential] = useState('');
-  const [issuedKey, setIssuedKey] = useState(''), [keySaved, setKeySaved] = useState(false);
+  const clerk = useClerkAuth();
+  const [mode, setMode] = useState<AccountDialogMode>(() => user ? (initialMode === 'login' || initialMode === 'register' ? 'account' : initialMode) : (initialMode === 'register' ? 'register' : 'login'));
   const [shareToken, setShareToken] = useState('');
-  const [includeCurrent, setIncludeCurrent] = useState(canIncludeCurrent);
   const [busy, setBusy] = useState(false), [error, setError] = useState(initialError ?? ''), [copied, setCopied] = useState('');
-  const usernameInput = useRef<HTMLInputElement>(null), keyInput = useRef<HTMLInputElement>(null), shareInput = useRef<HTMLInputElement>(null);
+  const shareInput = useRef<HTMLInputElement>(null);
+  const authStartVersion = useRef(clerk.sessionVersion);
+  const wasAuthenticated = useRef(Boolean(user && !dirty && !accountError));
+
   useEffect(() => {
-    if (mode === 'login' || mode === 'register') usernameInput.current?.focus();
-    if (mode === 'key') keyInput.current?.focus();
+    if (mode !== 'login' && mode !== 'register') return;
+    const nowAuthenticated = Boolean(user && !checking && !dirty && !accountError);
+    if ((!wasAuthenticated.current && nowAuthenticated) || (clerk.sessionVersion > authStartVersion.current && nowAuthenticated)) {
+      onClose();
+    }
+  }, [mode, user, checking, dirty, accountError, clerk.sessionVersion, onClose]);
+
+  useEffect(() => {
     if (mode === 'share' && shareToken) shareInput.current?.focus();
   }, [mode, shareToken]);
   useEffect(() => {
@@ -166,46 +171,20 @@ export function AccountDialog({ user, initialMode, initialError, canIncludeCurre
     );
     return () => { active = false; };
   }, [mode, shareToken, onShareInventory]);
-  useEffect(() => {
-    if (!issuedKey || keySaved) return;
-    const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    window.addEventListener('beforeunload', beforeUnload);
-    return () => window.removeEventListener('beforeunload', beforeUnload);
-  }, [issuedKey, keySaved]);
   const close = () => {
     if (busy) return;
-    if (issuedKey && !keySaved) { setError(t('Save your key or sign-in link, then confirm below.')); return; }
     onClose();
   };
-  const showKey = (key: string) => { setIssuedKey(key); setCredential(''); setKeySaved(false); setCopied(''); setError(''); setMode('key'); };
   const copy = async (value: string, label: string) => {
     setError('');
     try { await navigator.clipboard.writeText(value); setCopied(t(`${label} copied.`)); }
     catch { setError(t('Could not copy. Select and copy the text instead.')); }
   };
-  const signInLink = issuedKey ? accessKeyLink(location.href, user?.username ?? username, issuedKey) : '';
   const shareLink = shareToken ? shareInventoryLink(location.href, shareToken) : '';
-  const title = t(mode === 'key' ? 'Save your access key' : mode === 'replace' ? 'Replace access key' : mode === 'share' ? 'Share inventory' : mode === 'account' ? 'Account' : mode === 'register' ? 'Create account' : 'Sign in');
+  const title = t(mode === 'share' ? 'Share inventory' : mode === 'account' ? 'Account' : mode === 'register' ? 'Create account' : 'Sign in');
   const feedback = <>{error && <p className="error-text" role="alert">{error}</p>}{copied && <p className="muted small" role="status">{copied}</p>}</>;
   return <Dialog title={title} onClose={close} className="account-dialog">
-    {mode === 'key' ? <div className="account-form">
-      <p className="muted small">{t('Save your key or personal sign-in link. You’ll need one to sign in again; there is no email recovery.')}</p>
-      <label>{t('Warframe username')}<input readOnly value={user?.username ?? username} /></label>
-      <label>{t('Access key')}<input ref={keyInput} className="account-secret" readOnly autoComplete="off" spellCheck={false} value={issuedKey} onFocus={event => event.target.select()} /></label>
-      <div className="account-key-actions">
-        <button type="button" className="button secondary" onClick={() => void copy(issuedKey, 'Access key')}><Copy size={15} />{t('Copy key')}</button>
-        <button type="button" className="button secondary" onClick={() => downloadFile('grakata-access-key.txt', `Grakata\nUsername: ${user?.username ?? username}\nAccess key: ${issuedKey}\nSign-in link: ${signInLink}\n\nKeep this file private. Anyone with this key or link can access your account.\n`, 'text/plain;charset=utf-8')}><Download size={15} />{t('Download key')}</button>
-      </div>
-      <label>{t('Personal sign-in link')}<input className="account-secret" readOnly autoComplete="off" spellCheck={false} value={signInLink} onFocus={event => event.target.select()} /></label>
-      <div className="account-key-actions">
-        <button type="button" className="button secondary" onClick={() => void copy(signInLink, 'Sign-in link')}><Link size={15} />{t('Copy sign-in link')}</button>
-        <a className="account-bookmark" href={signInLink} draggable onClick={event => event.preventDefault()} aria-label={t('Drag personal sign-in link to bookmarks')}>{t('Drag to bookmarks')}</a>
-      </div>
-      <p className="muted small">{t('Add the link to your browser bookmarks to sign in automatically. Keep it private: anyone with the key or link can access your account.')}</p>
-      <label className="check-row"><input type="checkbox" checked={keySaved} onChange={event => { setKeySaved(event.target.checked); setError(''); }} /><span>{t('I have saved my key or sign-in link')}</span></label>
-      {feedback}
-      <div className="dialog-footer"><button type="button" className="button primary" disabled={!keySaved} onClick={close}>{t('Done')}</button></div>
-    </div> : mode === 'share' ? <div className="account-form">
+    {mode === 'share' ? <div className="account-form">
       <p className="muted small">{t('Anyone with this link can view your live saved inventory.')}</p>
       <label>{t('Shareable link')}<input ref={shareInput} className="account-secret" readOnly autoComplete="off" spellCheck={false} value={shareLink} placeholder={busy ? t('Loading link…') : ''} onFocus={event => event.target.select()} /></label>
       <div className="account-key-actions">
@@ -225,19 +204,11 @@ export function AccountDialog({ user, initialMode, initialError, canIncludeCurre
         <button type="button" className="button quiet" disabled={busy} onClick={() => { setMode('account'); setError(''); setCopied(''); }}>{t('Back')}</button>
         <button type="button" className="button primary" disabled={busy} onClick={close}>{t('Done')}</button>
       </div>
-    </div> : mode === 'replace' ? <div className="account-form">
-      <p className="muted small">{t('Your current key and bookmarked sign-in links will stop working. Other devices will be signed out. Save the new key or link before closing.')}</p>
-      {feedback}
-      <div className="dialog-footer">
-        <button type="button" className="button quiet" disabled={busy} onClick={() => { setMode('account'); setError(''); }}>{t('Cancel')}</button>
-        <button type="button" className="button primary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { showKey(await onReplaceAccessKey()); } catch (error) { setError((error as Error).message); } finally { setBusy(false); } }}>{busy ? t('Replacing…') : t('Replace key')}</button>
-      </div>
     </div> : mode === 'account' ? <>
       <p className="account-username">{user!.username}</p>
       <p className="muted small">{t(dirty ? 'You have unsaved changes.' : 'Your inventory, views, crafting plans, and arsenals belong to this account.')}</p>
       <div className="account-option-list">
         <button type="button" className="button secondary" disabled={busy} onClick={() => { setMode('share'); setError(''); setCopied(''); }}><Share2 size={15} />{t('Share inventory')}</button>
-        <button type="button" className="button secondary" disabled={busy} onClick={() => { setMode('replace'); setError(''); setCopied(''); }}><KeyRound size={15} />{t('Replace access key')}</button>
       </div>
       <div className="account-language">
         <span id={languageLabel}>{t('Language')}</span>
@@ -253,24 +224,11 @@ export function AccountDialog({ user, initialMode, initialError, canIncludeCurre
         </div>
       </div>
       {feedback}
-      <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { setMode('login'); setError(''); }}>{t('Sign in again')}</button><button type="button" className="button secondary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await onSignOut(); onClose(); } catch (error) { setError((error as Error).message); } finally { setBusy(false); } }}>{busy ? t('Signing out…') : t('Sign out')}</button></div>
-    </> : <form className="account-form" onSubmit={async event => {
-      event.preventDefault(); setError(''); setBusy(true);
-      try {
-        const key = await onAuthenticate(mode, username, credential, includeCurrent);
-        if (key) showKey(key); else { setCredential(''); onClose(); }
-      } catch (error) { setError(error instanceof Error ? error.message : 'Could not sign in. Please try again.'); }
-      finally { setBusy(false); }
-    }}>
-      <label>{t('Warframe username')}<input ref={usernameInput} name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={64} required value={username} readOnly={Boolean(user && dirty)} onChange={event => setUsername(event.target.value)} disabled={busy} /></label>
-      {mode === 'login' ? <>
-        <label>{t('Access key')}<input name="accessKey" type="password" autoComplete="current-password" autoCapitalize="none" spellCheck={false} maxLength={128} required value={credential} onChange={event => setCredential(event.target.value)} disabled={busy} /></label>
-      </> : <>
-        <p className="muted small">{t('We’ll generate an access key for you to save. No password or email is needed. If you lose your key and sign-in link, there is no email recovery.')}</p>
-        {canIncludeCurrent && <label className="check-row"><input type="checkbox" checked={includeCurrent} onChange={event => setIncludeCurrent(event.target.checked)} disabled={busy} /><span>{t('Save my current inventory, views, crafting plans, and arsenals to this account')}</span></label>}
-      </>}
+      <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { authStartVersion.current = clerk.sessionVersion; wasAuthenticated.current = false; setMode('login'); setError(''); }}>{t('Sign in again')}</button><button type="button" className="button secondary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await onSignOut(); onClose(); } catch (error) { setError((error as Error).message); } finally { setBusy(false); } }}>{busy ? t('Signing out…') : t('Sign out')}</button></div>
+    </> : <div className="account-form">
+      <ClerkAuthForm mode={mode} />
       {feedback}
-      <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setCredential(''); setError(''); }}>{t(mode === 'login' ? 'Create account' : 'Sign in instead')}</button><button type="submit" className="button primary" disabled={busy}>{t(busy ? 'Please wait…' : mode === 'register' ? 'Create account' : 'Sign in')}</button></div>
-    </form>}
+      <div className="dialog-footer"><button type="button" className="button quiet" disabled={busy} onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{t(mode === 'login' ? 'Create account' : 'Sign in instead')}</button></div>
+    </div>}
   </Dialog>;
 }

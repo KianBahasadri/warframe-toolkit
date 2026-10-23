@@ -41,6 +41,7 @@ if (!['fmt', 'validate', 'version', 'init'].includes(args[0])) {
   const files = ['build/cloudflare/worker.js', 'dist/index.html'];
   const hash = createHash('sha256'); for (const file of files) hash.update(await readFile(file));
   process.env.TF_VAR_release ||= hash.digest('hex').slice(0, 16);
+  process.env.TF_VAR_clerk_jwt_key ||= process.env.CLERK_JWT_KEY || '';
 }
 await new Promise((resolve, reject) => {
   const child = spawn(binary, ['-chdir=infra/cloudflare', ...args], { stdio: 'inherit', env: { ...process.env, TF_IN_AUTOMATION: '1' } });

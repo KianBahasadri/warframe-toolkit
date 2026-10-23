@@ -5,9 +5,8 @@ Read [README.md](README.md) for setup, data semantics, and code locations.
 - Commit completed work and useful checkpoints locally without waiting to be asked.
 - Keep UI controls/data useful and copy minimal. Use player terms: equipment, rewards, sources, results; never “cards.” No slogans or decorative copy.
 - Link relevant community guides only as footnotes in advanced info popups.
-- Require no API key; keep screenshots in the browser.
-- Guests browse/edit temporarily; saving requires an account using a Warframe username and server-generated access key, never a chosen password/email.
-- Sign-in bookmarks carry keys only in URL fragments: consume/remove promptly; never store keys in browser storage or shared links. Preserve legacy saves for explicit migration; never merge accounts.
+- Keep screenshots in the browser.
+- Guests browse/edit temporarily; saving uses Clerk authentication (`@clerk/react` and `@clerk/backend` JWT verification) backed by local SQLite or Cloudflare D1. No legacy access keys or browser-storage save migrations are supported.
 - Preserve all 14 spreadsheet fields; ownership, mastery, and current rank are independent. Imports preserve planning fields and notes. Never silently reset malformed saves.
 - OCR requires review, exact variants, and no inference that missing equipment was sold. Keep README recognition limits accurate.
 - Generate `src/data/catalog.json` with `npm run catalog:update` and `src/data/relics.json` with `npm run catalog:relics`. `src/data/reference.ts` is manual.

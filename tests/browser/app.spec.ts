@@ -1216,18 +1216,6 @@ test('canceling OCR releases the importer and paste uses the focused source', as
   await expect(codex.getByLabel('Owned: Braton Prime', { exact: true })).not.toBeChecked();
 });
 
-test('unreadable saved data is preserved and failed saves remain visible', async ({ page, account }) => {
-  await account.signOut();
-  await page.addInitScript(() => localStorage.setItem('warframe-toolkit.inventory.v1', 'broken original data'));
-  await page.goto('/');
-  await expect(page.getByRole('alert')).toContainText('could not be read');
-  await page.getByRole('button', { name: 'Add weapon', exact: true }).click();
-  await page.getByLabel('Weapon name', { exact: true }).fill('Custom item');
-  await page.getByRole('button', { name: 'Add weapon', exact: true }).last().click();
-  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Couldn’t save');
-  expect(await page.evaluate(() => localStorage.getItem('warframe-toolkit.inventory.v1'))).toBe('broken original data');
-});
-
 test('weapon catalog defaults to owned, combines filters, and adds an unowned weapon without saving the catalog', async ({ page, account }) => {
   const externalRequests: string[] = [];
   const errors: string[] = [];

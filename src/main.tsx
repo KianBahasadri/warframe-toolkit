@@ -7,6 +7,7 @@ import '@fontsource/ibm-plex-sans/700.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import App from './App';
 import { ToastProvider } from './components/Toasts';
+import { AppClerkProvider } from './lib/clerk';
 import { adoptLegacyLocation } from './lib/routes';
 import './styles.css';
 
@@ -17,4 +18,12 @@ if (!(routesInstalled in window)) {
 }
 adoptLegacyLocation();
 
-createRoot(document.getElementById('root')!).render(<StrictMode><ToastProvider><App /></ToastProvider></StrictMode>);
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <AppClerkProvider>
+      <ToastProvider>
+        <App />
+      </ToastProvider>
+    </AppClerkProvider>
+  </StrictMode>,
+);

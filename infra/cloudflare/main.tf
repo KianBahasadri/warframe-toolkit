@@ -16,6 +16,10 @@ variable "hostname" {
   default = "grakata.com"
 }
 variable "release" { type = string }
+variable "clerk_jwt_key" {
+  type    = string
+  default = ""
+}
 
 locals {
   root = abspath("${path.module}/../..")
@@ -102,6 +106,7 @@ resource "cloudflare_workers_script" "app" {
     { name = "ACCOUNTS", type = "durable_object_namespace", class_name = "AccountGateway" },
     { name = "DROPS", type = "durable_object_namespace", class_name = "DropTables" },
     { name = "ACCOUNTS_ORIGIN", type = "plain_text", text = "https://${var.hostname}" },
+    { name = "CLERK_JWT_KEY", type = "plain_text", text = var.clerk_jwt_key },
     { name = "RELEASE", type = "plain_text", text = var.release },
     { name = "WFM_RELAY_URL", type = "plain_text", text = "https://${azurerm_windows_function_app.market.default_hostname}" },
     { name = "WFM_RELAY_KEY", type = "secret_text", text = data.azurerm_function_app_host_keys.market.default_function_key },

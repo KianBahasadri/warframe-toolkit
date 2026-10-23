@@ -5,11 +5,9 @@ export function pageFromPath(pathname: string): Page | null {
   return isPage(name) ? name : null;
 }
 
-/** Old fragment addresses become paths. Sign-in fragments stay off the server. */
+/** Old fragment addresses become paths. */
 export function locationTarget(pathname: string, search: string, hash: string): string {
-  const signIn = hash === '#sign-in' || hash.startsWith('#sign-in?');
   const normalized = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  if (signIn) return `${normalized === '/' || normalized === '/index.html' ? '/weapons' : normalized}${search}${hash}`;
   const body = hash.startsWith('#') ? hash.slice(1) : '';
   const split = body.indexOf('?');
   const legacyName = (split === -1 ? body : body.slice(0, split)).replace(/\/+$/, '');

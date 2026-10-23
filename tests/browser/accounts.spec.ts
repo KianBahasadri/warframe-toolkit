@@ -1,9 +1,6 @@
 import { test, expect } from './accountFixture';
 import type { Page } from '@playwright/test';
 import { initialInventory } from '../../src/data/reference';
-import { defaultDropView } from '../../src/lib/dropTables';
-import { accessKeyLink } from '../../src/lib/account';
-import { readFile } from 'node:fs/promises';
 
 const status = (page: Page) => page.getByRole('status', { name: 'Save status', exact: true });
 async function openGuest(page: Page) {
@@ -16,35 +13,23 @@ async function register(page: Page, username: string, open = true) {
   if (open) await page.getByRole('button', { name: 'Create account', exact: true }).click();
   else await page.getByRole('dialog').getByRole('button', { name: 'Create account', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Create account', exact: true });
-  await dialog.getByLabel('Warframe username', { exact: true }).fill(username);
+  await dialog.getByLabel('Username', { exact: true }).fill(username);
   await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
-  const credentials = await saveKey(page);
+  await expect(dialog).toHaveCount(0);
   await expect(status(page)).toHaveText('Saved');
   await expect(page.getByRole('button', { name: 'Create account', exact: true })).toHaveCount(0);
-  return credentials;
-}
-async function saveKey(page: Page) {
-  const dialog = page.getByRole('dialog', { name: 'Save your access key', exact: true });
-  await expect(dialog).toBeVisible();
-  const accessKey = await dialog.getByLabel('Access key', { exact: true }).inputValue();
-  const link = await dialog.getByLabel('Personal sign-in link', { exact: true }).inputValue();
-  expect(accessKey).toMatch(/^wft_[A-Za-z0-9_-]{43}$/);
-  await dialog.getByLabel('I have saved my key or sign-in link', { exact: true }).check();
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  return { accessKey, link };
 }
 async function signOut(page: Page, username: string) {
   await page.getByRole('button', { name: `Account: ${username}`, exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 }
-async function signIn(page: Page, username: string, accessKey: string) {
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+async function signIn(page: Page, username: string, open = true) {
+  if (open) await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Sign in', exact: true });
-  await dialog.getByLabel('Warframe username', { exact: true }).fill(username);
-  await dialog.getByLabel('Access key', { exact: true }).fill(accessKey);
+  await dialog.getByLabel('Username', { exact: true }).fill(username);
   await dialog.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
 }
 
 test.describe('guest accounts', () => {
@@ -78,46 +63,11 @@ test.describe('guest accounts', () => {
     await expect(page.getByLabel('Owned: Boltor', { exact: true })).not.toBeChecked();
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Sign in', exact: true })).toBeVisible();
-    await expect(page.locator('input[type=email]')).toHaveCount(0);
-    await expect(page.getByText('Created an account with a password?')).toHaveCount(0);
   });
 
-  test('signup copies reviewed legacy data, preserves originals, and keeps access keys out of browser storage', async ({ page, context, account }) => {
-    const legacy = initialInventory();
-    const views = [{ name: 'My relic search', view: { ...defaultDropView(), query: 'relic:lith' } }];
-    await page.addInitScript(({ inventory, views }) => {
-      if (!localStorage.getItem('warframe-toolkit.inventory.v1')) localStorage.setItem('warframe-toolkit.inventory.v1', JSON.stringify(inventory));
-      localStorage.setItem('warframe-toolkit.drop-views.v1', JSON.stringify(views));
-    }, { inventory: legacy, views });
+  test('Clerk accounts keep separate inventories and restore saved data across sign-ins', async ({ page, account }) => {
     await openGuest(page);
-    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
-    await expect(dialog.getByLabel('Save my current inventory, views, crafting plans, and arsenals to this account')).toBeChecked();
-    await expect(dialog.locator('input')).toHaveCount(2);
-    await dialog.getByLabel('Warframe username', { exact: true }).fill('LegacyTenno#123');
-    await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
-    const { accessKey } = await saveKey(page);
-    expect(await account.profile()).toEqual({ inventory: legacy, dropViews: views, craftingPlans: [], arsenals: [] });
-    const boltor = page.getByLabel('Owned: Boltor', { exact: true });
-    await boltor.click();
-    await expect(boltor).toHaveCount(0);
-    await account.profile();
-    await page.reload();
-    await expect(page.getByRole('button', { name: 'Account: LegacyTenno#123', exact: true })).toBeVisible();
-    expect((await account.inventory()).items.find(item => item.name === 'Boltor')!.owned).toBe(false);
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('warframe-toolkit.inventory.v1')!))).toEqual(legacy);
-    const cookies = await context.cookies();
-    const cookie = cookies.find(cookie => cookie.name === 'warframe_toolkit_session')!;
-    expect(cookie.httpOnly).toBe(true); expect(cookie.sameSite).toBe('Lax');
-    expect(await page.evaluate(() => document.cookie)).not.toContain('warframe_toolkit_session');
-    expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(accessKey);
-    expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(cookie.value);
-  });
-
-  test('usernames sign in without case sensitivity, and separate accounts keep separate inventories', async ({ page, account }) => {
-    await openGuest(page);
-    const { accessKey } = await register(page, 'FirstTenno');
+    await register(page, 'FirstTenno');
     expect((await account.inventory()).items).toEqual([]);
     await page.getByRole('button', { name: 'Browse all weapons', exact: true }).click();
     await page.getByLabel('Search weapons').fill('Boltor');
@@ -127,11 +77,7 @@ test.describe('guest accounts', () => {
     await register(page, 'SecondTenno');
     expect((await account.inventory()).items).toEqual([]);
     await signOut(page, 'SecondTenno');
-    await signIn(page, 'FIRSTTENNO', 'wrong key');
-    await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Username or access key is incorrect.');
-    await page.getByRole('dialog').getByLabel('Access key', { exact: true }).fill(accessKey);
-    await page.getByRole('dialog').getByRole('button', { name: 'Sign in', exact: true }).click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await signIn(page, 'FirstTenno');
     const inventory = await account.inventory();
     expect(inventory.items).toHaveLength(1);
     expect(inventory.items[0]).toMatchObject({ name: 'Boltor', owned: true });
@@ -143,14 +89,17 @@ test.describe('guest accounts', () => {
     await expect(page.getByRole('dialog', { name: 'Sign in', exact: true })).toBeVisible();
   });
 
-  test('a delayed initial sign-in check cannot replace a newly created account', async ({ page, context, baseURL, account }) => {
-    const previous = await context.request.post(`${account.url}/api/account/register`, { headers: { Origin: baseURL!, 'X-Toolkit-Request': '1' }, data: { username: 'PreviousTenno' } });
-    expect(previous.status()).toBe(201);
+  test('a delayed initial sign-in check cannot replace a newly authenticated Clerk account', async ({ page, account }) => {
     let resume!: () => void;
     const pause = new Promise<void>(resolve => { resume = resolve; });
+    let intercepted = false;
     await page.route('**/api/account/session', async route => {
+      const hasBearer = Boolean(route.request().headers().authorization);
       const response = await route.fetch({ url: `${account.url}/api/account/session` });
-      await pause;
+      if (!hasBearer && !intercepted) {
+        intercepted = true;
+        await pause;
+      }
       await route.fulfill({ response });
     });
     await page.goto('/droptables');
@@ -159,8 +108,7 @@ test.describe('guest accounts', () => {
     await page.getByRole('button', { name: 'Saved views', exact: true }).click();
     await page.getByRole('button', { name: 'Sign in to save view', exact: true }).click();
     await register(page, 'SlowSessionTenno', false);
-    const checked = page.waitForResponse('**/api/account/session');
-    resume(); await checked;
+    resume();
     await expect(page.getByRole('button', { name: 'Account: SlowSessionTenno', exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Weapons', exact: true }).click();
     await page.getByRole('button', { name: 'Browse all weapons', exact: true }).click();
@@ -181,12 +129,12 @@ test.describe('guest accounts', () => {
       expect(createBounds.x + createBounds.width).toBeLessThanOrEqual(320);
       await create.focus(); await page.keyboard.press('Enter');
       await expect(page.getByRole('dialog')).toHaveAccessibleName('Create account');
-      await expect(page.getByLabel('Warframe username', { exact: true })).toBeFocused();
+      await expect(page.getByLabel('Username', { exact: true })).toBeFocused();
       await page.keyboard.press('Escape');
       await expect(create).toBeFocused();
       await trigger.focus(); await page.keyboard.press('Enter');
       const dialog = page.getByRole('dialog');
-      await expect(dialog.getByLabel('Warframe username', { exact: true })).toBeFocused();
+      await expect(dialog.getByLabel('Username', { exact: true })).toBeFocused();
       await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
       const bounds = await dialog.boundingBox();
       expect(bounds!.x).toBeGreaterThanOrEqual(0);
@@ -254,13 +202,9 @@ test('signing in again after a session ends preserves unsaved changes', async ({
   await expect(page.getByRole('alert')).toContainText('Sign in to save your changes.');
   await page.getByRole('button', { name: 'Account: TestTenno', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in again', exact: true }).click();
-  await expect(page.getByLabel('Warframe username', { exact: true })).toHaveAttribute('readonly', '');
-  await page.getByLabel('Access key', { exact: true }).fill(account.accessKey);
-  await page.getByRole('dialog').getByRole('button', { name: 'Sign in', exact: true }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await signIn(page, 'TestTenno', false);
   expect((await account.inventory()).items.find(item => item.name === 'Boltor')!.mastered).toBe(false);
 });
-
 
 test('edits made while loading a saved version remain in the current draft', async ({ page, account }) => {
   await page.goto('/');
@@ -290,137 +234,6 @@ test('edits made while loading a saved version remain in the current draft', asy
   expect(await account.inventory()).toEqual(remote);
 });
 
-test.describe('generated keys and personal bookmarks', () => {
-  test.use({ signedIn: false });
-
-  test('signup requires saving the key, offers copy and download, and fits mobile themes', async ({ page }) => {
-    await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { (window as Window & { copiedText?: string }).copiedText = text; } } }));
-    await openGuest(page);
-    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
-    await expect(dialog.locator('input[type=password]')).toHaveCount(0);
-    await dialog.getByLabel('Warframe username', { exact: true }).fill('BookmarkTenno#123');
-    await dialog.getByRole('button', { name: 'Create account', exact: true }).click();
-    await expect(dialog).toHaveAccessibleName('Save your access key');
-    const key = await dialog.getByLabel('Access key', { exact: true }).inputValue();
-    const link = await dialog.getByLabel('Personal sign-in link', { exact: true }).inputValue();
-    await expect(dialog.getByRole('button', { name: 'Done', exact: true })).toBeDisabled();
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('alert')).toHaveText('Save your key or sign-in link, then confirm below.');
-    await dialog.getByRole('button', { name: 'Copy key', exact: true }).click();
-    expect(await page.evaluate(() => (window as Window & { copiedText?: string }).copiedText)).toBe(key);
-    await dialog.getByRole('button', { name: 'Copy sign-in link', exact: true }).click();
-    expect(await page.evaluate(() => (window as Window & { copiedText?: string }).copiedText)).toBe(link);
-    await expect(dialog.getByRole('link', { name: 'Drag personal sign-in link to bookmarks' })).toHaveAttribute('href', link);
-    const downloadPromise = page.waitForEvent('download');
-    await dialog.getByRole('button', { name: 'Download key', exact: true }).click();
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toBe('grakata-access-key.txt');
-    const contents = await readFile((await download.path())!, 'utf8');
-    expect(contents).toContain(key); expect(contents).toContain(link); expect(contents).toContain('BookmarkTenno#123');
-    await page.setViewportSize({ width: 320, height: 720 });
-    for (const theme of ['dark', 'light']) {
-      await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
-      const bounds = (await dialog.boundingBox())!;
-      expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
-      expect(bounds.y + bounds.height).toBeLessThanOrEqual(720);
-      await dialog.evaluate(element => { element.scrollTop = 0; });
-      await page.screenshot({ path: `test-results/access-key-${theme}-mobile.png`, fullPage: true });
-    }
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
-    await page.screenshot({ path: 'test-results/access-key-desktop.png', fullPage: true });
-    await saveKey(page);
-    expect(await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage))).not.toContain(key);
-    expect(page.url()).not.toContain(key);
-  });
-
-  test('a reusable bookmark signs in without a session and never sends its key in request URLs or referrers', async ({ page, account }) => {
-    await openGuest(page);
-    const { accessKey, link } = await register(page, 'LinkedTenno#123');
-    await page.getByRole('button', { name: 'Browse all weapons', exact: true }).click();
-    await page.getByLabel('Search weapons').fill('Boltor');
-    await page.getByLabel('Owned: Boltor', { exact: true }).check();
-    await account.profile();
-    const urls: string[] = [], referrers: string[] = [], logins: string[] = [];
-    page.on('request', request => {
-      urls.push(request.url()); referrers.push(request.headers().referer ?? '');
-      if (request.url().endsWith('/api/account/login')) logins.push(request.postData() ?? '');
-    });
-    for (let visit = 0; visit < 2; visit++) {
-      await signOut(page, 'LinkedTenno#123');
-      if (visit === 0) await page.goto('about:blank');
-      await page.goto(link);
-      await expect(page.getByRole('button', { name: 'Account: LinkedTenno#123', exact: true })).toBeVisible();
-      expect((await account.inventory()).items[0]).toMatchObject({ name: 'Boltor', owned: true });
-      expect(page.url()).toMatch(/\/weapons$/);
-      expect(await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage))).not.toContain(accessKey);
-    }
-    expect(logins).toHaveLength(2);
-    expect(JSON.parse(logins[0])).toMatchObject({ username: 'LinkedTenno#123', accessKey });
-    expect(urls.every(url => !url.includes(accessKey))).toBe(true);
-    expect(referrers.every(referrer => !referrer.includes(accessKey))).toBe(true);
-  });
-
-  test('invalid bookmarks are removed from the address bar and leave sign-in available', async ({ page }) => {
-    await page.goto('/#sign-in?username=Tenno&key=incomplete');
-    await expect(page.getByRole('alert')).toContainText('incomplete or invalid');
-    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
-    expect(page.url()).toMatch(/\/weapons$/);
-    const key = `wft_${'x'.repeat(43)}`;
-    await page.goto(accessKeyLink(page.url(), 'UnknownTenno', key));
-    await expect(page.getByRole('alert')).toHaveText('Username or access key is incorrect.');
-    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
-    expect(page.url()).not.toContain(key);
-  });
-
-  test('replacing a key invalidates its old bookmark and keeps the same saved account', async ({ page, account }) => {
-    await openGuest(page);
-    const { link: oldLink } = await register(page, 'RotateTenno');
-    const previous = await account.session();
-    await page.getByRole('button', { name: 'Account: RotateTenno', exact: true }).click();
-    const dialog = page.getByRole('dialog');
-    await dialog.getByRole('button', { name: 'Replace access key', exact: true }).click();
-    await expect(dialog).toContainText('bookmarked sign-in links will stop working');
-    await dialog.getByRole('button', { name: 'Replace key', exact: true }).click();
-    const { link } = await saveKey(page);
-    expect(link).not.toBe(oldLink);
-    expect(await account.session()).toEqual(previous);
-    await signOut(page, 'RotateTenno');
-    const rejectedLogin = page.waitForResponse(response => response.url().endsWith('/api/account/login') && response.request().method() === 'POST');
-    await page.goto(oldLink);
-    expect((await rejectedLogin).status()).toBe(401);
-    await expect(page.getByRole('alert')).toHaveText('Username or access key is incorrect.');
-    const acceptedLogin = page.waitForResponse(response => response.url().endsWith('/api/account/login') && response.request().method() === 'POST');
-    await page.goto(link);
-    expect((await acceptedLogin).status()).toBe(200);
-    await expect(page.getByRole('button', { name: 'Account: RotateTenno', exact: true })).toBeVisible();
-    expect(await account.session()).toEqual(previous);
-  });
-});
-
-test('opening another account bookmark in an active tab cannot discard unsaved edits', async ({ page, account, baseURL }) => {
-  const response = await fetch(`${account.url}/api/account/register`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: baseURL!, 'X-Toolkit-Request': '1' }, body: JSON.stringify({ username: 'OtherLinkedTenno' }) });
-  expect(response.status).toBe(201);
-  const { accessKey } = await response.json();
-  await page.goto('/'); await account.profile();
-  await page.route('**/api/account/profile', route => route.fulfill({ status: 503, json: { error: 'Save temporarily unavailable.' } }));
-  await page.getByLabel('Mastered: Boltor', { exact: true }).uncheck();
-  await expect(status(page)).toHaveText('Unsaved changes');
-  let logins = 0;
-  page.on('request', request => { if (request.url().endsWith('/api/account/login')) logins++; });
-  await page.evaluate(hash => { location.hash = hash; }, new URL(accessKeyLink(page.url(), 'OtherLinkedTenno', accessKey)).hash);
-  await expect(page.getByRole('alert')).toContainText('Save or download your changes before switching accounts.');
-  await expect(page.getByRole('button', { name: 'Account: TestTenno', exact: true })).toBeVisible();
-  await expect(page.getByLabel('Mastered: Boltor', { exact: true })).not.toBeChecked();
-  expect(logins).toBe(0); expect(page.url()).not.toContain(accessKey);
-  expect((await account.session()).user.username).toBe('TestTenno');
-});
-
 test('hovering the username opens account options, clicking opens the modal, and replacing a shared inventory link revokes the old link', async ({ page, account }) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { (window as Window & { copiedText?: string }).copiedText = text; } } }));
   await page.goto('/'); await account.profile();
@@ -428,11 +241,9 @@ test('hovering the username opens account options, clicking opens the modal, and
   const menu = page.getByRole('menu', { name: 'Account options', exact: true });
 
   await trigger.hover();
-  await expect(menu.getByRole('menuitem')).toHaveText(['Share inventory', 'Replace access key', 'Change language', 'Sign out']);
+  await expect(menu.getByRole('menuitem')).toHaveText(['Share inventory', 'Change language', 'Sign out']);
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   const menuBox = (await menu.boundingBox())!;
-  const replaceLabelBox = (await menu.getByRole('menuitem', { name: 'Replace access key', exact: true }).locator('span').boundingBox())!;
-  expect(menuBox.x + menuBox.width - (replaceLabelBox.x + replaceLabelBox.width)).toBeLessThanOrEqual(20);
   expect(menuBox.height).toBeLessThanOrEqual(148);
 
   await menu.getByRole('menuitem', { name: 'Change language', exact: true }).click();
@@ -452,7 +263,6 @@ test('hovering the username opens account options, clicking opens the modal, and
   await expect(menu).toHaveCount(0);
   const dialog = page.getByRole('dialog', { name: 'Account', exact: true });
   await expect(dialog.getByRole('button', { name: 'Share inventory', exact: true })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Replace access key', exact: true })).toBeVisible();
   await expect(dialog.getByRole('radio', { name: 'English', exact: true })).toBeChecked();
   await expect(dialog.getByRole('radio', { name: '简体中文', exact: true })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
@@ -481,9 +291,7 @@ test('hovering the username opens account options, clicking opens the modal, and
   await expect(page.getByLabel('Owned: Boltor', { exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Add weapon', exact: true })).toHaveCount(0);
 
-  const liveInventory = (await account.session()).profile?.inventory ?? initialInventory();
-  await signIn(page, 'TestTenno', account.accessKey);
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await signIn(page, 'TestTenno');
   await page.getByRole('button', { name: 'View my inventory', exact: true }).click();
   await expect(page).toHaveURL(/\/weapons$/);
   await page.getByLabel('Mastered: Boltor', { exact: true }).uncheck();
@@ -491,7 +299,6 @@ test('hovering the username opens account options, clicking opens the modal, and
 
   await page.goto(firstShareLink);
   await expect(page.getByLabel('Mastered: Boltor', { exact: true })).not.toBeChecked();
-  expect(liveInventory).toBeTruthy();
 
   await trigger.click();
   await page.getByRole('dialog', { name: 'Account', exact: true }).getByRole('button', { name: 'Share inventory', exact: true }).click();
