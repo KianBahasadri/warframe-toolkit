@@ -96,7 +96,7 @@ export function buildCatalog(lists, game, sources) {
     const craftingTargets = (targets.get(id) || []).sort((a,b) => a.name.localeCompare(b.name));
     const questRewards = [...(quests.get(id) || [])];
     for (const reward of questSupplements[item.name] || []) if (!questRewards.some(x => x.name === reward.name && x.kind === reward.kind)) questRewards.push(reward);
-    const statKeys = ['totalDamage', 'criticalChance', 'criticalMultiplier', 'procChance', 'fireRate', 'accuracy', 'magazineSize', 'reloadTime', 'multishot', 'noise', 'trigger', 'range', 'blockingAngle', 'comboDuration', 'followThrough', 'slamAttack', 'slamRadialDamage', 'slamRadius', 'slideAttack', 'heavyAttackDamage', 'heavySlamAttack', 'heavySlamRadialDamage', 'heavySlamRadius', 'windUp', 'disposition', 'omegaAttenuation'];
+    const statKeys = ['totalDamage', 'criticalChance', 'criticalMultiplier', 'procChance', 'fireRate', 'accuracy', 'magazineSize', 'reloadTime', 'multishot', 'noise', 'trigger', 'range', 'blockingAngle', 'comboDuration', 'followThrough', 'slamAttack', 'slamRadialDamage', 'slamRadius', 'slideAttack', 'heavyAttackDamage', 'heavySlamAttack', 'heavySlamRadialDamage', 'heavySlamRadius', 'windUp'];
     const stats = Object.fromEntries(statKeys.filter(key => item[key] !== undefined).map(key => [key, typeof item[key] === 'number' ? round(item[key]) : item[key]]));
     const icon = item.icon || original.icon;
     const imageName = item.imageName || `${id.split('/').at(-1)}.png`;

@@ -106,9 +106,6 @@ main:has(> .modder-page.is-upgrades) { max-width: 1760px; padding: 16px 3vw 32px
 .modder-damage-icon { display: inline-block; width: 15px; height: 15px; object-fit: contain; flex-shrink: 0; }
 .modder-damage-components { display: inline-flex; align-items: center; gap: 1px; }
 .modder-damage-components .modder-damage-icon { width: 12px; height: 12px; }
-.modder-riven-disposition { display: flex; align-items: center; gap: 2px; }
-.modder-riven-disposition > i { display: block; width: 10px; height: 10px; border: 1px solid var(--gold-bright); border-radius: 50%; padding: 1px; }
-.modder-riven-disposition > .is-filled { background: var(--gold-bright); background-clip: content-box; }
 .modder-config-bar { justify-content: space-between; min-height: 36px; gap: 8px; margin-bottom: 18px; border: 0; background: color-mix(in srgb, var(--surface-raised) 70%, transparent); }
 .modder-configs { display: flex; align-items: stretch; gap: 8px; min-width: 0; flex: 1; }
 .modder-configs .modder-name { flex: 0 1 160px; min-width: 90px; }

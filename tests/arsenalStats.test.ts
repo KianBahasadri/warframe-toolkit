@@ -37,7 +37,6 @@ test('Atomos exposes live heat, viral and status alongside sourced utility rows 
   assert.equal(utility.find(row => row.key === 'Accuracy')?.value, 'Low');
   assert.equal(utility.find(row => row.key === 'Beam Range')?.value, 15);
   assert.equal(utility.find(row => row.key === 'Beam Range')?.base, true);
-  assert.equal(utility.find(row => row.key === 'Riven disposition')?.disposition, 3);
   assert.equal(utility.find(row => row.key === 'Magazine')?.details?.find(row => row.key === 'Ammo Maximum')?.value, 350);
   assert.equal(utility.find(row => row.key === 'Trigger')?.details?.find(row => row.key === 'Noise')?.value, 'Alarming');
   assert.ok(Math.abs(Number(damage.find(row => row.key === 'Status / projectile')?.value) - 58.8) < .001);
@@ -76,7 +75,7 @@ test('reference data never fills missing variant values and never changes calcul
   const map = new Map([[unknown.id, unknown]]), result = calculate(build, 'Primary', map);
   const before = structuredClone(result);
   const rows = arsenalWeaponStats(build, 'Primary', map, result).flatMap(group => group.rows);
-  assert.ok(!rows.some(row => row.key === 'Accuracy' || row.key === 'Riven disposition'));
+  assert.ok(!rows.some(row => row.key === 'Accuracy'));
   assert.equal(rows.find(row => row.key === 'Status / projectile')?.value, null);
   assert.deepEqual(result, before);
 });

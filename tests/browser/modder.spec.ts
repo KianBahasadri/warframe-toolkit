@@ -300,7 +300,6 @@ test.describe('guest workshop', () => {
     await expect(attributes.locator('[data-arsenal-stat="viral"]')).toHaveText('111.36');
     await expect(attributes.locator('[data-arsenal-stat="Accuracy"]')).toHaveText('Low');
     await expect(attributes.locator('[data-arsenal-stat="Beam Range"]')).toHaveText('15 m');
-    await expect(attributes.getByRole('img', { name: '3 of 5' })).toBeVisible();
     await attributes.getByRole('button', { name: 'Magazine details', exact: true }).click();
     await expect(attributes.locator('[data-arsenal-stat="Ammo Maximum"]')).toHaveText('350');
     await attributes.getByRole('button', { name: 'Magazine details', exact: true }).click();

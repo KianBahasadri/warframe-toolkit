@@ -14,7 +14,7 @@ const references = reference.weapons as Record<string, WeaponReference>;
 export const weaponReferenceSources = reference.sources;
 export interface ArsenalStat {
   key: string; label: string; value: number | string | null; unit?: string; damageType?: string;
-  disposition?: number; base?: boolean; title?: string; details?: ArsenalStat[];
+  base?: boolean; title?: string; details?: ArsenalStat[];
 }
 export interface ArsenalStatGroup { title?: string; note?: string; rows: ArsenalStat[] }
 export const arsenalStatText = (row: ArsenalStat) => row.value === null ? 'Unavailable' : `${typeof row.value === 'number' ? fmt(row.value) : row.value}${row.unit ? ` ${row.unit}` : ''}`;
@@ -52,11 +52,9 @@ export function arsenalWeaponStats(build: ArsenalBuild, slot: ArsenalSlot, items
     ...base('Falloff', attackMeta.falloff && `${fmt(attackMeta.falloff.start)}–${fmt(attackMeta.falloff.end)} m (${fmt(attackMeta.falloff.reduction * 100)}%)`),
     step(calculation, 'Damage / projectile', 'Total', ''),
   ];
-  const riven = Number(values.disposition);
-  const disposition: ArsenalStat[] = Number.isInteger(riven) && riven >= 1 && riven <= 5 ? [{ key: 'Riven disposition', label: 'Riven Disposition', value: riven, disposition: riven, title: `${riven} of 5${typeof values.omegaAttenuation === 'number' ? ` · ${fmt(values.omegaAttenuation)}× Riven multiplier` : ''}. Catalog snapshot; Riven mods are not simulated.` }] : [];
   const range = (attackMeta: AttackReference, beam: boolean) => base(beam ? 'Beam Range' : 'Range', attackMeta.range ?? values.range, 'm');
   if (slot === 'Melee') {
-    groups.push({ rows: [step(result, 'Attack speed', 'Attack Speed', ''), ...range(meta, false), ...base('Combo Duration', values.comboDuration, 's'), ...base('Follow Through', values.followThrough), ...base('Blocking Angle', values.blockingAngle, '°'), ...disposition] });
+    groups.push({ rows: [step(result, 'Attack speed', 'Attack Speed', ''), ...range(meta, false), ...base('Combo Duration', values.comboDuration, 's'), ...base('Follow Through', values.followThrough), ...base('Blocking Angle', values.blockingAngle, '°')] });
   } else {
     const magazine = step(result, 'Magazine');
     magazine.details = [...base('Ammo Maximum', source?.ammoMax), ...base('Ammo Pickup', source?.ammoPickup), ...base('Ammo Cost', meta.ammoCost)];
@@ -69,7 +67,7 @@ export function arsenalWeaponStats(build: ArsenalBuild, slot: ArsenalSlot, items
       ...(accuracy ? [accuracy] : []), ...(trigger ? [trigger] : []),
       ...(values.noise === 'Silent' ? base('Noise', values.noise) : []), ...range(meta, source?.beam === true && !/Incarnon|Radial|Explosion/i.test(selectedAttack?.name ?? '')),
       ...base('Punch Through', meta.punchThrough && meta.punchThrough > 0 ? meta.punchThrough : undefined, 'm'),
-      ...base('Projectile Speed', meta.shotSpeed, 'm/s'), ...base('Charge Time', meta.chargeTime, 's'), ...disposition] });
+      ...base('Projectile Speed', meta.shotSpeed, 'm/s'), ...base('Charge Time', meta.chargeTime, 's')] });
   }
   groups.push({ title: selectedAttack && equipment.attack >= 0 ? selectedAttack.name : 'Damage', note: /Incarnon/i.test(selectedAttack?.name ?? '') ? 'Evolutions excluded' : undefined, rows: damageRows(result, meta) });
   for (const [index, attack] of attacks.entries()) {

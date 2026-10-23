@@ -13,7 +13,7 @@ function StatRow({ row, prefix }: { row: ArsenalStat; prefix: string }) {
   return <>
     <div className={`modder-stat-row${row.base ? ' is-base' : ''}`} title={row.base ? `Base reference value; modifiers to this attribute are not simulated.${row.title ? ` ${row.title}` : ''}` : row.title}>
       <dt>{row.details?.length ? <button type="button" aria-label={`${row.label} details`} aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>{label}<span aria-hidden="true">◇</span></button> : label}</dt>
-      <dd data-arsenal-stat={`${prefix}${row.key}`}>{row.disposition ? <span className="modder-riven-disposition" role="img" aria-label={`${row.disposition} of 5`}>{Array.from({ length: 5 }, (_, index) => <i key={index} className={index < row.disposition! ? 'is-filled' : ''} />)}</span> : arsenalStatText(row)}</dd>
+      <dd data-arsenal-stat={`${prefix}${row.key}`}>{arsenalStatText(row)}</dd>
     </div>
     {!!row.details?.length && <div id={id} className="modder-stat-subrows" hidden={!open}><dt className="sr-only">{row.label} details</dt><dd><dl>{row.details.map(detail => <StatRow key={detail.key} row={detail} prefix={prefix} />)}</dl></dd></div>}
   </>;

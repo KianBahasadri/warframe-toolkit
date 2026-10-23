@@ -7,7 +7,7 @@ const number = (value: number) => value.toLocaleString(undefined, { maximumFract
 const label = (key: string) => key.replace(/([a-z])([A-Z])/g, '$1 $2').replaceAll('_', ' ').replace(/^./, char => char.toUpperCase());
 const statLabels: Record<string, string> = {
   procChance: 'Status chance', criticalChance: 'Critical chance', criticalMultiplier: 'Critical multiplier',
-  fireRate: 'Attack / fire rate', magazineSize: 'Magazine', reloadTime: 'Reload time', omegaAttenuation: 'Riven multiplier', disposition: 'Riven disposition (1–5)',
+  fireRate: 'Attack / fire rate', magazineSize: 'Magazine', reloadTime: 'Reload time',
   crit_chance: 'Critical chance', crit_mult: 'Critical multiplier', status_chance: 'Status chance', speed: 'Attack / fire rate', shot_type: 'Shot type', shot_speed: 'Projectile speed', flight: 'Flight speed',
 };
 export function formatStatLabel(key: string): string {

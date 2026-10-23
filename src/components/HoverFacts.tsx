@@ -11,7 +11,7 @@ import { Tooltip } from './Tooltip';
 import { formatDuration, formatStat, formatStatLabel } from './WeaponDetails';
 
 const byName = new Map(catalog.map(item => [normalizeName(item.name), item]));
-const weaponStatOrder = ['totalDamage', 'criticalChance', 'criticalMultiplier', 'procChance', 'fireRate', 'multishot', 'magazineSize', 'reloadTime', 'trigger', 'disposition'];
+const weaponStatOrder = ['totalDamage', 'criticalChance', 'criticalMultiplier', 'procChance', 'fireRate', 'multishot', 'magazineSize', 'reloadTime', 'trigger'];
 
 export function HoverTip({ children, content, className }: { children: ReactNode; content: ReactNode | null; className?: string }) {
   if (!content) return className ? <span className={className}>{children}</span> : children;
