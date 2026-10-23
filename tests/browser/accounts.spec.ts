@@ -227,6 +227,29 @@ test('signing in again cannot overwrite changes saved on another device', async 
   expect((await account.session()).profile.inventory).toEqual(remote);
 });
 
+test('sign-out closes account details when Clerk clears the user before its promise resolves', async ({ page, account }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  await account.profile();
+  await page.evaluate(() => {
+    const win = window as Window & { Clerk?: { signOut: () => Promise<void> }; finishSignOut?: () => void };
+    const original = win.Clerk!.signOut.bind(win.Clerk);
+    win.Clerk!.signOut = async () => {
+      await original();
+      await new Promise<void>(resolve => { win.finishSignOut = resolve; });
+    };
+  });
+  await page.getByRole('button', { name: 'Account: TestTenno', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Sign out', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.evaluate(() => (window as Window & { finishSignOut?: () => void }).finishSignOut?.());
+  expect(errors).toEqual([]);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Sign in', exact: true })).toBeVisible();
+});
+
 test('edits made while loading a saved version remain in the current draft', async ({ page, account }) => {
   await page.goto('/');
   const remote = await account.inventory();

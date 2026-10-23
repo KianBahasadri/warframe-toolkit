@@ -149,6 +149,11 @@ export function AccountDialog({ user, initialMode, initialError, dirty, checking
   const shareInput = useRef<HTMLInputElement>(null);
   const authStartVersion = useRef(clerk.sessionVersion);
   const wasAuthenticated = useRef(Boolean(user && !dirty && !accountError));
+  const needsUser = mode === 'account' || mode === 'share';
+
+  useEffect(() => {
+    if (needsUser && !user) onClose();
+  }, [needsUser, user, onClose]);
 
   useEffect(() => {
     if (mode !== 'login' && mode !== 'register') return;
@@ -180,6 +185,8 @@ export function AccountDialog({ user, initialMode, initialError, dirty, checking
     try { await navigator.clipboard.writeText(value); setCopied(t(`${label} copied.`)); }
     catch { setError(t('Could not copy. Select and copy the text instead.')); }
   };
+  // Clerk can clear the user before its asynchronous sign-out finishes.
+  if (needsUser && !user) return null;
   const shareLink = shareToken ? shareInventoryLink(location.href, shareToken) : '';
   const title = t(mode === 'share' ? 'Share inventory' : mode === 'account' ? 'Account' : mode === 'register' ? 'Create account' : 'Sign in');
   const feedback = <>{error && <p className="error-text" role="alert">{error}</p>}{copied && <p className="muted small" role="status">{copied}</p>}</>;
