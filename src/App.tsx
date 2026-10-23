@@ -50,7 +50,7 @@ export default function App() {
   const clerk = useClerkAuth();
   const inventory = account.profile.inventory;
   const commit = (next: Inventory, saveDelay?: number) => { const saved = account.commitInventory(next, saveDelay); if (saved) inventoryRef.current = next; return saved; };
-  const [accountOpen, setAccountOpen] = useState<{ mode: 'account' | 'share'; error?: string } | null>(null);
+  const [accountOpen, setAccountOpen] = useState<{ mode: 'account' | 'share' | 'about'; error?: string } | null>(null);
   const openAccount = (mode: AccountDialogMode, error?: string) => {
     if (mode === 'login') clerk.openSignIn();
     else if (mode === 'register') clerk.openSignUp();

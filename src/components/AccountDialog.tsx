@@ -1,12 +1,13 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Languages, LogOut, RefreshCw, Share2, UserRound } from 'lucide-react';
+import { ArrowLeft, Check, Copy, ExternalLink, Info, Languages, LogOut, RefreshCw, Share2, UserRound } from 'lucide-react';
 import { Dialog } from './Dialog';
 import { shareInventoryLink } from '../lib/account';
 import type { AccountUser } from '../lib/account';
 import { useClerkAuth } from '../lib/clerk';
 import { LANGUAGES, t, useLanguage } from '../lib/i18n';
 
-export type AccountDialogMode = 'account' | 'login' | 'register' | 'share';
+export type AccountDialogMode = 'account' | 'login' | 'register' | 'share' | 'about';
+export const GITHUB_REPO_URL = 'https://github.com/KianBahasadri/warframe-toolkit';
 
 export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }: {
   user: AccountUser | null;
@@ -121,6 +122,7 @@ export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }
       </> : <>
         <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); onOpen('share'); }}><Share2 size={15} /><span>{t('Share inventory')}</span></button>
         <button type="button" role="menuitem" data-account-action="language" tabIndex={-1} onClick={() => { pendingFocus.current = 'checked'; setView('language'); }}><Languages size={15} /><span>{t('Change language')}</span></button>
+        <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); onOpen('about'); }}><Info size={15} /><span>{t('About')}</span></button>
         <button type="button" role="menuitem" tabIndex={-1} onClick={() => { dismiss(); void onSignOut().catch(error => onOpen('account', (error as Error).message)); }}><LogOut size={15} /><span>{t('Sign out')}</span></button>
       </>}
     </div>}
@@ -129,7 +131,7 @@ export function AccountActions({ user, checking, dialogOpen, onOpen, onSignOut }
 
 type Props = {
   user: AccountUser | null;
-  initialMode: 'account' | 'share';
+  initialMode: 'account' | 'share' | 'about';
   initialError?: string;
   dirty: boolean;
   onShareInventory: (replace?: boolean) => Promise<string>;
@@ -174,7 +176,7 @@ export function AccountDialog({ user, initialMode, initialError, dirty, onShareI
   // Clerk can clear the user before its asynchronous sign-out finishes.
   if (!user) return null;
   const shareLink = shareToken ? shareInventoryLink(location.href, shareToken) : '';
-  const title = t(mode === 'share' ? 'Share inventory' : 'Account');
+  const title = t(mode === 'share' ? 'Share inventory' : mode === 'about' ? 'About' : 'Account');
   const feedback = <>{error && <p className="error-text" role="alert">{error}</p>}{copied && <p className="muted small" role="status">{copied}</p>}</>;
   return <Dialog title={title} onClose={close} className="account-dialog">
     {mode === 'share' ? <div className="account-form">
@@ -197,11 +199,21 @@ export function AccountDialog({ user, initialMode, initialError, dirty, onShareI
         <button type="button" className="button quiet" disabled={busy} onClick={() => { setMode('account'); setError(''); setCopied(''); }}>{t('Back')}</button>
         <button type="button" className="button primary" disabled={busy} onClick={close}>{t('Done')}</button>
       </div>
+    </div> : mode === 'about' ? <div className="account-form">
+      <p className="muted small">{t('Warframe catalogs, inventory, crafting plans, official drop tables, and an arsenal modding workshop. Independent fan tool; not affiliated with Digital Extremes.')}</p>
+      <div className="account-key-actions">
+        <a className="button secondary" href={GITHUB_REPO_URL} target="_blank" rel="noreferrer"><ExternalLink size={15} />{t('GitHub repository')}</a>
+      </div>
+      <div className="dialog-footer">
+        <button type="button" className="button quiet" onClick={() => { setMode('account'); setError(''); setCopied(''); }}>{t('Back')}</button>
+        <button type="button" className="button primary" onClick={close}>{t('Done')}</button>
+      </div>
     </div> : <>
       <p className="account-username">{user.username}</p>
       <p className="muted small">{t(dirty ? 'You have unsaved changes.' : 'Your inventory, views, crafting plans, and arsenals belong to this account.')}</p>
       <div className="account-option-list">
         <button type="button" className="button secondary" disabled={busy} onClick={() => { setMode('share'); setError(''); setCopied(''); }}><Share2 size={15} />{t('Share inventory')}</button>
+        <button type="button" className="button secondary" disabled={busy} onClick={() => { setMode('about'); setError(''); setCopied(''); }}><Info size={15} />{t('About')}</button>
       </div>
       <div className="account-language">
         <span id={languageLabel}>{t('Language')}</span>

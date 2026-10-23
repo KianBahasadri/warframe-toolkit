@@ -290,11 +290,19 @@ test('hovering the username opens account options, clicking opens the modal, and
   const menu = page.getByRole('menu', { name: 'Account options', exact: true });
 
   await trigger.hover();
-  await expect(menu.getByRole('menuitem')).toHaveText(['Share inventory', 'Change language', 'Sign out']);
+  await expect(menu.getByRole('menuitem')).toHaveText(['Share inventory', 'Change language', 'About', 'Sign out']);
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   const menuBox = (await menu.boundingBox())!;
   expect(menuBox.height).toBeLessThanOrEqual(148);
 
+  await menu.getByRole('menuitem', { name: 'About', exact: true }).click();
+  const aboutDialog = page.getByRole('dialog', { name: 'About', exact: true });
+  await expect(aboutDialog).toBeVisible();
+  await expect(aboutDialog.getByRole('link', { name: 'GitHub repository', exact: true })).toHaveAttribute('href', 'https://github.com/KianBahasadri/warframe-toolkit');
+  await aboutDialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(aboutDialog).toHaveCount(0);
+
+  await trigger.hover();
   await menu.getByRole('menuitem', { name: 'Change language', exact: true }).click();
   const languageMenu = page.getByRole('menu');
   await expect(languageMenu.getByRole('menuitemradio', { name: 'English', exact: true })).toBeChecked();
